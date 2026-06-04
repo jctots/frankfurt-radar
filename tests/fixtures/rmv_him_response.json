@@ -1,0 +1,31 @@
+{
+  "Message": [
+    {
+      "hid": "HIM_FPLAN_001",
+      "head": "Frankfurt - S-Bahn Stoerung",
+      "text": "Aufgrund einer Stellwerksstörung kommt es zu <b>Verspätungen</b> auf der S1.",
+      "region": {"name": "frankfurt"},
+      "affectedProduct": [{"cls": "8", "line": "S1"}, {"cls": "8", "line": "S2"}],
+      "eDate": "2026-06-04",
+      "eTime": "20:00",
+      "modDate": "2026-06-04",
+      "modTime": "10:00",
+      "edge": [
+        {
+          "iconCoordinate": {"lat": 50.107, "lon": 8.664},
+          "sStop": {"name": "Frankfurt Hbf"},
+          "eStop": {"name": "Frankfurt Süd"}
+        }
+      ]
+    },
+    {
+      "hid": "HIM_OTHER_002",
+      "head": "Darmstadt - U-Bahn Störung",
+      "text": "Keine Auswirkungen auf Frankfurt.",
+      "region": {"name": "darmstadt"},
+      "affectedProduct": [{"cls": "16", "line": "U1"}],
+      "eDate": "2026-06-04",
+      "eTime": "21:00"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Polizeipräsidium Frankfurt am Main</title>
+    <link>https://www.presseportal.de/blaulicht/dienststelle/4970</link>
+    <item>
+      <guid>https://www.presseportal.de/blaulicht/pm/4970/1234567</guid>
+      <title>POL-F: 2026-001 Frankfurt-Sachsenhausen: Verkehrsunfall</title>
+      <link>https://www.presseportal.de/blaulicht/pm/4970/1234567</link>
+      <pubDate>Wed, 04 Jun 2026 10:00:00 +0000</pubDate>
+      <content:encoded><![CDATA[Polizeipräsidium Frankfurt [Newsroom] Sachsenhausen: Ein Verkehrsunfall ereignete sich auf der Brückenstraße. Original-Content von: Polizeipräsidium Frankfurt, übermittelt durch news aktuell]]></content:encoded>
+    </item>
+    <item>
+      <guid>https://www.presseportal.de/blaulicht/pm/4970/1234568</guid>
+      <title>POL-F: 2026-002 Frankfurt-Innenstadt: Einbruch gemeldet</title>
+      <link>https://www.presseportal.de/blaulicht/pm/4970/1234568</link>
+      <pubDate>Wed, 04 Jun 2026 08:00:00 +0000</pubDate>
+      <content:encoded><![CDATA[Polizeipräsidium Frankfurt [Newsroom] Innenstadt: Ein Einbruch wurde in der Altstadt gemeldet. Original-Content von: Polizeipräsidium Frankfurt, übermittelt durch news aktuell]]></content:encoded>
+    </item>
+  </channel>
+</rss>

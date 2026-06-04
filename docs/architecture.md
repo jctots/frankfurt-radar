@@ -1,6 +1,6 @@
-# Frankfurt Radar — Architecture
+# 🏗️ Frankfurt Radar — Architecture
 
-## Overview
+## 🔭 Overview
 
 Frankfurt Radar is composed of two independently deployable containers — a **poller** and a **web server** — sharing a single SQLite database via a Docker volume.
 
@@ -30,7 +30,7 @@ The poller runs on a cron schedule; the web container is always-on. Neither know
 
 ---
 
-## Poller container
+## 📦 Poller container
 
 ### Startup (`entrypoint.sh`)
 
@@ -129,7 +129,7 @@ The `notify(title, body, url, config)` function is the single call site — back
 
 ---
 
-## Database (`db.py`)
+## 🗄️ Database (`db.py`)
 
 SQLite at `data/radar.db` with WAL mode. Five tables:
 
@@ -145,7 +145,7 @@ SQLite at `data/radar.db` with WAL mode. Five tables:
 
 ---
 
-## Web container
+## 🌐 Web container
 
 Flask app served by gunicorn. Three routes:
 
@@ -170,7 +170,7 @@ Single-page app with no build step:
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 `config.yaml` is the single non-secret configuration source. It lives in the `data/` volume and is editable at runtime — no rebuild needed. `.env` holds secrets only (`RMV_API_KEY`, `TELEGRAM_BOT_TOKEN`, `GOOGLE_TRANSLATE_API_KEY`).
 
@@ -178,7 +178,7 @@ Single-page app with no build step:
 
 ---
 
-## Data flow summary
+## 🔄 Data flow summary
 
 ```
 RMV / DWD / Polizei APIs

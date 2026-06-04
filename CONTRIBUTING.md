@@ -1,6 +1,6 @@
-# Contributing to Frankfurt Radar
+# 🤝 Contributing to Frankfurt Radar
 
-## Running locally
+## 🖥️ Running locally
 
 ```bash
 python -m venv .venv
@@ -18,7 +18,7 @@ pip install -r requirements.txt
 flask --app app run --port 8080
 ```
 
-## Project structure
+## 📁 Project structure
 
 | File | Purpose |
 |------|---------|
@@ -33,14 +33,14 @@ flask --app app run --port 8080
 | `web/app.py` | Flask API and status page server |
 | `web/templates/index.html` | Single-page status UI |
 
-## Adding a new alert source
+## ➕ Adding a new alert source
 
 1. Subclass `BasePoller` in `pollers.py`
 2. Implement `fetch() -> list[Alert]` — return normalised `Alert` objects
 3. Register it in the source list in `pipeline.py`
 4. Document the data source and its license in `README.md`
 
-## Pull requests
+## 🔀 Pull requests
 
 - One logical change per PR
 - Run `python main.py --mode poll` locally and confirm no exceptions before submitting
