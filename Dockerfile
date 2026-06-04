@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends cron && rm -rf 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY *.py .
 COPY crontab /etc/cron.d/frankfurt-radar
 RUN chmod 0644 /etc/cron.d/frankfurt-radar
 

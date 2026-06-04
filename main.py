@@ -7,9 +7,9 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+from db import expire_processed_alerts, init_db, sync_alert_cache
 from pipeline import process_alerts
 from pollers import DWDPoller, PolizeiPoller, RMVPoller
-from state import expire_seen, load_seen, save_seen, write_status
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -42,6 +42,8 @@ def main() -> None:
         sys.exit(1)
 
     config = load_config()
+    init_db()
+
     transport_cfg = config.get("transport", {})
     services = transport_cfg.get("services") or {}
 
@@ -55,12 +57,9 @@ def main() -> None:
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 
-    write_status(all_alerts, config)
-
-    seen = load_seen()
-    seen = expire_seen(seen)
-    seen = process_alerts(all_alerts, seen, mode=args.mode, config=config)
-    save_seen(seen)
+    sync_alert_cache(all_alerts, config)
+    expire_processed_alerts()
+    process_alerts(all_alerts, mode=args.mode, config=config)
 
 
 if __name__ == "__main__":

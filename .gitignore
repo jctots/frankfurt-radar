@@ -4,6 +4,7 @@
 # Runtime state
 seen.json
 status.json
+*.db
 
 # Python
 .venv/

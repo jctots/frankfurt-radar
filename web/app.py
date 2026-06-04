@@ -1,18 +1,20 @@
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import yaml
-from flask import Flask, Response, jsonify, render_template
+from flask import Flask, jsonify, render_template
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from db import get_status_json, init_db
 
 app = Flask(__name__)
 
-DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
-STATUS_FILE = DATA_DIR / "status.json"
 CONFIG_FILE = Path(os.getenv("CONFIG_FILE", "/app/config.yaml"))
 MAIN_PY = Path(os.getenv("MAIN_PY", "/app/main.py"))
+
+init_db()
 
 
 @app.route("/")
@@ -22,9 +24,7 @@ def index():
 
 @app.route("/api/status")
 def api_status():
-    if STATUS_FILE.exists():
-        return Response(STATUS_FILE.read_bytes(), mimetype="application/json; charset=utf-8")
-    return jsonify({"updated_at": None, "alerts": []})
+    return jsonify(get_status_json())
 
 
 @app.route("/api/poll", methods=["POST"])
@@ -43,9 +43,7 @@ def api_poll():
         return jsonify({"error": "Poll timed out after 90s"}), 504
     if result.returncode != 0:
         return jsonify({"error": result.stderr[-500:]}), 500
-    if STATUS_FILE.exists():
-        return Response(STATUS_FILE.read_bytes(), mimetype="application/json; charset=utf-8")
-    return jsonify({"updated_at": None, "alerts": []})
+    return jsonify(get_status_json())
 
 
 def _allow_manual_poll() -> bool:

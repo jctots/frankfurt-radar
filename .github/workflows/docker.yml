@@ -1,0 +1,60 @@
+name: Build and push Docker images
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metadata — poller
+        id: meta-poller
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jctots/frankfurt-radar-poller
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Metadata — web
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jctots/frankfurt-radar-web
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push poller
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          dockerfile: Dockerfile
+          push: true
+          tags: ${{ steps.meta-poller.outputs.tags }}
+          labels: ${{ steps.meta-poller.outputs.labels }}
+
+      - name: Build and push web
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          dockerfile: web/Dockerfile
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}

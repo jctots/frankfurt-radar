@@ -1,8 +1,6 @@
 services:
   poller:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/jctots/frankfurt-radar-poller:${RADAR_TAG:-latest}
     environment:
       - TZ=Europe/Berlin
     volumes:
@@ -14,9 +12,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
+    image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
     environment:
       - TZ=Europe/Berlin
     volumes:
@@ -36,5 +32,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  radar_data:   # shared between poller (seen.json, status.json) and web (read-only for status.json)
+  radar_data:   # shared SQLite DB (radar.db) between poller and web containers
   ntfy_data:
