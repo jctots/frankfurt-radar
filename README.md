@@ -3,7 +3,8 @@
 [![Tests](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml)
 [![Docker](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GHCR](https://img.shields.io/badge/ghcr.io-jctots%2Ffrankfurt--radar-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-poller)
+[![GHCR poller](https://img.shields.io/badge/ghcr.io-poller-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-poller)
+[![GHCR web](https://img.shields.io/badge/ghcr.io-web-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-web)
 
 Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, and local police reports, translated to English and delivered to where you are.
 
@@ -93,3 +94,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
+
+## ☕ Support
+
+Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.
+
+[![Support on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/)
