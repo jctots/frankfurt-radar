@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Frankfurt Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --clr-bg:      #f0f2f5;
+      --clr-surface: #ffffff;
+      --clr-border:  #e2e8f0;
+      --clr-text:    #1e293b;
+      --clr-muted:   #64748b;
+      --clr-header:  #0f172a;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    header {
+      background: var(--clr-header);
+      color: white;
+      padding: 0 16px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand { font-size: 16px; font-weight: 700; color: white; text-decoration: none; }
+    .brand span { font-weight: 400; opacity: 0.6; font-size: 13px; margin-left: 8px; }
+    main {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 40px 48px;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .meta { color: var(--clr-muted); font-size: 12px; margin-bottom: 32px; }
+    h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; }
+    h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: var(--clr-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    p { margin-bottom: 12px; }
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    ul li { margin-bottom: 4px; }
+    a { color: #1a73e8; }
+    hr { border: none; border-top: 1px solid var(--clr-border); margin: 32px 0; }
+    .footer { text-align: center; color: var(--clr-muted); font-size: 12px; margin-top: 32px; }
+    .footer a { color: var(--clr-muted); }
+    @media (max-width: 600px) {
+      main { padding: 24px 20px; border-radius: 0; border-left: none; border-right: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/">📡 Frankfurt Radar<span>Privacy Policy</span></a>
+</header>
+
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Last updated: 2026-06-05</p>
+
+  <h2>Who we are</h2>
+  <p>Frankfurt Radar is operated by {{ controller | e }} ({{ contact | e }}).<br>
+  The service is hosted on a Hetzner VPS in Frankfurt, Germany (EU jurisdiction).</p>
+
+  <hr>
+
+  <h2>What data we collect</h2>
+
+  <h3>Status page</h3>
+  <p>No personal data is collected. No cookies, no analytics, no tracking pixels.</p>
+  <p>Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.</p>
+
+  <h3>Telegram channel</h3>
+  <p>Subscribing to the public Telegram channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.</p>
+
+  <h3>Telegram bot — coming soon</h3>
+  <p>When you send <code>/start</code> to the bot, we store:</p>
+  <ul>
+    <li>Your Telegram <strong>chat ID</strong> (a pseudonymous numeric identifier — not your name or username)</li>
+    <li>Your <strong>alert preferences</strong> (selected sources, schedule)</li>
+    <li>A <strong>subscription timestamp</strong></li>
+  </ul>
+  <p>We do not store your name, username, phone number, or any message content.</p>
+
+  <hr>
+
+  <h2>Why we collect it</h2>
+  <p>To deliver personalised alert notifications to your Telegram account.</p>
+  <p><strong>Legal basis:</strong> your explicit consent — you initiate contact by sending <code>/start</code> to the bot.</p>
+
+  <hr>
+
+  <h2>How long we keep it</h2>
+  <p>Until you send <code>/deletedata</code> to the bot, which permanently deletes all stored data associated with your chat ID.</p>
+
+  <hr>
+
+  <h2>Your rights (GDPR)</h2>
+  <p>You have the right to access, correct, and erase your data.</p>
+  <ul>
+    <li><strong>To delete all stored data:</strong> send <code>/deletedata</code> to the Telegram bot</li>
+    <li><strong>For all other requests:</strong> <a href="mailto:{{ contact | e }}">{{ contact | e }}</a></li>
+  </ul>
+  <p>We will respond within 30 days.</p>
+
+  <hr>
+
+  <h2>Data transfers</h2>
+  <p>All data is stored and processed within the EU (Hetzner Frankfurt, Germany).</p>
+  <p>Notifications are delivered via Telegram. Telegram Messenger Inc. operates its own servers — see <a href="https://telegram.org/privacy" target="_blank" rel="noopener">telegram.org/privacy</a>.</p>
+
+  <hr>
+
+  <h2>Changes to this policy</h2>
+  <p>Material changes will be noted here with an updated date.</p>
+
+  <hr>
+
+  <h2>Contact</h2>
+  <p>{{ controller | e }} · <a href="mailto:{{ contact | e }}">{{ contact | e }}</a></p>
+
+  <div class="footer">
+    <p><a href="/">← Back to Frankfurt Radar</a></p>
+  </div>
+</main>
+
+</body>
+</html>

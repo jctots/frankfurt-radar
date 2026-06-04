@@ -28,6 +28,17 @@ def index():
         telegram_channel_url=web_cfg.get("telegram_channel_url") or "",
         kofi_url=web_cfg.get("kofi_url") or "",
         github_url=web_cfg.get("github_url") or "",
+        privacy_url=web_cfg.get("privacy_url") or "",
+    )
+
+
+@app.route("/privacy")
+def privacy():
+    web_cfg = _web_config()
+    return render_template(
+        "privacy.html",
+        controller=web_cfg.get("privacy_controller") or "",
+        contact=web_cfg.get("privacy_contact") or "",
     )
 
 

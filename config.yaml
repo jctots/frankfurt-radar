@@ -36,6 +36,9 @@ web:
   telegram_channel_url: https://t.me/FrankfurtRadar
   kofi_url: https://ko-fi.com/jctots
   github_url: https://github.com/jctots/frankfurt-radar
+  privacy_url: /privacy
+  privacy_controller: Rosanno JC De Dios
+  privacy_contact: jctots@pm.me
 
 # Phase 2b — weather warnings (DWD)
 weather:
