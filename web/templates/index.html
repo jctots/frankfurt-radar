@@ -557,28 +557,76 @@
     .dark footer                     { border-color: #334155; }
     .dark footer a                   { color: #94a3b8; }
 
+    /* ── Brand as refresh button ────────────────────────────── */
+    .brand { cursor: pointer; user-select: none; }
+    .brand:hover { opacity: 0.82; }
+
+    /* ── Mobile back button (shown over map overlay) ────────── */
+    .mobile-back-btn {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 600;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      color: var(--clr-text);
+    }
+    .dark .mobile-back-btn { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+
+    /* ── Mobile map overlay ─────────────────────────────────── */
+    .mobile-map-open .feed-panel  { display: none; }
+    .mobile-map-open .filter-bar  { display: none; }
+    .mobile-map-open header       { display: none; }
+    .mobile-map-open .mobile-back-btn { display: block; }
+
     @media (max-width: 767px) {
-      #last-updated { display: none; }
-      .status-area  { height: auto; flex-direction: column; overflow: visible; }
-      .feed-panel   { width: 100%; border-right: none; border-bottom: 1px solid var(--clr-border); max-height: 45vh; }
-      .feed         { max-height: calc(45vh - 38px); }
-      #map          { height: 45vh; }
-      .filter-bar   { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; }
-      .filter-sep   { display: none; }
+      /* List view: full-height alert list, no map */
+      .header-actions { display: none; }
+      #last-updated   { display: none; }
+      .status-area    { height: auto; flex-direction: column; overflow: visible; }
+      .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
+      .feed           { flex: 1; max-height: none; }
+      .filter-bar     { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; position: sticky; top: 52px; }
+      .filter-sep     { display: none; }
+
+      /* Map: fixed full-screen, off to the right until opened */
+      #map {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        transform: translateX(100%);
+        transition: transform 0.22s ease;
+        z-index: 500;
+      }
+      .mobile-map-open #map { transform: translateX(0); }
+
+      /* Weather panel: fixed so it overlays the map */
+      .weather-panel {
+        position: fixed;
+        top: 12px; right: 12px;
+        width: calc(100% - 24px);
+        z-index: 610;
+      }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <div class="brand">📡 Frankfurt Radar</div>
+  <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
   <div class="header-actions">
     <div class="header-time">
       <span id="live-clock"></span>
       <span id="last-updated"></span>
     </div>
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
-    <button class="btn btn-ghost" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Browser</button>
     <button class="btn btn-ghost" onclick="openInfoModal()">📱 Telegram</button>
@@ -601,13 +649,7 @@
   <div id="weather-panel" class="weather-panel" style="display:none"></div>
 </div>
 
-<!-- Mobile modal -->
-<div class="modal-overlay" id="modal" onclick="closeModal()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeModal()">✕</button>
-    <div id="modal-body"></div>
-  </div>
-</div>
+<button id="mobile-back" class="mobile-back-btn" onclick="closeMobileMap()">← Alerts</button>
 
 <!-- Info modal -->
 <div class="modal-overlay centered" id="info-modal" onclick="closeInfoModal()">
@@ -929,8 +971,24 @@ function renderFeed() {
   }
 }
 
+// ── Mobile map overlay ────────────────────────────────────────────────────────
+function isMobileView() {
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function openMobileMap() {
+  document.body.classList.add('mobile-map-open');
+  setTimeout(() => map && map.invalidateSize(), 250);
+}
+
+function closeMobileMap() {
+  document.body.classList.remove('mobile-map-open');
+  closeWeatherPanel();
+  if (map) map.closePopup();
+}
+
 // ── Alert selection ───────────────────────────────────────────────────────────
-function selectAlert(id, openModal = true) {
+function selectAlert(id) {
   selectedId = id;
   const a = alerts.find(x => x.id === id);
   if (!a) return;
@@ -940,9 +998,9 @@ function selectAlert(id, openModal = true) {
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
 
-  // DWD: no map pin — show floating panel and reset to Frankfurt view
-  // Others: zoom to marker location and open popup
   closeWeatherPanel();
+  if (isMobileView()) openMobileMap();
+
   if (a.source === 'dwd') {
     map.setView(FRANKFURT, 12, { animate: true });
     showWeatherPanel(a);
@@ -960,33 +1018,6 @@ function selectAlert(id, openModal = true) {
       });
     }
   }
-
-  // Mobile: open detail modal
-  if (openModal && window.innerWidth < 768) {
-    document.getElementById('modal-body').innerHTML = buildModalHtml(a);
-    document.getElementById('modal').classList.add('open');
-  }
-}
-
-// Full detail HTML for the mobile modal
-function buildModalHtml(a) {
-  const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const meta = [];
-  if (a.published_at) meta.push('Published ' + fmtDateTime(a.published_at));
-  if (a.valid_until)  meta.push('Valid until ' + fmtDateTime(a.valid_until));
-  if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
-  if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
-
-  let html = `<div class="popup-src" style="color:${src.hex}">${src.emoji} ${src.label}</div>
-<div class="popup-title" style="font-size:16px;margin-bottom:6px">${esc(a.title)}</div>`;
-  if (meta.length) html += `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>`;
-  if (a.body)      html += `<div class="popup-body" style="max-height:none;font-size:13px;margin-top:12px">${esc(a.body)}</div>`;
-  if (a.url || src.officialUrl) html += `<a class="popup-link" style="margin-top:14px" href="${esc(a.url || src.officialUrl)}" target="_blank" rel="noopener">Details ↗</a>`;
-  return html;
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.remove('open');
 }
 
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }

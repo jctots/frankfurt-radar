@@ -33,14 +33,21 @@ env_block = "\n".join([
     f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
 ])
 
-job_block = "\n".join([
-    f"# Morning briefing at {daily_hour:02d}:45 Frankfurt time",
-    f"45 {daily_hour} * * * root cd /app && python main.py --mode daily >> /proc/1/fd/1 2>&1",
-    f"",
+backend = cfg.get("notifier", {}).get("backend", "ntfy").lower()
+
+job_lines = []
+if backend == "ntfy":
+    job_lines += [
+        f"# Morning briefing at {daily_hour:02d}:45 Frankfurt time",
+        f"45 {daily_hour} * * * root cd /app && python main.py --mode daily >> /proc/1/fd/1 2>&1",
+        "",
+    ]
+job_lines += [
     f"# Poll every {interval_min} min during waking hours ({quiet_end:02d}:00–{active_end:02d}:50 Frankfurt time)",
     f"{poll_minutes} {quiet_end}-{active_end} * * * root cd /app && python main.py --mode poll >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
-])
+]
+job_block = "\n".join(job_lines)
 
 with open("/etc/cron.d/frankfurt-radar", "w") as f:
     f.write(env_block + "\n\n" + job_block)
