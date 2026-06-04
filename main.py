@@ -2,12 +2,13 @@ import argparse
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
-from db import expire_processed_alerts, init_db, sync_alert_cache
+from db import expire_processed_alerts, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
 from pollers import DWDPoller, PolizeiPoller, RMVPoller
 
@@ -60,6 +61,7 @@ def main() -> None:
     sync_alert_cache(all_alerts, config)
     expire_processed_alerts()
     process_alerts(all_alerts, mode=args.mode, config=config)
+    set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
 
 if __name__ == "__main__":

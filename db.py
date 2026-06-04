@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sent_alerts (
     subscriber_id INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     alert_id      TEXT NOT NULL,
@@ -184,11 +189,7 @@ def get_status_json() -> dict:
         rows = conn.execute(
             "SELECT * FROM alert_cache ORDER BY cached_at DESC"
         ).fetchall()
-        updated_at_row = conn.execute(
-            "SELECT MAX(cached_at) FROM alert_cache"
-        ).fetchone()
-
-    updated_at = updated_at_row[0] if updated_at_row else None
+    updated_at = get_meta("last_polled_at")
     alerts = []
     for row in rows:
         r = dict(row)
@@ -209,6 +210,21 @@ def get_status_json() -> dict:
         })
 
     return {"updated_at": updated_at, "alerts": alerts}
+
+
+# ── meta ─────────────────────────────────────────────────────────────────────
+
+def set_meta(key: str, value: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value)
+        )
+
+
+def get_meta(key: str) -> Optional[str]:
+    with _conn() as conn:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
 
 
 # ── subscribers ───────────────────────────────────────────────────────────────
