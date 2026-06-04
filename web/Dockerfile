@@ -15,4 +15,4 @@ COPY web/templates/ templates/
 ENV DATA_DIR=/app/data
 
 EXPOSE 8080
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["sh", "-c", "[ -f /app/data/config.yaml ] || cp /app/config.yaml /app/data/config.yaml; exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 app:app"]

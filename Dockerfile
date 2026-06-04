@@ -15,4 +15,7 @@ RUN chmod 0644 /etc/cron.d/frankfurt-radar
 ENV DATA_DIR=/app/data
 RUN mkdir -p /app/data
 
-CMD ["cron", "-f"]
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+CMD ["/app/entrypoint.sh"]

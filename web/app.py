@@ -11,7 +11,7 @@ from db import get_status_json, init_db
 
 app = Flask(__name__)
 
-CONFIG_FILE = Path(os.getenv("CONFIG_FILE", "/app/config.yaml"))
+CONFIG_FILE = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
 MAIN_PY = Path(os.getenv("MAIN_PY", "/app/main.py"))
 
 init_db()

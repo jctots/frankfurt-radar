@@ -15,7 +15,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-CONFIG_FILE = Path("config.yaml")
+CONFIG_FILE = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
 
 
 def load_config() -> dict:
