@@ -645,11 +645,23 @@ const DISTRICT_COORDS = {
 // Injected by Flask
 const ALLOW_POLL = {{ allow_poll | tojson }};
 
+const TILES = {
+  light: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
+  },
+};
+
 // ── State ────────────────────────────────────────────────────────────────────
 let alerts       = [];
 let selectedId   = null;
 let map          = null;
 let clusterGroup = null;
+let tileLayer    = null;
 let markers      = {}; // id → L.Marker
 let seenIds    = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
 let filters       = (() => {
@@ -657,12 +669,16 @@ let filters       = (() => {
 })() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
 
 // ── Map init ─────────────────────────────────────────────────────────────────
+function setTileLayer(mode) {
+  if (tileLayer) map.removeLayer(tileLayer);
+  const t = TILES[mode];
+  tileLayer = L.tileLayer(t.url, { attribution: t.attribution, maxZoom: 19 });
+  tileLayer.addTo(map);
+}
+
 function initMap() {
   map = L.map('map', { zoomControl: true }).setView(FRANKFURT, 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(map);
+  setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
 }
@@ -862,7 +878,14 @@ function selectAlert(id, openModal = true) {
       map.once('moveend', () => marker.openPopup());
     } else {
       map.setView(marker.getLatLng(), 15, { animate: true });
-      map.once('moveend', () => marker.openPopup());
+      map.once('moveend', () => {
+        const visible = clusterGroup.getVisibleParent(marker);
+        if (visible === marker) {
+          marker.openPopup();
+        } else if (visible) {
+          clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+        }
+      });
     }
   }
 
@@ -1052,6 +1075,7 @@ function toggleDark() {
   const on = document.body.classList.toggle('dark');
   localStorage.setItem('fr_dark', on ? '1' : '0');
   document.getElementById('btn-dark').textContent = on ? '☀️' : '🌙';
+  if (map) setTileLayer(on ? 'dark' : 'light');
 }
 
 // ── Live clock ────────────────────────────────────────────────────────────────
