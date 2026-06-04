@@ -1,0 +1,40 @@
+services:
+  poller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - radar_data:/app/data
+    depends_on:
+      - ntfy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - radar_data:/app/data
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+    restart: unless-stopped
+
+volumes:
+  radar_data:   # shared between poller (seen.json, status.json) and web (read-only for status.json)
+  ntfy_data:

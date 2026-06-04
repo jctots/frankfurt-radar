@@ -1,0 +1,44 @@
+transport:
+  enabled: true
+  # Service filter (two levels):
+  #   Absent or empty map → all service types, all lines
+  #   Type key present, no lines listed → all lines of that type
+  #   Type key present, lines listed → only those specific lines
+  services:
+    regional:
+    sbahn:
+    ubahn:
+    tram:
+    bus:
+    
+polling:
+  interval_minutes: 15   # min 10, max 60 — used by cron, not enforced by main.py
+  daily_hour: 7          # 0–23
+  quiet_hours:           # NOT YET ENFORCED — baked into crontab for now; enforce in main.py before public launch
+    start: 23            # local time (TZ=Europe/Berlin)
+    end: 7
+
+translator:
+  backend: libretranslate          # libretranslate | google
+  libretranslate_url: https://translate.3etn.net/
+
+notifier:
+  backend: ntfy                    # ntfy | telegram (Phase 2a)
+  ntfy_url: https://ntfy.3etn.net/
+  ntfy_topic: frankfurt-radar
+  status_url:                      # Phase 3 — set to status page URL when live
+  notify_burst_threshold: 10      # if new alerts >= this in one run, skip notifications (cold-start guard)
+  notify_throttle_every: 10        # pause 3s after every N notifications (0 = disabled)
+
+police:
+  enabled: true
+  translate_body: true             # false = title + link only (§87g(2) safe harbour); applies to notifications and web page
+
+web:
+  allow_manual_poll: true   # set to false for public deployment
+  # status_url is under notifier — set it to the URL of this page for ntfy/Telegram "Details" links
+
+# Phase 2b — weather warnings (DWD)
+weather:
+  enabled: true
+  min_severity: 1         # 1=minor, 2=moderate, 3=severe, 4=extreme

@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frankfurt Radar</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clr-transport: #1a73e8;
+      --clr-weather:   #7c3aed;
+      --clr-police:    #dc2626;
+      --clr-bg:        #f0f2f5;
+      --clr-surface:   #ffffff;
+      --clr-border:    #e2e8f0;
+      --clr-text:      #1e293b;
+      --clr-muted:     #64748b;
+      --clr-header:    #0f172a;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--clr-header);
+      color: white;
+      padding: 0 16px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 500;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 24px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .header-time {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      white-space: nowrap;
+      margin-right: 4px;
+      line-height: 1.5;
+    }
+    #live-clock   { font-size: 16px; font-weight: 600; color: #e2e8f0; }
+    #last-updated { font-size: 10px; color: #64748b; }
+
+    /* ── Buttons ────────────────────────────────────────── */
+    .btn {
+      padding: 5px 11px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.08);
+      color: white;
+      border-color: rgba(255,255,255,0.15);
+    }
+    .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+    .btn-ghost.on { background: #1a73e8; border-color: #1a73e8; }
+
+    .btn-kofi {
+      background: #FF5E5B;
+      color: white !important;
+      border-color: #FF5E5B;
+    }
+    .btn-kofi:hover { opacity: 0.88; }
+
+    /* ── Filter bar ─────────────────────────────────────── */
+    .filter-bar {
+      background: var(--clr-surface);
+      border-bottom: 1px solid var(--clr-border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-height: 44px;
+      position: sticky;
+      top: 52px;
+      z-index: 400;
+    }
+
+    .filter-sep {
+      width: 1px;
+      height: 20px;
+      background: var(--clr-border);
+      flex-shrink: 0;
+    }
+
+    .chip {
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--clr-border);
+      background: var(--clr-bg);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--clr-muted);
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+    .chip.on { background: var(--clr-surface); color: var(--clr-text); }
+
+    .chip.src-rmv.on     { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
+    .chip.src-dwd.on     { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
+    .chip.src-polizei.on { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
+    .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
+    .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
+
+    .filter-label  { font-size: 12px; color: var(--clr-muted); white-space: nowrap; }
+
+    .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
+    .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+
+    .lines-popup {
+      position: fixed;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.14);
+      z-index: 600;
+      min-width: 150px;
+      max-height: 260px;
+      display: flex;
+      flex-direction: column;
+    }
+    .lines-popup-actions {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--clr-border);
+      flex-shrink: 0;
+    }
+    .lines-popup-actions button {
+      flex: 1;
+      font-size: 11px;
+      padding: 3px 0;
+      border-radius: 4px;
+      border: 1px solid var(--clr-border);
+      background: var(--clr-bg);
+      cursor: pointer;
+      color: var(--clr-text);
+    }
+    .lines-popup-actions button:hover { background: var(--clr-border); }
+    .lines-popup-body { overflow-y: auto; padding: 4px; }
+    .lines-popup-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+    }
+    .lines-popup-item:hover { background: var(--clr-bg); }
+    .lines-popup-item input { cursor: pointer; margin: 0; }
+
+    .filter-select {
+      font-size: 12px;
+      padding: 3px 6px;
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      background: var(--clr-surface);
+      color: var(--clr-text);
+      cursor: pointer;
+    }
+
+    /* ── Status area ────────────────────────────────────── */
+    .status-area {
+      display: flex;
+      height: calc(100vh - 52px - 44px);
+      min-height: 300px;
+      overflow: hidden;
+    }
+
+    /* ── Feed panel ─────────────────────────────────────── */
+    .feed-panel {
+      width: 300px;
+      min-width: 260px;
+      border-right: 1px solid var(--clr-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .feed-header {
+      background: var(--clr-surface);
+      padding: 10px 14px 9px;
+      border-bottom: 1px solid var(--clr-border);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--clr-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .feed-count {
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 999px;
+      padding: 0 7px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--clr-text);
+    }
+
+    .feed {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--clr-surface);
+    }
+
+    .card {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .card:hover { background: #f8fafc; }
+    .card.sel { background: #eff6ff; border-left-color: var(--clr-transport); }
+    .card.sel.src-dwd     { background: #f5f3ff; border-left-color: var(--clr-weather); }
+    .card.sel.src-polizei { background: #fef2f2; border-left-color: var(--clr-police); }
+
+    .card-src {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
+
+    .empty-state {
+      padding: 48px 16px;
+      text-align: center;
+      color: var(--clr-muted);
+    }
+
+    /* ── Map ────────────────────────────────────────────── */
+    #map {
+      flex: 1;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Leaflet popup: match app design */
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      padding: 0;
+      overflow: hidden;
+    }
+    .leaflet-popup-content {
+      margin: 0;
+      min-width: 260px;
+      max-width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    .leaflet-popup-tip-container { margin-top: -1px; }
+
+    .popup-inner { padding: 14px 16px 12px; }
+    .popup-src {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .popup-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .popup-meta { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+    .popup-body {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #334155;
+      white-space: pre-wrap;
+      max-height: 120px;
+      overflow-y: auto;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8px;
+      margin-top: 4px;
+    }
+    .popup-link {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 10px;
+      padding: 5px 10px;
+      background: #1e293b;
+      color: white;
+      border-radius: 5px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .popup-link:hover { opacity: 0.85; }
+
+    /* Location badge shown when pinned to approximate area */
+    .popup-loc-badge {
+      display: inline-block;
+      font-size: 10px;
+      color: #64748b;
+      background: #f1f5f9;
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Mobile modal ───────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 600;
+      align-items: flex-end;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--clr-surface);
+      border-radius: 16px 16px 0 0;
+      width: 100%;
+      max-height: 82vh;
+      overflow-y: auto;
+      padding: 24px 20px 48px;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: none;
+      background: #f1f5f9;
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Reuse popup styles inside modal */
+    .modal-box .popup-body { max-height: none; }
+
+    /* ── Info sections ──────────────────────────────────── */
+    .info-section {
+      max-width: 600px;
+      margin: 56px auto;
+      padding: 0 24px;
+    }
+    .info-section h2 { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+    .info-section p  { color: var(--clr-muted); margin-bottom: 16px; line-height: 1.7; }
+    .info-section ol { padding-left: 20px; margin-bottom: 20px; line-height: 2.2; }
+    .info-section code {
+      background: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: ui-monospace, monospace;
+    }
+    .info-note { font-size: 12px; color: var(--clr-muted); font-style: italic; margin-top: 6px !important; }
+
+    .btn-tg {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: #0088cc;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-tg:hover { opacity: 0.9; }
+
+    .btn-kofi-lg {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: #FF5E5B;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-kofi-lg:hover { opacity: 0.9; }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 32px 24px 48px;
+      font-size: 12px;
+      color: var(--clr-muted);
+      border-top: 1px solid var(--clr-border);
+      margin-top: 48px;
+    }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 767px) {
+      #last-updated { display: none; }
+      .status-area  { height: auto; flex-direction: column; overflow: visible; }
+      .feed-panel   { width: 100%; border-right: none; border-bottom: 1px solid var(--clr-border); max-height: 45vh; }
+      .feed         { max-height: calc(45vh - 38px); }
+      #map          { height: 45vh; }
+      .filter-bar   { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; }
+      .filter-sep   { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">📡 Frankfurt Radar</div>
+  <div class="header-actions">
+    <div class="header-time">
+      <span id="live-clock"></span>
+      <span id="last-updated"></span>
+    </div>
+    <button class="btn btn-ghost" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
+    <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
+    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
+    <a href="#subscribe" class="btn btn-ghost">Subscribe</a>
+    <a href="#support" class="btn btn-kofi">☕ Ko-fi</a>
+  </div>
+</header>
+
+<div class="filter-bar" id="filter-bar"></div>
+
+<div class="status-area" id="status">
+  <div class="feed-panel">
+    <div class="feed-header">
+      Active Alerts <span class="feed-count" id="feed-count">—</span>
+    </div>
+    <div class="feed" id="feed">
+      <div class="empty-state">Loading…</div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- Mobile modal -->
+<div class="modal-overlay" id="modal" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<section class="info-section" id="subscribe">
+  <h2>Get alerts on Telegram</h2>
+  <p>Free push notifications — no account needed beyond Telegram itself.</p>
+  <ol>
+    <li>Open Telegram and search <strong>@FrankfurtRadarBot</strong></li>
+    <li>Send <code>/start</code></li>
+    <li>Use <code>/filter</code> to choose which alerts you receive</li>
+  </ol>
+  <a class="btn-tg" href="https://t.me/FrankfurtRadarBot" target="_blank" rel="noopener">
+    Open @FrankfurtRadarBot ↗
+  </a>
+  <p class="info-note">Bot subscription commands coming soon.</p>
+</section>
+
+<section class="info-section" id="support">
+  <h2>Support Frankfurt Radar</h2>
+  <p>Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute,
+     a coffee helps keep the server running.</p>
+  <a class="btn-kofi-lg" href="https://ko-fi.com/" target="_blank" rel="noopener">
+    ☕ Support on Ko-fi
+  </a>
+</section>
+
+<footer>
+  Frankfurt Radar · Free &amp; open source ·
+  Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
+  <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
+  <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const REFRESH_INTERVAL = 60_000;
+const SEEN_MAX         = 300;
+const FRANKFURT        = [50.1109, 8.6821];
+const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
+
+const SOURCE = {
+  rmv:     { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8' },
+  dwd:     { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed' },
+  polizei: { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626' },
+};
+
+// Frankfurt district name → [lat, lon] (approximate centres)
+const DISTRICT_COORDS = {
+  'sachsenhausen':        [50.0953, 8.6828],
+  'bornheim':             [50.1261, 8.7147],
+  'innenstadt':           [50.1109, 8.6821],
+  'nordend':              [50.1242, 8.6873],
+  'westend':              [50.1186, 8.6648],
+  'bockenheim':           [50.1176, 8.6506],
+  'gallus':               [50.1032, 8.6461],
+  'gutleutviertel':       [50.1020, 8.6543],
+  'altstadt':             [50.1113, 8.6831],
+  'roemerberg':           [50.1113, 8.6831],
+  'ostend':               [50.1168, 8.7062],
+  'riederwald':           [50.1221, 8.7233],
+  'seckbach':             [50.1320, 8.7345],
+  'fechenheim':           [50.1137, 8.7567],
+  'dornbusch':            [50.1407, 8.6801],
+  'eschersheim':          [50.1508, 8.6679],
+  'hausen':               [50.1407, 8.6493],
+  'praunheim':            [50.1466, 8.6268],
+  'roedelheim':           [50.1280, 8.6218],
+  'heddernheim':          [50.1547, 8.6406],
+  'niederursel':          [50.1603, 8.6310],
+  'ginnheim':             [50.1415, 8.6615],
+  'sossenheim':           [50.1428, 8.5978],
+  'nied':                 [50.1168, 8.5870],
+  'hoechst':              [50.0987, 8.5456],
+  'flughafen':            [50.0379, 8.5622],
+  'schwanheim':           [50.0826, 8.5778],
+  'griesheim':            [50.1083, 8.6020],
+  'oberrad':              [50.0893, 8.7031],
+  'niederrad':            [50.0855, 8.6723],
+  'stadtwald':            [50.0667, 8.6606],
+  'eckenheim':            [50.1408, 8.7010],
+  'enkheim':              [50.1362, 8.7514],
+  'bergen-enkheim':       [50.1461, 8.7654],
+  'berkersheim':          [50.1457, 8.7214],
+  'preungesheim':         [50.1489, 8.7042],
+  'bonames':              [50.1713, 8.7111],
+  'harheim':              [50.1904, 8.7232],
+  'nieder-erlenbach':     [50.1923, 8.6945],
+  'kalbach':              [50.1732, 8.6608],
+  'nieder-eschbach':      [50.1841, 8.6515],
+  'frankfurter berg':     [50.1641, 8.6960],
+  'sindlingen':           [50.0965, 8.4952],
+  'zeilsheim':            [50.0926, 8.5172],
+  'unterliederbach':      [50.1037, 8.5681],
+  'oberliederbach':       [50.0932, 8.5568],
+};
+
+// Injected by Flask
+const ALLOW_POLL = {{ allow_poll | tojson }};
+
+// ── State ────────────────────────────────────────────────────────────────────
+let alerts       = [];
+let selectedId   = null;
+let map          = null;
+let clusterGroup = null;
+let markers      = {}; // id → L.Marker
+let seenIds    = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let filters       = (() => {
+  try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
+})() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
+
+// ── Map init ─────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView(FRANKFURT, 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+  clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
+  map.addLayer(clusterGroup);
+}
+
+function sourceIcon(source) {
+  const emoji = (SOURCE[source] || {}).emoji || '📍';
+  return L.divIcon({
+    className: '',
+    html: `<div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.45))">${emoji}</div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 22],
+    popupAnchor: [0, -24],
+  });
+}
+
+// Returns [lat, lon] and a location label for an alert
+function alertCoords(a) {
+  // Use explicit coords from backend if available (RMV edge iconCoordinate)
+  if (a.lat != null && a.lon != null) {
+    return { coords: [a.lat, a.lon], label: a.location_label || null };
+  }
+  // Police: try to extract district from title ("District: Event description")
+  if (a.source === 'polizei' && a.title && a.title.includes(':')) {
+    const district = a.title.split(':')[0].trim().toLowerCase();
+    const coords = DISTRICT_COORDS[district];
+    if (coords) return { coords, label: a.title.split(':')[0].trim() };
+  }
+  // DWD: city-wide — use centre
+  if (a.source === 'dwd') return { coords: FRANKFURT, label: 'Frankfurt area' };
+  return { coords: FRANKFURT, label: null };
+}
+
+function buildPopupHtml(a) {
+  const { label } = alertCoords(a);
+  const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
+  const meta = [];
+  if (a.published_at) meta.push('Published ' + fmtDateTime(a.published_at));
+  if (a.valid_until)  meta.push('Valid until ' + fmtDateTime(a.valid_until));
+  if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
+  if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
+  const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
+  return `<div class="popup-inner">
+    ${locBadge}
+    <div class="popup-src" style="color:${src.hex}">${src.emoji} ${src.label}</div>
+    <div class="popup-title">${esc(a.title)}</div>
+    ${meta.length ? `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    ${a.body ? `<div class="popup-body">${esc(a.body)}</div>` : ''}
+    ${a.url ? `<a class="popup-link" href="${esc(a.url)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
+  </div>`;
+}
+
+function renderMarkers() {
+  if (!map || !clusterGroup) return;
+  const list = visible();
+  const visibleIds = new Set(list.map(a => a.id));
+
+  // Remove markers for alerts no longer visible
+  Object.keys(markers).forEach(id => {
+    if (!visibleIds.has(id)) { clusterGroup.removeLayer(markers[id]); delete markers[id]; }
+  });
+
+  // Add markers for newly visible alerts
+  list.forEach(a => {
+    if (markers[a.id]) return;
+    const { coords } = alertCoords(a);
+    const m = L.marker(coords, { icon: sourceIcon(a.source) })
+      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+    m.on('click', () => selectAlert(a.id, false));
+    clusterGroup.addLayer(m);
+    markers[a.id] = m;
+  });
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function apiPost(url) {
+  const r = await fetch(url, { method: 'POST' });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  withBtn('btn-refresh', '↻ …', async () => { applyData(await apiGet('/api/status')); });
+}
+
+async function forcePoll() {
+  withBtn('btn-poll', '⚡ Polling…', async () => { applyData(await apiPost('/api/poll')); });
+}
+
+async function withBtn(id, loadingText, fn) {
+  const btn = document.getElementById(id);
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = loadingText;
+  try { await fn(); }
+  catch (e) { alert(e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+// ── Data application ──────────────────────────────────────────────────────────
+function applyData(data) {
+  alerts = data.alerts || [];
+
+  alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
+    seenIds.add(a.id);
+    fireNotification(a);
+  });
+  const trimmed = [...seenIds].slice(-SEEN_MAX);
+  seenIds = new Set(trimmed);
+  localStorage.setItem('fr_seen', JSON.stringify(trimmed));
+
+  if (data.updated_at) {
+    const hm = new Date(data.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('last-updated').textContent = `Updated ${hm}`;
+  }
+
+  buildFilterBar();
+  renderFeed();
+}
+
+// ── Filtering ─────────────────────────────────────────────────────────────────
+function visible() {
+  return alerts.filter(a => {
+    if (!filters.sources[a.source]) return false;
+    if (a.source === 'rmv') {
+      if (a.service && filters.services[a.service] === false) return false;
+      if (a.lines && a.lines.length) {
+        const someFiltered = a.lines.some(l => l in filters.lines);
+        if (someFiltered && a.lines.every(l => filters.lines[l] === false)) return false;
+      }
+    }
+    if (a.source === 'dwd' && a.severity != null && a.severity < filters.minSev) return false;
+    return true;
+  });
+}
+
+// ── Feed rendering ────────────────────────────────────────────────────────────
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  const list = visible().sort((a, b) => {
+    const ta = a.published_at || a.valid_until || '';
+    const tb = b.published_at || b.valid_until || '';
+    return tb > ta ? 1 : tb < ta ? -1 : 0;
+  });
+
+  document.getElementById('feed-count').textContent = list.length || '—';
+
+  if (!list.length) {
+    feed.innerHTML = '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
+    if (clusterGroup) clusterGroup.clearLayers();
+    markers = {};
+    return;
+  }
+
+  feed.innerHTML = list.map(a => {
+    const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
+    const svc  = a.service ? ` · ${esc(a.service)}` : '';
+    const time = fmtDateTime(a.published_at || a.valid_until);
+    return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  <div class="card-src" style="color:${src.hex}">${src.emoji} ${src.label}${svc}</div>
+  <div class="card-title">${esc(a.title)}</div>
+  <div class="card-meta">${esc(time)}</div>
+</div>`;
+  }).join('');
+
+  renderMarkers();
+
+  if (selectedId && list.find(a => a.id === selectedId)) {
+    document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === selectedId));
+  }
+}
+
+// ── Alert selection ───────────────────────────────────────────────────────────
+function selectAlert(id, openModal = true) {
+  selectedId = id;
+  const a = alerts.find(x => x.id === id);
+  if (!a) return;
+
+  // Highlight card and scroll it into view
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
+  const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
+  if (card) card.scrollIntoView({ block: 'nearest' });
+
+  // Zoom to reveal marker (unspiders cluster if needed), then open popup
+  const marker = markers[id];
+  if (marker && clusterGroup) {
+    clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+  }
+
+  // Mobile: open detail modal
+  if (openModal && window.innerWidth < 768) {
+    document.getElementById('modal-body').innerHTML = buildModalHtml(a);
+    document.getElementById('modal').classList.add('open');
+  }
+}
+
+// Full detail HTML for the mobile modal
+function buildModalHtml(a) {
+  const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
+  const meta = [];
+  if (a.published_at) meta.push('Published ' + fmtDateTime(a.published_at));
+  if (a.valid_until)  meta.push('Valid until ' + fmtDateTime(a.valid_until));
+  if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
+  if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
+
+  let html = `<div class="popup-src" style="color:${src.hex}">${src.emoji} ${src.label}</div>
+<div class="popup-title" style="font-size:16px;margin-bottom:6px">${esc(a.title)}</div>`;
+  if (meta.length) html += `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>`;
+  if (a.body)      html += `<div class="popup-body" style="max-height:none;font-size:13px;margin-top:12px">${esc(a.body)}</div>`;
+  if (a.url)       html += `<a class="popup-link" style="margin-top:14px" href="${esc(a.url)}" target="_blank" rel="noopener">Details ↗</a>`;
+  return html;
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+// ── Filter bar ────────────────────────────────────────────────────────────────
+function buildFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  let html  = '';
+
+  ['rmv', 'dwd', 'polizei'].forEach(src => {
+    const cfg = SOURCE[src];
+    const on  = filters.sources[src] !== false;
+    html += `<button class="chip src-${src}${on ? ' on' : ''}" onclick="toggleSrc('${src}')">${cfg.emoji} ${cfg.label}</button>`;
+  });
+
+  if (filters.sources.rmv !== false) {
+    const rmv  = alerts.filter(a => a.source === 'rmv');
+    const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
+    if (svcs.length) {
+      html += '<div class="filter-sep"></div>';
+      svcs.forEach(svc => {
+        const on = filters.services[svc] !== false;
+        html += `<button class="chip svc${on ? ' on' : ''}" onclick="toggleSvc('${esc(svc)}')">${esc(svc)}</button>`;
+        if (on) {
+          const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
+          if (lines.length) {
+            const active = lines.filter(l => filters.lines[l] !== false).length;
+            const partial = active < lines.length;
+            const label = partial ? `${active}/${lines.length} lines ▾` : `${lines.length} lines ▾`;
+            html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
+          }
+        }
+      });
+    }
+  }
+
+  if (filters.sources.dwd !== false) {
+    html += '<div class="filter-sep"></div>';
+    html += `<span class="filter-label">Weather min:</span>
+<select class="filter-select" onchange="setSev(this.value)">
+  ${[1,2,3,4].map(n => `<option value="${n}"${filters.minSev===n?' selected':''}>${SEV_LABEL[n]}</option>`).join('')}
+</select>`;
+  }
+
+  bar.innerHTML = html;
+}
+
+function toggleSrc(src) { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleSvc(svc) { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleLine(l)  { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
+function setSev(v)      { filters.minSev = parseInt(v); saveFilters(); renderFeed(); }
+function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
+
+// ── Lines popup ───────────────────────────────────────────────────────────────
+function openLinesPopup(svc, btn) {
+  closeLinesPopup(false);
+  const rmv   = alerts.filter(a => a.source === 'rmv');
+  const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
+  if (!lines.length) return;
+
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'lines-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+
+  popup.innerHTML = `
+    <div class="lines-popup-actions">
+      <button onclick="setAllLines('${esc(svc)}', true)">Select all</button>
+      <button onclick="setAllLines('${esc(svc)}', false)">Select none</button>
+    </div>
+    <div class="lines-popup-body">
+      ${lines.map(l => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.lines[l] !== false ? 'checked' : ''} onchange="toggleLine('${esc(l)}')">
+          ${esc(l)}
+        </label>`).join('')}
+    </div>`;
+
+  document.body.appendChild(popup);
+  setTimeout(() => document.addEventListener('click', _outsideClose, { capture: true }), 0);
+}
+
+function _outsideClose(e) {
+  const popup = document.getElementById('lines-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    closeLinesPopup(true);
+  } else {
+    document.addEventListener('click', _outsideClose, { capture: true, once: true });
+  }
+}
+
+function closeLinesPopup(rebuild = true) {
+  document.removeEventListener('click', _outsideClose, { capture: true });
+  const popup = document.getElementById('lines-popup');
+  if (popup) popup.remove();
+  if (rebuild) buildFilterBar();
+}
+
+function setAllLines(svc, val) {
+  const rmv = alerts.filter(a => a.source === 'rmv');
+  [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))]
+    .forEach(l => { filters.lines[l] = val; });
+  saveFilters();
+  closeLinesPopup(true);
+  renderFeed();
+}
+
+// ── Browser notifications ─────────────────────────────────────────────────────
+async function toggleNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') await Notification.requestPermission();
+  updateNotifyBtn();
+}
+
+function updateNotifyBtn() {
+  const btn = document.getElementById('btn-notify');
+  if (!('Notification' in window)) { btn.style.display = 'none'; return; }
+  const on = Notification.permission === 'granted';
+  btn.textContent = on ? '🔔 On' : '🔔 Notifications';
+  btn.classList.toggle('on', on);
+}
+
+function fireNotification(a) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const src = SOURCE[a.source];
+  new Notification((src ? src.emoji + ' ' : '') + a.title, {
+    body: (a.body || '').split('\n')[0].slice(0, 120),
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(iso, withSeconds = false) {
+  if (!iso) return '';
+  try {
+    const d   = new Date(iso);
+    const day = d.toLocaleDateString('en-GB', { weekday: 'short' });
+    const dd  = String(d.getDate()).padStart(2, '0');
+    const mon = d.toLocaleDateString('en-GB', { month: 'short' });
+    const yr  = d.getFullYear();
+    const hh  = String(d.getHours()).padStart(2, '0');
+    const mm  = String(d.getMinutes()).padStart(2, '0');
+    const ss  = String(d.getSeconds()).padStart(2, '0');
+    return withSeconds
+      ? `${day}, ${dd} ${mon} ${yr} ${hh}:${mm}:${ss}`
+      : `${day}, ${dd} ${mon} ${yr} ${hh}:${mm}`;
+  } catch { return iso || ''; }
+}
+
+function fmtDateTime(iso) { return fmt(iso); }
+
+// ── Live clock ────────────────────────────────────────────────────────────────
+function tickClock() {
+  document.getElementById('live-clock').textContent = fmt(new Date().toISOString(), true);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  if (ALLOW_POLL) document.getElementById('btn-poll').style.display = '';
+  updateNotifyBtn();
+  tickClock();
+  setInterval(tickClock, 1_000);
+  initMap();
+
+  try {
+    applyData(await apiGet('/api/status'));
+  } catch (e) {
+    document.getElementById('feed').innerHTML =
+      '<div class="empty-state">Failed to load alerts — retrying in 60s.</div>';
+    console.error('Initial load:', e);
+  }
+
+  setInterval(async () => {
+    try { applyData(await apiGet('/api/status')); }
+    catch (e) { console.error('Auto-refresh:', e); }
+  }, REFRESH_INTERVAL);
+}
+
+init();
+</script>
+</body>
+</html>

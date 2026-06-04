@@ -1,0 +1,7 @@
+flask>=3.0
+gunicorn>=21.0
+pyyaml>=6.0
+# poller deps — needed by /api/poll subprocess and write_status translation cache
+requests>=2.31
+python-dotenv>=1.0
+feedparser>=6.0
