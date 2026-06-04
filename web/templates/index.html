@@ -70,7 +70,7 @@
       margin-right: 4px;
       line-height: 1.5;
     }
-    #last-updated-label { font-size: 10px; color: #64748b; }
+    #last-updated-label { font-size: 12px; color: #64748b; }
     #last-updated       { font-size: 12px; font-weight: 500; color: #94a3b8; }
 
     /* ── Buttons ────────────────────────────────────────── */
@@ -503,6 +503,20 @@
     }
     .btn-kofi-lg:hover { opacity: 0.9; }
 
+    .btn-gh {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: #24292e;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-gh:hover { opacity: 0.9; }
+
     /* ── Footer ─────────────────────────────────────────── */
     footer {
       text-align: center;
@@ -607,9 +621,8 @@
       <span id="last-updated"></span>
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
-    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Browser</button>
-    <button class="btn btn-ghost" onclick="openInfoModal()">📱 Telegram</button>
-    <a href="https://ko-fi.com/" class="btn btn-kofi" target="_blank" rel="noopener">☕ Ko-fi</a>
+    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
+    <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ More info</button>
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
   </div>
 </header>
@@ -634,7 +647,7 @@
   <div class="modal-box" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeInfoModal()">✕</button>
 
-    <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Browser button in the toolbar</p>
+    <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Notifications button in the toolbar</p>
     <p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>
 
     <h2>📱 Frankfurt Radar on Telegram</h2>
@@ -658,13 +671,20 @@
 
     <hr>
 
-    <p class="info-attr">
-      📱 Frankfurt Radar · Free &amp; open source ·
+    <h2>📂 Source &amp; Issues</h2>
+    <p>Frankfurt Radar is open source. Found a bug or want to suggest a feature? Open an issue or pull request on GitHub.</p>
+    <a class="btn-gh" href="https://github.com/jctots/frankfurt-radar" target="_blank" rel="noopener">
+      View on GitHub ↗
+    </a>
+
+    <hr>
+
+    <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
+    <p class="info-attr" style="margin-top:4px">
       Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
     </p>
-    <p class="info-attr" style="margin-top:4px;font-size:10px">{{ version | e }}</p>
   </div>
 </div>
 
@@ -898,7 +918,7 @@ function applyData(data) {
 
   if (data.updated_at) {
     const hm = new Date(data.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    document.getElementById('last-updated').textContent = `Updated ${hm}`;
+    document.getElementById('last-updated').textContent = hm;
   }
 
   buildFilterBar();
@@ -1169,7 +1189,7 @@ function updateNotifyBtn() {
   const btn = document.getElementById('btn-notify');
   if (!('Notification' in window)) { btn.style.display = 'none'; return; }
   const on = Notification.permission === 'granted';
-  btn.textContent = on ? '🔔 On' : '🔔 Browser';
+  btn.textContent = on ? '🔔 On' : '🔔 Notifications';
   btn.classList.toggle('on', on);
 }
 
