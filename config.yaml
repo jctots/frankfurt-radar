@@ -12,10 +12,6 @@ transport:
 
 polling:
   interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
-  daily_hour: 6          # 0–23 — daily briefing fires at HH:45
-  quiet_hours:           # polls suppressed outside this window (local time, TZ=Europe/Berlin)
-    start: 23
-    end: 7
 
 translator:
   backend: google                  # libretranslate | google
@@ -36,6 +32,10 @@ police:
 
 web:
   allow_manual_poll: false   # set to true only for private/self-hosted deployments
+  # Optional — omit or leave blank to hide from the "More info" modal
+  telegram_channel_url: https://t.me/FrankfurtRadar
+  kofi_url: https://ko-fi.com/jctots
+  github_url: https://github.com/jctots/frankfurt-radar
 
 # Phase 2b — weather warnings (DWD)
 weather:

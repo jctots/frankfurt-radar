@@ -9,8 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py .
 COPY config.yaml .
-COPY crontab /etc/cron.d/frankfurt-radar
-RUN chmod 0644 /etc/cron.d/frankfurt-radar
 
 ENV DATA_DIR=/app/data
 RUN mkdir -p /app/data

@@ -648,36 +648,39 @@
     <button class="modal-close" onclick="closeInfoModal()">✕</button>
 
     <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Notifications button in the toolbar</p>
-    <p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>
+    {% if telegram_channel_url %}<p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>{% endif %}
 
+    {% if telegram_channel_url %}
     <h2>📱 Frankfurt Radar on Telegram</h2>
-    <p>Join the <strong>@FrankfurtRadar</strong> channel for real-time Frankfurt alerts — transit disruptions, weather warnings, and police reports, translated to English.</p>
+    <p>Join the channel for real-time Frankfurt alerts — transit disruptions, weather warnings, and police reports, translated to English.</p>
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://t.me/FrankfurtRadar" width="120" height="120" alt="QR code for t.me/FrankfurtRadar" style="border-radius:8px;border:1px solid var(--clr-border)">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ telegram_channel_url | urlencode }}" width="120" height="120" alt="QR code" style="border-radius:8px;border:1px solid var(--clr-border)">
       <div>
-        <a class="btn-tg" href="https://t.me/FrankfurtRadar" target="_blank" rel="noopener">
-          Join @FrankfurtRadar ↗
+        <a class="btn-tg" href="{{ telegram_channel_url | e }}" target="_blank" rel="noopener">
+          Join on Telegram ↗
         </a>
-        <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">t.me/FrankfurtRadar</p>
+        <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">{{ telegram_channel_url | e }}</p>
       </div>
     </div>
     <p class="info-note">✨ <strong>Personalized notifications</strong> (filter by source, choose your schedule) — coming soon.</p>
-
     <hr>
+    {% endif %}
 
+    {% if kofi_url %}
     <h2>☕ Support Frankfurt Radar</h2>
     <p>Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.</p>
-    <a class="btn-kofi-lg" href="https://ko-fi.com/jctots" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
-
+    <a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
     <hr>
+    {% endif %}
 
+    {% if github_url %}
     <h2>📂 Source &amp; Issues</h2>
     <p>Frankfurt Radar is open source. Found a bug or want to suggest a feature? Open an issue or pull request on GitHub.</p>
-    <a class="btn-gh" href="https://github.com/jctots/frankfurt-radar" target="_blank" rel="noopener">
+    <a class="btn-gh" href="{{ github_url | e }}" target="_blank" rel="noopener">
       View on GitHub ↗
     </a>
-
     <hr>
+    {% endif %}
 
     <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
     <p class="info-attr" style="margin-top:4px">

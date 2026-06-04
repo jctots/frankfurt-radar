@@ -20,7 +20,15 @@ init_db()
 
 @app.route("/")
 def index():
-    return render_template("index.html", allow_poll=_allow_manual_poll(), version=BUILD_VERSION)
+    web_cfg = _web_config()
+    return render_template(
+        "index.html",
+        allow_poll=web_cfg.get("allow_manual_poll", False),
+        version=BUILD_VERSION,
+        telegram_channel_url=web_cfg.get("telegram_channel_url") or "",
+        kofi_url=web_cfg.get("kofi_url") or "",
+        github_url=web_cfg.get("github_url") or "",
+    )
 
 
 @app.route("/api/status")
@@ -47,12 +55,16 @@ def api_poll():
     return jsonify(get_status_json())
 
 
-def _allow_manual_poll() -> bool:
+def _web_config() -> dict:
     try:
         cfg = yaml.safe_load(CONFIG_FILE.read_text())
-        return bool(cfg.get("web", {}).get("allow_manual_poll", False))
+        return cfg.get("web", {}) or {}
     except Exception:
-        return False
+        return {}
+
+
+def _allow_manual_poll() -> bool:
+    return bool(_web_config().get("allow_manual_poll", False))
 
 
 if __name__ == "__main__":
