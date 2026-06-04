@@ -194,11 +194,14 @@ class DWDPoller(BasePoller):
             rank = self._SEVERITY_RANK.get(w.get("severity", ""), 0)
             if rank < self.min_severity:
                 continue
+            desc = w.get("description_en") or w.get("description_de", "")
+            instruction = w.get("instruction_en") or w.get("instruction_de", "")
+            body = "\n\n".join(filter(None, [desc, instruction]))
             alerts.append(Alert(
                 id=w.get("alert_id", ""),
                 source="dwd",
                 title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
-                body=w.get("description_en") or w.get("description_de", ""),
+                body=body,
                 url=None,
                 published_at=w.get("onset"),
                 valid_until=w.get("expires"),

@@ -150,6 +150,8 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.sev-picker        { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
+    .chip.sev-picker.filt   { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
 
     .lines-popup {
       position: fixed;
@@ -531,6 +533,12 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .chip.sev-picker           { background: #2e1065; }
+    .dark .chip.sev-picker.filt      { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .feed::-webkit-scrollbar        { width: 6px; }
+    .dark .feed::-webkit-scrollbar-track  { background: #0f172a; }
+    .dark .feed::-webkit-scrollbar-thumb  { background: #334155; border-radius: 3px; }
+    .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
     .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -572,7 +580,7 @@
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
     <button class="btn btn-ghost" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
-    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
+    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Browser</button>
     <button class="btn btn-ghost" onclick="openInfoModal()">📱 Telegram</button>
     <a href="https://ko-fi.com/" class="btn btn-kofi" target="_blank" rel="noopener">☕ Ko-fi</a>
   </div>
@@ -605,6 +613,9 @@
 <div class="modal-overlay centered" id="info-modal" onclick="closeInfoModal()">
   <div class="modal-box" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeInfoModal()">✕</button>
+
+    <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Browser button in the toolbar</p>
+    <p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>
 
     <h2>📱 Get alerts on Telegram</h2>
     <p>Free push notifications — no account needed beyond Telegram itself.</p>
@@ -645,9 +656,9 @@ const FRANKFURT        = [50.1109, 8.6821];
 const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
 
 const SOURCE = {
-  rmv:     { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8' },
-  dwd:     { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed' },
-  polizei: { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626' },
+  rmv:     { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
+  dwd:     { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
+  polizei: { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
 };
 
 // Frankfurt district name → [lat, lon] (approximate centres)
@@ -785,7 +796,7 @@ function buildPopupHtml(a) {
     <div class="popup-title">${esc(a.title)}</div>
     ${meta.length ? `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>` : ''}
     ${a.body ? `<div class="popup-body">${esc(a.body)}</div>` : ''}
-    ${a.url ? `<a class="popup-link" href="${esc(a.url)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
+    ${(a.url || src.officialUrl) ? `<a class="popup-link" href="${esc(a.url || src.officialUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
   </div>`;
 }
 
@@ -970,7 +981,7 @@ function buildModalHtml(a) {
 <div class="popup-title" style="font-size:16px;margin-bottom:6px">${esc(a.title)}</div>`;
   if (meta.length) html += `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>`;
   if (a.body)      html += `<div class="popup-body" style="max-height:none;font-size:13px;margin-top:12px">${esc(a.body)}</div>`;
-  if (a.url)       html += `<a class="popup-link" style="margin-top:14px" href="${esc(a.url)}" target="_blank" rel="noopener">Details ↗</a>`;
+  if (a.url || src.officialUrl) html += `<a class="popup-link" style="margin-top:14px" href="${esc(a.url || src.officialUrl)}" target="_blank" rel="noopener">Details ↗</a>`;
   return html;
 }
 
@@ -986,39 +997,39 @@ function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
 
-  ['rmv', 'dwd', 'polizei'].forEach(src => {
-    const cfg = SOURCE[src];
-    const on  = filters.sources[src] !== false;
-    html += `<button class="chip src-${src}${on ? ' on' : ''}" onclick="toggleSrc('${src}')">${cfg.emoji} ${cfg.label}</button>`;
-  });
+  // Police
+  const polOn = filters.sources.polizei !== false;
+  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}</button>`;
 
-  if (filters.sources.rmv !== false) {
-    const rmv  = alerts.filter(a => a.source === 'rmv');
-    const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
-    if (svcs.length) {
-      html += '<div class="filter-sep"></div>';
-      svcs.forEach(svc => {
-        const on = filters.services[svc] !== false;
-        html += `<button class="chip svc${on ? ' on' : ''}" onclick="toggleSvc('${esc(svc)}')">${esc(svc)}</button>`;
-        if (on) {
-          const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
-          if (lines.length) {
-            const active = lines.filter(l => filters.lines[l] !== false).length;
-            const partial = active < lines.length;
-            const label = partial ? `${active}/${lines.length} lines ▾` : `${lines.length} lines ▾`;
-            html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
-          }
-        }
-      });
-    }
+  // Weather + inline severity picker
+  html += '<div class="filter-sep"></div>';
+  const dwdOn = filters.sources.dwd !== false;
+  html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}</button>`;
+  if (dwdOn) {
+    const filtered = filters.minSev > 1;
+    html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">${SEV_LABEL[filters.minSev]} ▾</button>`;
   }
 
-  if (filters.sources.dwd !== false) {
-    html += '<div class="filter-sep"></div>';
-    html += `<span class="filter-label">Weather min:</span>
-<select class="filter-select" onchange="setSev(this.value)">
-  ${[1,2,3,4].map(n => `<option value="${n}"${filters.minSev===n?' selected':''}>${SEV_LABEL[n]}</option>`).join('')}
-</select>`;
+  // Transport + services/lines
+  html += '<div class="filter-sep"></div>';
+  const rmvOn = filters.sources.rmv !== false;
+  html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}</button>`;
+  if (rmvOn) {
+    const rmv  = alerts.filter(a => a.source === 'rmv');
+    const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
+    svcs.forEach(svc => {
+      const on = filters.services[svc] !== false;
+      html += `<button class="chip svc${on ? ' on' : ''}" onclick="toggleSvc('${esc(svc)}')">${esc(svc)}</button>`;
+      if (on) {
+        const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
+        if (lines.length) {
+          const active = lines.filter(l => filters.lines[l] !== false).length;
+          const partial = active < lines.length;
+          const label = partial ? `${active}/${lines.length} lines ▾` : `${lines.length} lines ▾`;
+          html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
+        }
+      }
+    });
   }
 
   bar.innerHTML = html;
@@ -1027,7 +1038,7 @@ function buildFilterBar() {
 function toggleSrc(src) { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleSvc(svc) { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)  { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
-function setSev(v)      { filters.minSev = parseInt(v); saveFilters(); renderFeed(); }
+function setSev(v)      { filters.minSev = parseInt(v); saveFilters(); buildFilterBar(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
 
 // ── Lines popup ───────────────────────────────────────────────────────────────
@@ -1087,6 +1098,37 @@ function setAllLines(svc, val) {
   renderFeed();
 }
 
+// ── Severity popup ────────────────────────────────────────────────────────────
+function openSevPopup(btn) {
+  closeSevPopup();
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'sev-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+  popup.innerHTML = `<div class="lines-popup-body">
+    ${[1,2,3,4].map(n => `
+      <label class="lines-popup-item">
+        <input type="radio" name="sev" ${filters.minSev === n ? 'checked' : ''} onchange="setSev(${n}); closeSevPopup()">
+        ${SEV_LABEL[n]}
+      </label>`).join('')}
+  </div>`;
+  document.body.appendChild(popup);
+  setTimeout(() => document.addEventListener('click', _sevOutsideClose, { capture: true }), 0);
+}
+
+function closeSevPopup() {
+  document.removeEventListener('click', _sevOutsideClose, { capture: true });
+  const p = document.getElementById('sev-popup');
+  if (p) p.remove();
+}
+
+function _sevOutsideClose(e) {
+  const p = document.getElementById('sev-popup');
+  if (p && !p.contains(e.target)) closeSevPopup();
+}
+
 // ── Browser notifications ─────────────────────────────────────────────────────
 async function toggleNotifications() {
   if (!('Notification' in window)) return;
@@ -1098,7 +1140,7 @@ function updateNotifyBtn() {
   const btn = document.getElementById('btn-notify');
   if (!('Notification' in window)) { btn.style.display = 'none'; return; }
   const on = Notification.permission === 'granted';
-  btn.textContent = on ? '🔔 On' : '🔔 Notifications';
+  btn.textContent = on ? '🔔 On' : '🔔 Browser';
   btn.classList.toggle('on', on);
 }
 
