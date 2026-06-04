@@ -460,6 +460,42 @@
     }
 
     /* ── Responsive ─────────────────────────────────────── */
+    /* ── Dark mode ──────────────────────────────────────── */
+    .dark {
+      --clr-bg:      #0f172a;
+      --clr-surface: #1e293b;
+      --clr-border:  #334155;
+      --clr-text:    #e2e8f0;
+      --clr-muted:   #94a3b8;
+      --clr-header:  #020617;
+    }
+    .dark .card:hover                { background: #263348; }
+    .dark .card.sel                  { background: #172554; }
+    .dark .card.sel.src-dwd          { background: #2e1065; }
+    .dark .card.sel.src-polizei      { background: #450a0a; }
+    .dark .chip.src-rmv.on           { background: #172554; }
+    .dark .chip.src-dwd.on           { background: #2e1065; }
+    .dark .chip.src-polizei.on       { background: #450a0a; }
+    .dark .chip.svc.on,
+    .dark .chip.line.on,
+    .dark .chip.line-picker          { background: #172554; }
+    .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .lines-popup               { background: #1e293b; border-color: #334155; }
+    .dark .lines-popup-actions       { border-color: #334155; }
+    .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    .dark .lines-popup-item:hover    { background: #263348; }
+    .dark .modal-box                 { background: #1e293b; }
+    .dark .modal-close               { background: #334155; color: #e2e8f0; }
+    .dark .popup-inner               { background: #1e293b; }
+    .dark .popup-title               { color: #e2e8f0; }
+    .dark .popup-meta                { color: #94a3b8; }
+    .dark .popup-body                { color: #cbd5e1; border-color: #334155; }
+    .dark .popup-loc-badge           { background: #334155; color: #94a3b8; }
+    .dark .popup-link                { background: #334155; color: #e2e8f0; }
+    .dark .info-section code         { background: #334155; color: #e2e8f0; }
+    .dark footer                     { border-color: #334155; }
+    .dark footer a                   { color: #94a3b8; }
+
     @media (max-width: 767px) {
       #last-updated { display: none; }
       .status-area  { height: auto; flex-direction: column; overflow: visible; }
@@ -480,6 +516,7 @@
       <span id="live-clock"></span>
       <span id="last-updated"></span>
     </div>
+    <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
     <button class="btn btn-ghost" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
@@ -816,10 +853,17 @@ function selectAlert(id, openModal = true) {
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
 
-  // Zoom to reveal marker (unspiders cluster if needed), then open popup
+  // Map interaction depends on source:
+  // dwd = city-wide → reset to Frankfurt full view; others → pan only, no zoom
   const marker = markers[id];
   if (marker && clusterGroup) {
-    clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+    if (a.source === 'dwd') {
+      map.setView(FRANKFURT, 12, { animate: true });
+      map.once('moveend', () => marker.openPopup());
+    } else {
+      map.setView(marker.getLatLng(), 15, { animate: true });
+      map.once('moveend', () => marker.openPopup());
+    }
   }
 
   // Mobile: open detail modal
@@ -1003,6 +1047,13 @@ function fmt(iso, withSeconds = false) {
 
 function fmtDateTime(iso) { return fmt(iso); }
 
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+function toggleDark() {
+  const on = document.body.classList.toggle('dark');
+  localStorage.setItem('fr_dark', on ? '1' : '0');
+  document.getElementById('btn-dark').textContent = on ? '☀️' : '🌙';
+}
+
 // ── Live clock ────────────────────────────────────────────────────────────────
 function tickClock() {
   document.getElementById('live-clock').textContent = fmt(new Date().toISOString(), true);
@@ -1011,6 +1062,10 @@ function tickClock() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   if (ALLOW_POLL) document.getElementById('btn-poll').style.display = '';
+  if (localStorage.getItem('fr_dark') === '1') {
+    document.body.classList.add('dark');
+    document.getElementById('btn-dark').textContent = '☀️';
+  }
   updateNotifyBtn();
   tickClock();
   setInterval(tickClock, 1_000);

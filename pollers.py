@@ -200,6 +200,7 @@ class DWDPoller(BasePoller):
                 title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
                 body=w.get("description_en") or w.get("description_de", ""),
                 url=None,
+                published_at=w.get("onset"),
                 valid_until=w.get("expires"),
                 service=None,
                 severity=rank,
