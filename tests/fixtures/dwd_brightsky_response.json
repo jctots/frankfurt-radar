@@ -1,0 +1,26 @@
+{
+  "alerts": [
+    {
+      "alert_id": "DWD_WARN_001",
+      "headline_en": "Thunderstorm warning level 3",
+      "headline_de": "Gewitter Warnung Stufe 3",
+      "description_en": "Severe thunderstorms expected in the Frankfurt area.",
+      "description_de": "Starke Gewitter im Frankfurter Raum erwartet.",
+      "instruction_en": "Seek shelter immediately.",
+      "instruction_de": "Suchen Sie sofort Schutz.",
+      "severity": "severe",
+      "onset": "2026-06-04T14:00:00Z",
+      "expires": "2026-06-04T18:00:00Z"
+    },
+    {
+      "alert_id": "DWD_WARN_002",
+      "headline_en": "Minor wind advisory",
+      "headline_de": "Leichter Wind",
+      "description_en": "Light winds expected.",
+      "description_de": "Leichte Winde erwartet.",
+      "severity": "minor",
+      "onset": "2026-06-04T12:00:00Z",
+      "expires": "2026-06-04T16:00:00Z"
+    }
+  ]
+}
