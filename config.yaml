@@ -18,25 +18,24 @@ polling:
     end: 7
 
 translator:
-  backend: libretranslate          # libretranslate | google
-  libretranslate_url: https://translate.3etn.net/
+  backend: google                  # libretranslate | google
+  # libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
 
 notifier:
   backend: telegram                # ntfy | telegram
-  # ntfy_url: https://ntfy.3etn.net/
+  # ntfy_url: http://ntfy:80
   # ntfy_topic: frankfurt-radar
   telegram_channel: "@FrankfurtRadar"   # Telegram channel username or numeric chat ID
-  status_url: http://192.168.30.31:8085/   # status page URL used in daily briefing "Details" link
+  status_url: https://frankfurt-radar.com   # status page URL used in daily briefing "Details" link
   notify_burst_threshold: 10      # if new alerts >= this in one run, skip notifications (cold-start guard)
-  notify_throttle_every: 10        # pause 3s after every N notifications (0 = disabled)
+  notify_throttle_every: 10       # pause 3s after every N notifications (0 = disabled)
 
 police:
   enabled: true
-  translate_body: true             # false = title + link only (§87g(2) safe harbour); applies to notifications and web page
+  translate_body: false            # false = title + link only (§87g(2) safe harbour); applies to notifications and web page
 
 web:
-  allow_manual_poll: true   # set to false for public deployment
-  # status_url is under notifier — set it to the URL of this page for ntfy/Telegram "Details" links
+  allow_manual_poll: false   # set to true only for private/self-hosted deployments
 
 # Phase 2b — weather warnings (DWD)
 weather:
