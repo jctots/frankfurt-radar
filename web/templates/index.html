@@ -399,6 +399,24 @@
       margin-bottom: 6px;
     }
 
+    /* ── Info modal (centered) ──────────────────────────── */
+    .modal-overlay.centered { align-items: center; justify-content: center; }
+    .modal-overlay.centered .modal-box {
+      border-radius: 16px;
+      max-width: 440px;
+      width: 92%;
+      max-height: 88vh;
+      padding: 28px 24px 32px;
+    }
+    .modal-box h2      { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .modal-box p       { color: var(--clr-muted); margin-bottom: 14px; line-height: 1.7; font-size: 13px; }
+    .modal-box ol      { padding-left: 20px; margin-bottom: 18px; line-height: 2.2; font-size: 13px; }
+    .modal-box code    { background: var(--clr-bg); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: ui-monospace, monospace; }
+    .modal-box hr      { border: none; border-top: 1px solid var(--clr-border); margin: 20px 0; }
+    .modal-box .info-note { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 6px !important; }
+    .modal-box .info-attr { font-size: 11px; color: var(--clr-muted); text-align: center; margin: 0; }
+    .modal-box .info-attr a { color: var(--clr-muted); }
+
     /* ── Mobile modal ───────────────────────────────────── */
     .modal-overlay {
       display: none;
@@ -555,8 +573,8 @@
     <button class="btn btn-ghost" id="btn-refresh" onclick="refreshStatus()">↻ Refresh</button>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
-    <a href="#subscribe" class="btn btn-ghost">Subscribe</a>
-    <a href="#support" class="btn btn-kofi">☕ Ko-fi</a>
+    <button class="btn btn-ghost" onclick="openInfoModal()">📱 Telegram</button>
+    <a href="https://ko-fi.com/" class="btn btn-kofi" target="_blank" rel="noopener">☕ Ko-fi</a>
   </div>
 </header>
 
@@ -583,35 +601,39 @@
   </div>
 </div>
 
-<section class="info-section" id="subscribe">
-  <h2>Get alerts on Telegram</h2>
-  <p>Free push notifications — no account needed beyond Telegram itself.</p>
-  <ol>
-    <li>Open Telegram and search <strong>@FrankfurtRadarBot</strong></li>
-    <li>Send <code>/start</code></li>
-    <li>Use <code>/filter</code> to choose which alerts you receive</li>
-  </ol>
-  <a class="btn-tg" href="https://t.me/FrankfurtRadarBot" target="_blank" rel="noopener">
-    Open @FrankfurtRadarBot ↗
-  </a>
-  <p class="info-note">Bot subscription commands coming soon.</p>
-</section>
+<!-- Info modal -->
+<div class="modal-overlay centered" id="info-modal" onclick="closeInfoModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeInfoModal()">✕</button>
 
-<section class="info-section" id="support">
-  <h2>Support Frankfurt Radar</h2>
-  <p>Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute,
-     a coffee helps keep the server running.</p>
-  <a class="btn-kofi-lg" href="https://ko-fi.com/" target="_blank" rel="noopener">
-    ☕ Support on Ko-fi
-  </a>
-</section>
+    <h2>📱 Get alerts on Telegram</h2>
+    <p>Free push notifications — no account needed beyond Telegram itself.</p>
+    <ol>
+      <li>Open Telegram and search <strong>@FrankfurtRadarBot</strong></li>
+      <li>Send <code>/start</code></li>
+      <li>Use <code>/filter</code> to choose which alerts you receive</li>
+    </ol>
+    <a class="btn-tg" href="https://t.me/FrankfurtRadarBot" target="_blank" rel="noopener">
+      Open @FrankfurtRadarBot ↗
+    </a>
+    <p class="info-note">Bot subscription commands coming soon.</p>
 
-<footer>
-  Frankfurt Radar · Free &amp; open source ·
-  Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
-  <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
-  <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
-</footer>
+    <hr>
+
+    <h2>☕ Support Frankfurt Radar</h2>
+    <p>Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.</p>
+    <a class="btn-kofi-lg" href="https://ko-fi.com/" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
+
+    <hr>
+
+    <p class="info-attr">
+      📱 Frankfurt Radar · Free &amp; open source ·
+      Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
+      <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
+      <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
+    </p>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -635,6 +657,7 @@ const DISTRICT_COORDS = {
   'innenstadt':           [50.1109, 8.6821],
   'nordend':              [50.1242, 8.6873],
   'westend':              [50.1186, 8.6648],
+  'westend-sued':         [50.1133, 8.6580],
   'bockenheim':           [50.1176, 8.6506],
   'gallus':               [50.1032, 8.6461],
   'gutleutviertel':       [50.1020, 8.6543],
@@ -954,6 +977,9 @@ function buildModalHtml(a) {
 function closeModal() {
   document.getElementById('modal').classList.remove('open');
 }
+
+function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
+function closeInfoModal() { document.getElementById('info-modal').classList.remove('open'); }
 
 // ── Filter bar ────────────────────────────────────────────────────────────────
 function buildFilterBar() {
