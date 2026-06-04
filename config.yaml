@@ -1,21 +1,20 @@
 transport:
   enabled: true
-  # Service filter (two levels):
-  #   Absent or empty map → all service types, all lines
-  #   Type key present, no lines listed → all lines of that type
-  #   Type key present, lines listed → only those specific lines
+  # Optional service filter — omit or leave empty to receive all services and lines.
+  # Examples:
+  #   services:             ← all services, all lines (default)
+  #   services:
+  #     ubahn:              ← all U-Bahn lines, nothing else
+  #     sbahn:
+  #       - S3
+  #       - S4             ← only S3 and S4
   services:
-    regional:
-    sbahn:
-    ubahn:
-    tram:
-    bus:
-    
+
 polling:
-  interval_minutes: 15   # min 10, max 60 — used by cron, not enforced by main.py
-  daily_hour: 7          # 0–23
-  quiet_hours:           # NOT YET ENFORCED — baked into crontab for now; enforce in main.py before public launch
-    start: 23            # local time (TZ=Europe/Berlin)
+  interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
+  daily_hour: 6          # 0–23 — daily briefing fires at HH:45
+  quiet_hours:           # polls suppressed outside this window (local time, TZ=Europe/Berlin)
+    start: 23
     end: 7
 
 translator:
@@ -23,10 +22,11 @@ translator:
   libretranslate_url: https://translate.3etn.net/
 
 notifier:
-  backend: ntfy                    # ntfy | telegram (Phase 2a)
-  ntfy_url: https://ntfy.3etn.net/
-  ntfy_topic: frankfurt-radar
-  status_url:                      # Phase 3 — set to status page URL when live
+  backend: telegram                # ntfy | telegram
+  # ntfy_url: https://ntfy.3etn.net/
+  # ntfy_topic: frankfurt-radar
+  telegram_channel: "@FrankfurtRadar"   # Telegram channel username or numeric chat ID
+  status_url: http://192.168.30.31:8085/   # status page URL used in daily briefing "Details" link
   notify_burst_threshold: 10      # if new alerts >= this in one run, skip notifications (cold-start guard)
   notify_throttle_every: 10        # pause 3s after every N notifications (0 = disabled)
 
