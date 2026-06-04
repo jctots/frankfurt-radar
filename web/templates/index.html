@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Frankfurt Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
@@ -568,7 +569,7 @@
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
-      .header-actions { display: none; }
+      .header-actions > *:not(#btn-dark) { display: none !important; }
       #last-updated   { display: none; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
@@ -603,14 +604,13 @@
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
   <div class="header-actions">
     <div class="header-time">
-      <span id="live-clock"></span>
       <span id="last-updated"></span>
     </div>
-    <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Browser</button>
     <button class="btn btn-ghost" onclick="openInfoModal()">📱 Telegram</button>
     <a href="https://ko-fi.com/" class="btn btn-kofi" target="_blank" rel="noopener">☕ Ko-fi</a>
+    <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
   </div>
 </header>
 
@@ -619,7 +619,7 @@
 <div class="status-area" id="status">
   <div class="feed-panel">
     <div class="feed-header">
-      Active Alerts <span class="feed-count" id="feed-count">—</span>
+      Active Alerts for <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
     </div>
     <div class="feed" id="feed">
       <div class="empty-state">Loading…</div>
@@ -637,17 +637,18 @@
     <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Browser button in the toolbar</p>
     <p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>
 
-    <h2>📱 Get alerts on Telegram</h2>
-    <p>Free push notifications — no account needed beyond Telegram itself.</p>
-    <ol>
-      <li>Open Telegram and search <strong>@FrankfurtRadarBot</strong></li>
-      <li>Send <code>/start</code></li>
-      <li>Use <code>/filter</code> to choose which alerts you receive</li>
-    </ol>
-    <a class="btn-tg" href="https://t.me/FrankfurtRadarBot" target="_blank" rel="noopener">
-      Open @FrankfurtRadarBot ↗
-    </a>
-    <p class="info-note">Bot subscription commands coming soon.</p>
+    <h2>📱 Frankfurt Radar on Telegram</h2>
+    <p>Join the <strong>@FrankfurtRadar</strong> channel for real-time Frankfurt alerts — transit disruptions, weather warnings, and police reports, translated to English.</p>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://t.me/FrankfurtRadar" width="120" height="120" alt="QR code for t.me/FrankfurtRadar" style="border-radius:8px;border:1px solid var(--clr-border)">
+      <div>
+        <a class="btn-tg" href="https://t.me/FrankfurtRadar" target="_blank" rel="noopener">
+          Join @FrankfurtRadar ↗
+        </a>
+        <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">t.me/FrankfurtRadar</p>
+      </div>
+    </div>
+    <p class="info-note">✨ <strong>Personalized notifications</strong> (filter by source, choose your schedule) — coming soon.</p>
 
     <hr>
 
@@ -771,7 +772,10 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  map.on('popupclose', () => { if (isMobileView()) closeMobileMap(); });
+  map.on('popupclose', () => {
+    if (isMobileView()) closeMobileMap();
+    else map.setView(FRANKFURT, 12, { animate: true });
+  });
 }
 
 function sourceIcon(source) {
@@ -1206,11 +1210,6 @@ function toggleDark() {
   if (map) setTileLayer(on ? 'dark' : 'light');
 }
 
-// ── Live clock ────────────────────────────────────────────────────────────────
-function tickClock() {
-  document.getElementById('live-clock').textContent = fmt(new Date().toISOString(), true);
-}
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   if (ALLOW_POLL) document.getElementById('btn-poll').style.display = '';
@@ -1219,8 +1218,11 @@ async function init() {
     document.getElementById('btn-dark').textContent = '☀️';
   }
   updateNotifyBtn();
-  tickClock();
-  setInterval(tickClock, 1_000);
+  const _now = new Date();
+  document.getElementById('feed-date').textContent =
+    String(_now.getDate()).padStart(2, '0') + ' ' +
+    _now.toLocaleDateString('en-GB', { month: 'short' }) + ' ' +
+    _now.getFullYear();
   initMap();
 
   try {
