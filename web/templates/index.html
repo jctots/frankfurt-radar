@@ -212,7 +212,40 @@
       height: calc(100vh - 52px - 44px);
       min-height: 300px;
       overflow: hidden;
+      position: relative;
     }
+
+    /* ── Weather floating panel ─────────────────────────────── */
+    .weather-panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 300px;
+      max-height: calc(100% - 24px);
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      z-index: 200;
+      overflow-y: auto;
+    }
+    .weather-panel-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: none;
+      background: var(--clr-bg);
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--clr-muted);
+    }
+    .weather-panel-close:hover { background: var(--clr-border); }
 
     /* ── Feed panel ─────────────────────────────────────── */
     .feed-panel {
@@ -492,6 +525,8 @@
     .dark .popup-body                { color: #cbd5e1; border-color: #334155; }
     .dark .popup-loc-badge           { background: #334155; color: #94a3b8; }
     .dark .popup-link                { background: #334155; color: #e2e8f0; }
+    .dark .weather-panel             { background: #1e293b; border-color: #334155; }
+    .dark .weather-panel-close       { background: #334155; color: #94a3b8; }
     .dark .info-section code         { background: #334155; color: #e2e8f0; }
     .dark footer                     { border-color: #334155; }
     .dark footer a                   { color: #94a3b8; }
@@ -537,6 +572,7 @@
     </div>
   </div>
   <div id="map"></div>
+  <div id="weather-panel" class="weather-panel" style="display:none"></div>
 </div>
 
 <!-- Mobile modal -->
@@ -740,8 +776,9 @@ function renderMarkers() {
     if (!visibleIds.has(id)) { clusterGroup.removeLayer(markers[id]); delete markers[id]; }
   });
 
-  // Add markers for newly visible alerts
+  // Add markers for newly visible alerts (DWD is city-wide — no pin)
   list.forEach(a => {
+    if (a.source === 'dwd') return;
     if (markers[a.id]) return;
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a.source) })
@@ -869,14 +906,15 @@ function selectAlert(id, openModal = true) {
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
 
-  // Map interaction depends on source:
-  // dwd = city-wide → reset to Frankfurt full view; others → pan only, no zoom
-  const marker = markers[id];
-  if (marker && clusterGroup) {
-    if (a.source === 'dwd') {
-      map.setView(FRANKFURT, 12, { animate: true });
-      map.once('moveend', () => marker.openPopup());
-    } else {
+  // DWD: no map pin — show floating panel and reset to Frankfurt view
+  // Others: zoom to marker location and open popup
+  closeWeatherPanel();
+  if (a.source === 'dwd') {
+    map.setView(FRANKFURT, 12, { animate: true });
+    showWeatherPanel(a);
+  } else {
+    const marker = markers[id];
+    if (marker && clusterGroup) {
       map.setView(marker.getLatLng(), 15, { animate: true });
       map.once('moveend', () => {
         const visible = clusterGroup.getVisibleParent(marker);
@@ -1069,6 +1107,18 @@ function fmt(iso, withSeconds = false) {
 }
 
 function fmtDateTime(iso) { return fmt(iso); }
+
+// ── Weather panel ─────────────────────────────────────────────────────────────
+function showWeatherPanel(a) {
+  const panel = document.getElementById('weather-panel');
+  panel.innerHTML = buildPopupHtml(a) +
+    '<button class="weather-panel-close" onclick="closeWeatherPanel()">✕</button>';
+  panel.style.display = '';
+}
+
+function closeWeatherPanel() {
+  document.getElementById('weather-panel').style.display = 'none';
+}
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
 function toggleDark() {
