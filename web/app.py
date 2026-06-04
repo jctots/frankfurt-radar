@@ -11,7 +11,8 @@ from db import get_status_json, init_db
 
 app = Flask(__name__)
 
-CONFIG_FILE = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
+CONFIG_FILE    = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
+BUILD_VERSION  = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY = Path(os.getenv("MAIN_PY", "/app/main.py"))
 
 init_db()
@@ -19,7 +20,7 @@ init_db()
 
 @app.route("/")
 def index():
-    return render_template("index.html", allow_poll=_allow_manual_poll())
+    return render_template("index.html", allow_poll=_allow_manual_poll(), version=BUILD_VERSION)
 
 
 @app.route("/api/status")

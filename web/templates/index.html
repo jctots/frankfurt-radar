@@ -70,8 +70,8 @@
       margin-right: 4px;
       line-height: 1.5;
     }
-    #live-clock   { font-size: 16px; font-weight: 600; color: #e2e8f0; }
-    #last-updated { font-size: 10px; color: #64748b; }
+    #last-updated-label { font-size: 10px; color: #64748b; }
+    #last-updated       { font-size: 12px; font-weight: 500; color: #94a3b8; }
 
     /* ── Buttons ────────────────────────────────────────── */
     .btn {
@@ -569,8 +569,7 @@
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
-      .header-actions > *:not(#btn-dark) { display: none !important; }
-      #last-updated   { display: none; }
+      .header-actions > *:not(#btn-dark):not(.header-time) { display: none !important; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
       .feed           { flex: 1; max-height: none; }
@@ -604,6 +603,7 @@
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
   <div class="header-actions">
     <div class="header-time">
+      <span id="last-updated-label">Last polled</span>
       <span id="last-updated"></span>
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
@@ -619,7 +619,7 @@
 <div class="status-area" id="status">
   <div class="feed-panel">
     <div class="feed-header">
-      Active Alerts for <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
+      Active Alerts - <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
     </div>
     <div class="feed" id="feed">
       <div class="empty-state">Loading…</div>
@@ -664,6 +664,7 @@
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
     </p>
+    <p class="info-attr" style="margin-top:4px;font-size:10px">{{ version | e }}</p>
   </div>
 </div>
 
@@ -755,6 +756,8 @@ let clusterGroup = null;
 let tileLayer    = null;
 let markers      = {}; // id → L.Marker
 let seenIds    = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let _linesClosedBy = null;
+let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
@@ -1020,7 +1023,7 @@ function buildFilterBar() {
   html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}</button>`;
   if (dwdOn) {
     const filtered = filters.minSev > 1;
-    html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">${SEV_LABEL[filters.minSev]} ▾</button>`;
+    html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">Sev ≥ ${SEV_LABEL[filters.minSev]} ▾</button>`;
   }
 
   // Transport + services/lines
@@ -1056,6 +1059,8 @@ function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filt
 
 // ── Lines popup ───────────────────────────────────────────────────────────────
 function openLinesPopup(svc, btn) {
+  if (_linesClosedBy === btn) { _linesClosedBy = null; return; }
+  _linesClosedBy = null;
   closeLinesPopup(false);
   const rmv   = alerts.filter(a => a.source === 'rmv');
   const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
@@ -1089,6 +1094,7 @@ function _outsideClose(e) {
   const popup = document.getElementById('lines-popup');
   if (!popup) return;
   if (!popup.contains(e.target)) {
+    _linesClosedBy = e.target;
     closeLinesPopup(true);
   } else {
     document.addEventListener('click', _outsideClose, { capture: true, once: true });
@@ -1103,16 +1109,26 @@ function closeLinesPopup(rebuild = true) {
 }
 
 function setAllLines(svc, val) {
-  const rmv = alerts.filter(a => a.source === 'rmv');
-  [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))]
-    .forEach(l => { filters.lines[l] = val; });
+  const rmv   = alerts.filter(a => a.source === 'rmv');
+  const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
+  lines.forEach(l => { filters.lines[l] = val; });
   saveFilters();
-  closeLinesPopup(true);
   renderFeed();
+  buildFilterBar();
+  const body = document.querySelector('#lines-popup .lines-popup-body');
+  if (body) {
+    body.innerHTML = lines.map(l => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.lines[l] !== false ? 'checked' : ''} onchange="toggleLine('${esc(l)}')">
+          ${esc(l)}
+        </label>`).join('');
+  }
 }
 
 // ── Severity popup ────────────────────────────────────────────────────────────
 function openSevPopup(btn) {
+  if (_sevClosedBy === btn) { _sevClosedBy = null; return; }
+  _sevClosedBy = null;
   closeSevPopup();
   const rect  = btn.getBoundingClientRect();
   const popup = document.createElement('div');
@@ -1139,7 +1155,7 @@ function closeSevPopup() {
 
 function _sevOutsideClose(e) {
   const p = document.getElementById('sev-popup');
-  if (p && !p.contains(e.target)) closeSevPopup();
+  if (p && !p.contains(e.target)) { _sevClosedBy = e.target; closeSevPopup(); }
 }
 
 // ── Browser notifications ─────────────────────────────────────────────────────

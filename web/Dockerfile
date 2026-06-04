@@ -12,6 +12,8 @@ COPY config.yaml .
 COPY web/app.py .
 COPY web/templates/ templates/
 
+ARG BUILD_VERSION=dev
+ENV BUILD_VERSION=${BUILD_VERSION}
 ENV DATA_DIR=/app/data
 
 EXPOSE 8080
