@@ -12,6 +12,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +47,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          dockerfile: Dockerfile
           push: true
           tags: ${{ steps.meta-poller.outputs.tags }}
           labels: ${{ steps.meta-poller.outputs.labels }}
@@ -54,7 +55,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          dockerfile: web/Dockerfile
+          file: web/Dockerfile
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
