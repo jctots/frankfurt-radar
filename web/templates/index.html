@@ -681,6 +681,10 @@
     <hr>
     {% endif %}
 
+    <h2>⚠️ Disclaimer</h2>
+    <p>Frankfurt Radar is an unofficial community tool, not affiliated with or endorsed by RMV, DWD, or Polizei Frankfurt. Data is automatically fetched and translated and may be delayed or incomplete. <strong>Do not use this site as an emergency service.</strong></p>
+    <hr>
+
     <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
     <p class="info-attr" style="margin-top:4px">
       Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
@@ -688,6 +692,22 @@
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
     </p>
     {% if privacy_url %}<p class="info-attr" style="margin-top:4px"><a href="{{ privacy_url | e }}">Privacy policy</a></p>{% endif %}
+  </div>
+</div>
+
+<!-- Disclaimer modal — shown once on first visit -->
+<div class="modal-overlay centered" id="disclaimer-modal">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <h2>⚠️ Before you use Frankfurt Radar</h2>
+    <p>Frankfurt Radar is an <strong>unofficial, open-source community tool</strong> for Frankfurt's English-speaking residents. It automatically fetches and translates public alerts from:</p>
+    <p style="margin:8px 0 14px 16px">
+      <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a> (transit) ·
+      <a href="https://brightsky.dev" target="_blank" rel="noopener">DWD via BrightSky</a> (weather) ·
+      <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a> (police notices)
+    </p>
+    <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
+    <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
+    <button class="btn btn-ghost" onclick="dismissDisclaimer()" style="width:100%;margin-top:8px">Got it</button>
   </div>
 </div>
 
@@ -1040,6 +1060,17 @@ function selectAlert(id) {
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
 function closeInfoModal() { document.getElementById('info-modal').classList.remove('open'); }
 
+function dismissDisclaimer() {
+  localStorage.setItem('fr_disclaimer_seen', '1');
+  document.getElementById('disclaimer-modal').classList.remove('open');
+}
+
+function maybeShowDisclaimer() {
+  if (!localStorage.getItem('fr_disclaimer_seen')) {
+    document.getElementById('disclaimer-modal').classList.add('open');
+  }
+}
+
 // ── Filter bar ────────────────────────────────────────────────────────────────
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
@@ -1284,6 +1315,7 @@ async function init() {
     _now.toLocaleDateString('en-GB', { month: 'short' }) + ' ' +
     _now.getFullYear();
   initMap();
+  maybeShowDisclaimer();
 
   try {
     applyData(await apiGet('/api/status'));
