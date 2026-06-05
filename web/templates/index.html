@@ -1024,7 +1024,7 @@ function selectAlert(id) {
   } else {
     const marker = markers[id];
     if (marker && clusterGroup) {
-      map.setView(marker.getLatLng(), 15, { animate: true });
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
       map.once('moveend', () => {
         const visible = clusterGroup.getVisibleParent(marker);
         if (visible === marker) {
