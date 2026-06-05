@@ -782,6 +782,7 @@ let markers      = {}; // id → L.Marker
 let seenIds    = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
 let _linesClosedBy = null;
 let _sevClosedBy   = null;
+let _openingPopup  = false;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
@@ -799,7 +800,9 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
+  map.on('popupopen',  () => { _openingPopup = false; });
   map.on('popupclose', () => {
+    if (_openingPopup) return;
     if (isMobileView()) closeMobileMap();
     else map.setView(FRANKFURT, 12, { animate: true });
   });
@@ -1020,8 +1023,10 @@ function selectAlert(id) {
       map.once('moveend', () => {
         const visible = clusterGroup.getVisibleParent(marker);
         if (visible === marker) {
+          _openingPopup = true;
           marker.openPopup();
         } else if (visible) {
+          _openingPopup = true;
           clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
         }
       });
