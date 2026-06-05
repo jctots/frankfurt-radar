@@ -576,6 +576,22 @@
     .brand { cursor: pointer; user-select: none; }
     .brand:hover { opacity: 0.82; }
 
+    /* ── Map reset button ───────────────────────────────────── */
+    .map-reset-btn {
+      width: 30px;
+      height: 30px;
+      background: var(--clr-surface);
+      border: 2px solid rgba(0,0,0,0.2);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--clr-text);
+    }
+    .map-reset-btn:hover { background: var(--clr-bg); }
+
     /* ── Mobile map overlay ─────────────────────────────────── */
     .mobile-map-open .feed-panel  { display: none; }
     .mobile-map-open .filter-bar  { display: none; }
@@ -783,7 +799,6 @@ let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]')
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _sevClosedBy   = null;
-let _openingPopup  = false;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
@@ -801,13 +816,18 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  map.on('popupopen',  () => { _openingPopup = false; });
-  map.on('click',      () => { _openingPopup = false; });
-  map.on('popupclose', () => {
-    if (_openingPopup) return;
-    if (isMobileView()) closeMobileMap();
-    else map.setView(FRANKFURT, 12, { animate: true });
-  });
+  const resetCtrl = L.control({ position: 'topleft' });
+  resetCtrl.onAdd = function() {
+    const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control map-reset-btn');
+    btn.innerHTML = '⌖';
+    btn.title = 'Reset view';
+    L.DomEvent.on(btn, 'click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      map.setView(FRANKFURT, 12, { animate: true });
+    });
+    return btn;
+  };
+  resetCtrl.addTo(map);
 }
 
 function sourceIcon(source) {
@@ -874,7 +894,7 @@ function renderMarkers() {
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-    m.on('click', (e) => { L.DomEvent.stopPropagation(e); selectAlert(a.id); });
+    m.on('click', () => selectAlert(a.id));
     clusterGroup.addLayer(m);
     markers[a.id] = m;
   });
@@ -1006,7 +1026,6 @@ function selectAlert(id) {
   selectedId = id;
   const a = alerts.find(x => x.id === id);
   if (!a) return;
-  _openingPopup = true;
 
   // Highlight card and scroll it into view
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
@@ -1029,8 +1048,6 @@ function selectAlert(id) {
           marker.openPopup();
         } else if (visible) {
           clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
-        } else {
-          _openingPopup = false;
         }
       });
     }
