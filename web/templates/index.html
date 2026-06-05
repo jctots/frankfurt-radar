@@ -623,7 +623,7 @@
       <span id="last-updated"></span>
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ <span class="btn-label">Poll now</span></button>
-    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 <span class="btn-label">Notifications</span></button>
+    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()"><span id="btn-notify-icon">🔔</span><span class="btn-label" id="btn-notify-label"> Notifications</span></button>
     <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ <span class="btn-label">More info</span></button>
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()"><span id="btn-dark-icon">🌙</span><span class="btn-label" id="btn-dark-label"> Dark mode</span></button>
   </div>
@@ -648,9 +648,6 @@
 <div class="modal-overlay centered" id="info-modal" onclick="closeInfoModal()">
   <div class="modal-box" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeInfoModal()">✕</button>
-
-    <p class="info-note" style="margin-bottom:4px">🔔 <strong>Browser</strong> — alerts while this tab is open · use the Notifications button in the toolbar</p>
-    {% if telegram_channel_url %}<p class="info-note" style="margin-bottom:16px">📱 <strong>Telegram</strong> — push notifications anytime, works on mobile</p>{% endif %}
 
     {% if telegram_channel_url %}
     <h2>📱 Frankfurt Radar on Telegram</h2>
@@ -1213,7 +1210,8 @@ function updateNotifyBtn() {
   const btn = document.getElementById('btn-notify');
   if (!('Notification' in window)) { btn.style.display = 'none'; return; }
   const active = Notification.permission === 'granted' && _notifyEnabled;
-  btn.textContent = active ? '🔔 On' : '🔔 Notifications';
+  document.getElementById('btn-notify-icon').textContent = '🔔';
+  document.getElementById('btn-notify-label').textContent = active ? ' On' : ' Notifications';
   btn.classList.toggle('on', active);
 }
 
