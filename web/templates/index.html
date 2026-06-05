@@ -583,7 +583,9 @@
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
-      .header-actions > *:not(#btn-dark):not(.header-time) { display: none !important; }
+      .btn-label { display: none; }
+      .brand { font-size: 20px; }
+      header { padding: 0 8px; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
       .feed           { flex: 1; max-height: none; }
@@ -620,10 +622,10 @@
       <span id="last-updated-label">Last polled</span>
       <span id="last-updated"></span>
     </div>
-    <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ Poll now</button>
-    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 Notifications</button>
-    <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ More info</button>
-    <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()">🌙</button>
+    <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ <span class="btn-label">Poll now</span></button>
+    <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()">🔔 <span class="btn-label">Notifications</span></button>
+    <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ <span class="btn-label">More info</span></button>
+    <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()"><span id="btn-dark-icon">🌙</span><span class="btn-label" id="btn-dark-label"> Dark mode</span></button>
   </div>
 </header>
 
@@ -800,12 +802,16 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  map.on('click', () => map.setView(FRANKFURT, 12, { animate: true }));
+  map.on('click', () => {
+    if (isMobileView()) { closeMobileMap(); }
+    else { map.setView(FRANKFURT, 12, { animate: true }); }
+  });
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
     if (btn) L.DomEvent.on(btn, 'click', (ev) => {
       L.DomEvent.preventDefault(ev);
-      map.setView(FRANKFURT, 12, { animate: true });
+      if (isMobileView()) { map.closePopup(); closeMobileMap(); }
+      else { map.setView(FRANKFURT, 12, { animate: true }); }
     });
   });
 }
@@ -1260,7 +1266,8 @@ function closeWeatherPanel() {
 function toggleDark() {
   const on = document.body.classList.toggle('dark');
   localStorage.setItem('fr_dark', on ? '1' : '0');
-  document.getElementById('btn-dark').textContent = on ? '☀️' : '🌙';
+  document.getElementById('btn-dark-icon').textContent = on ? '☀️' : '🌙';
+  document.getElementById('btn-dark-label').textContent = on ? ' Light mode' : ' Dark mode';
   if (map) setTileLayer(on ? 'dark' : 'light');
 }
 
@@ -1269,7 +1276,8 @@ async function init() {
   if (ALLOW_POLL) document.getElementById('btn-poll').style.display = '';
   if (localStorage.getItem('fr_dark') === '1') {
     document.body.classList.add('dark');
-    document.getElementById('btn-dark').textContent = '☀️';
+    document.getElementById('btn-dark-icon').textContent = '☀️';
+    document.getElementById('btn-dark-label').textContent = ' Light mode';
   }
   updateNotifyBtn();
   const _now = new Date();
@@ -1298,7 +1306,8 @@ init();
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('leaflet-popup-close-button')) {
     e.preventDefault();
-    map.setView(FRANKFURT, 12, { animate: true });
+    if (isMobileView()) { map && map.closePopup(); closeMobileMap(); }
+    else { map && map.setView(FRANKFURT, 12, { animate: true }); }
   }
 });
 </script>
