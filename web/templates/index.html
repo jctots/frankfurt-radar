@@ -779,7 +779,8 @@ let map          = null;
 let clusterGroup = null;
 let tileLayer    = null;
 let markers      = {}; // id → L.Marker
-let seenIds    = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _sevClosedBy   = null;
 let _openingPopup  = false;
@@ -801,6 +802,7 @@ function initMap() {
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
   map.on('popupopen',  () => { _openingPopup = false; });
+  map.on('click',      () => { _openingPopup = false; });
   map.on('popupclose', () => {
     if (_openingPopup) return;
     if (isMobileView()) closeMobileMap();
@@ -872,7 +874,7 @@ function renderMarkers() {
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-    m.on('click', () => selectAlert(a.id, false));
+    m.on('click', (e) => { L.DomEvent.stopPropagation(e); selectAlert(a.id); });
     clusterGroup.addLayer(m);
     markers[a.id] = m;
   });
@@ -1004,6 +1006,7 @@ function selectAlert(id) {
   selectedId = id;
   const a = alerts.find(x => x.id === id);
   if (!a) return;
+  _openingPopup = true;
 
   // Highlight card and scroll it into view
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
@@ -1023,11 +1026,11 @@ function selectAlert(id) {
       map.once('moveend', () => {
         const visible = clusterGroup.getVisibleParent(marker);
         if (visible === marker) {
-          _openingPopup = true;
           marker.openPopup();
         } else if (visible) {
-          _openingPopup = true;
           clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+        } else {
+          _openingPopup = false;
         }
       });
     }
@@ -1190,20 +1193,29 @@ function _sevOutsideClose(e) {
 // ── Browser notifications ─────────────────────────────────────────────────────
 async function toggleNotifications() {
   if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') await Notification.requestPermission();
+  if (Notification.permission === 'granted') {
+    _notifyEnabled = !_notifyEnabled;
+    localStorage.setItem('fr_notify', _notifyEnabled ? '1' : '0');
+  } else {
+    const result = await Notification.requestPermission();
+    if (result === 'granted') {
+      _notifyEnabled = true;
+      localStorage.setItem('fr_notify', '1');
+    }
+  }
   updateNotifyBtn();
 }
 
 function updateNotifyBtn() {
   const btn = document.getElementById('btn-notify');
   if (!('Notification' in window)) { btn.style.display = 'none'; return; }
-  const on = Notification.permission === 'granted';
-  btn.textContent = on ? '🔔 On' : '🔔 Notifications';
-  btn.classList.toggle('on', on);
+  const active = Notification.permission === 'granted' && _notifyEnabled;
+  btn.textContent = active ? '🔔 On' : '🔔 Notifications';
+  btn.classList.toggle('on', active);
 }
 
 function fireNotification(a) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('Notification' in window) || Notification.permission !== 'granted' || !_notifyEnabled) return;
   const src = SOURCE[a.source];
   new Notification((src ? src.emoji + ' ' : '') + a.title, {
     body: (a.body || '').split('\n')[0].slice(0, 120),
