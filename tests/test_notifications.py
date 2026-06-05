@@ -50,6 +50,30 @@ class TestTelegram:
         payload = mock_post.call_args.kwargs["json"]
         assert "https://rmv.de" in payload["text"]
 
+    def test_rmv_fallback_link_when_no_url(self, mocker, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:token")
+        mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())
+
+        notifications.notify(
+            title="S-Bahn disruption", body="Delays on S1.", url=None,
+            config=self._telegram_config(), source="rmv",
+        )
+
+        payload = mock_post.call_args.kwargs["json"]
+        assert "rmv.de" in payload["text"]
+
+    def test_dwd_fallback_link_when_no_url(self, mocker, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:token")
+        mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())
+
+        notifications.notify(
+            title="Weather warning", body="Thunderstorm.", url=None,
+            config=self._telegram_config(), source="dwd",
+        )
+
+        payload = mock_post.call_args.kwargs["json"]
+        assert "dwd.de" in payload["text"]
+
     def test_no_request_when_token_missing(self, mocker, monkeypatch):
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
         mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())

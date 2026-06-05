@@ -22,6 +22,11 @@ CLS_PRIORITY = [8, 16, 32, 64, 4]  # sbahn > ubahn > tram > bus > regional
 
 SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather"}
 SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️"}
+SOURCE_URL: dict[str, Optional[str]] = {
+    "rmv":     "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
+    "dwd":     "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
+    "polizei": None,
+}
 
 
 @dataclass

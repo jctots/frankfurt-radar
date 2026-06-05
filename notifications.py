@@ -5,17 +5,19 @@ from typing import Optional
 
 import requests
 
+from models import SOURCE_URL
+
 log = logging.getLogger(__name__)
 
 _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
-def notify(title: str, body: str, url: Optional[str], config: dict) -> None:
+def notify(title: str, body: str, url: Optional[str], config: dict, source: str = "") -> None:
     backend = config.get("notifier", {}).get("backend", "ntfy").lower()
     if backend == "ntfy":
         _notify_ntfy(title, body, url, config)
     elif backend == "telegram":
-        _notify_telegram_channel(title, body, url, config)
+        _notify_telegram_channel(title, body, url, config, source)
     else:
         log.warning("Unknown notifier backend '%s'", backend)
 
@@ -35,7 +37,7 @@ def _notify_ntfy(title: str, body: str, url: Optional[str], config: dict) -> Non
         log.error("ntfy send failed: %s", e)
 
 
-def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: dict) -> None:
+def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: dict, source: str = "") -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     channel = config.get("notifier", {}).get("telegram_channel", "")
     if not token or not channel:
@@ -46,8 +48,9 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
     if body:
         truncated = body[:800] + ("…" if len(body) > 800 else "")
         parts.append(html_lib.escape(truncated))
-    if url:
-        parts.append(f'<a href="{html_lib.escape(url)}">Details ↗</a>')
+    link = url or SOURCE_URL.get(source, "")
+    if link:
+        parts.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
 
     try:
         resp = requests.post(

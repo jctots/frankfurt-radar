@@ -42,6 +42,7 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
             body=en_body,
             url=alert.url,
             config=config,
+            source=alert.source,
         )
         mark_seen(alert)
         if throttle_every > 0 and (i + 1) % throttle_every == 0:
