@@ -801,6 +801,13 @@ function initMap() {
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
   map.on('click', () => map.setView(FRANKFURT, 12, { animate: true }));
+  map.on('popupopen', (e) => {
+    const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
+    if (btn) L.DomEvent.on(btn, 'click', (ev) => {
+      L.DomEvent.preventDefault(ev);
+      map.setView(FRANKFURT, 12, { animate: true });
+    });
+  });
 }
 
 function sourceIcon(source) {
