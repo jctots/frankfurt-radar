@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -57,6 +57,14 @@ def main() -> None:
         pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 2)))
 
     all_alerts = [a for p in pollers for a in p.fetch()]
+
+    max_age = config.get("police", {}).get("max_age_hours", 48)
+    if max_age:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age)).isoformat()
+        all_alerts = [
+            a for a in all_alerts
+            if not (a.source == "polizei" and a.published_at and a.published_at < cutoff)
+        ]
 
     sync_alert_cache(all_alerts, config)
     expire_processed_alerts()

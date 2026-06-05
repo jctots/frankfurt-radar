@@ -14,7 +14,7 @@ polling:
   interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
 
 translator:
-  backend: google                  # libretranslate | google
+  backend: libretranslate          # libretranslate | google
   # libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
 
 notifier:
@@ -29,6 +29,7 @@ notifier:
 police:
   enabled: true
   translate_body: false            # false = title + link only (§87g(2) safe harbour); applies to notifications and web page
+  max_age_hours: 48                # drop police alerts older than this many hours; 0 = no limit
 
 web:
   allow_manual_poll: false   # set to true only for private/self-hosted deployments

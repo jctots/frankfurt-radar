@@ -24,7 +24,7 @@ def process_alerts(alerts: list["Alert"], mode: str, config: dict) -> None:
 def _process_poll(alerts: list["Alert"], config: dict) -> None:
     new_alerts = get_unseen_alerts(alerts)
 
-    burst_threshold = config.get("notifier", {}).get("notify_burst_threshold", 15)
+    burst_threshold = config.get("notifier", {}).get("notify_burst_threshold", 10)
     if len(new_alerts) >= burst_threshold:
         log.warning(
             "Cold-start guard: %d new alerts exceeds threshold %d — marking seen, skipping notifications",

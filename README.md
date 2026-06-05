@@ -1,4 +1,4 @@
-# Frankfurt Radar 📡
+# 📡 Frankfurt Radar 
 
 [![Tests](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml)
 [![Docker](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml)
@@ -8,7 +8,8 @@
 
 Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, and local police reports, translated to English and delivered to where you are.
 
-**Live service:** [@FrankfurtRadar on Telegram](https://t.me/FrankfurtRadar) · [Status page](https://frankfurt-radar.com)
+🌐 **Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
+📱 **Telegram:** [@FrankfurtRadar](https://t.me/FrankfurtRadar)
 
 ![Frankfurt Radar demo](docs/assets/demo.gif)
 
@@ -17,8 +18,14 @@ Real-time alert service for Frankfurt am Main — transit disruptions, weather w
 - Polls RMV (S-Bahn/U-Bahn/tram/bus), DWD weather, and Frankfurt police press releases
 - Translates German alerts to English
 - Posts to a public Telegram channel and a live status webpage
-- Configurable line filters, severity thresholds, and quiet hours
+- Configurable line filters and severity thresholds
 - Self-hostable via Docker Compose
+
+## 🖥️ Web interface
+
+- Live alert feed with source, severity, and line filters (persisted per browser)
+- Interactive Leaflet map with clustered alert pins
+- Dark mode, mobile-optimised layout, browser push notifications
 
 ## 🗂️ Data sources
 
@@ -75,7 +82,6 @@ On first start, `config.yaml` is seeded to the data volume — edit it at `data/
 | `notifier.backend` | `telegram` | `telegram` or `ntfy` |
 | `translator.backend` | `libretranslate` | `google` or `libretranslate` |
 | `polling.interval_minutes` | `10` | Poll frequency (10–60 min) |
-| `polling.quiet_hours` | 23–07 | Suppress notifications outside this window |
 | `notifier.notify_burst_threshold` | `10` | Cold-start guard — skip notifications if ≥ N new alerts on first run |
 | `weather.min_severity` | `1` | 1=minor, 2=moderate, 3=severe, 4=extreme |
 | `transport.services` | (all) | Filter by service type and line |
