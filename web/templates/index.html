@@ -576,23 +576,7 @@
     .brand { cursor: pointer; user-select: none; }
     .brand:hover { opacity: 0.82; }
 
-    /* ── Map reset button ───────────────────────────────────── */
-    .map-reset-btn {
-      width: 30px;
-      height: 30px;
-      background: var(--clr-surface);
-      border: 2px solid rgba(0,0,0,0.2);
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--clr-text);
-    }
-    .map-reset-btn:hover { background: var(--clr-bg); }
-
-    /* ── Mobile map overlay ─────────────────────────────────── */
+/* ── Mobile map overlay ─────────────────────────────────── */
     .mobile-map-open .feed-panel  { display: none; }
     .mobile-map-open .filter-bar  { display: none; }
     .mobile-map-open header       { display: none; }
@@ -816,18 +800,7 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  const resetCtrl = L.control({ position: 'topleft' });
-  resetCtrl.onAdd = function() {
-    const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control map-reset-btn');
-    btn.innerHTML = '⌖';
-    btn.title = 'Reset view';
-    L.DomEvent.on(btn, 'click', (e) => {
-      L.DomEvent.stopPropagation(e);
-      map.setView(FRANKFURT, 12, { animate: true });
-    });
-    return btn;
-  };
-  resetCtrl.addTo(map);
+  map.on('click', () => map.setView(FRANKFURT, 12, { animate: true }));
 }
 
 function sourceIcon(source) {
@@ -1314,6 +1287,13 @@ async function init() {
 }
 
 init();
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('leaflet-popup-close-button')) {
+    e.preventDefault();
+    map.setView(FRANKFURT, 12, { animate: true });
+  }
+});
 </script>
 </body>
 </html>
