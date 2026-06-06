@@ -54,6 +54,24 @@ class TestStatusEndpoint:
         ids = [a["id"] for a in resp.get_json()["alerts"]]
         assert "WEB_TEST_001" in ids
 
+    def test_alert_has_searchable_fields(self, mocker):
+        """title and body must be present — client-side search queries both."""
+        import db
+        from models import Alert
+        mocker.patch("translation.translate_alert", return_value=("Searchable Title", "Searchable body text"))
+        alert = Alert(
+            id="WEB_SEARCH_001", source="rmv", title="Searchable Title", body="Searchable body text",
+            url=None, valid_until=None, service="S-Bahn", lines=["S1"],
+        )
+        cfg = {"translator": {"backend": "libretranslate"}, "police": {"translate_body": True}}
+        db.sync_alert_cache([alert], cfg)
+
+        resp = _client.get("/api/status")
+        alert_data = next((a for a in resp.get_json()["alerts"] if a["id"] == "WEB_SEARCH_001"), None)
+        assert alert_data is not None
+        assert "title" in alert_data and alert_data["title"]
+        assert "body" in alert_data
+
 
 class TestPollEndpoint:
     def test_disabled_returns_403(self):
@@ -88,3 +106,8 @@ class TestIndexPage:
         resp = _client.get("/")
         assert resp.status_code == 200
         assert b"Frankfurt Radar" in resp.data
+
+    def test_search_input_present(self):
+        resp = _client.get("/")
+        assert b'id="search-input"' in resp.data
+        assert b'id="search-clear"' in resp.data

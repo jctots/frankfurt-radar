@@ -308,6 +308,41 @@
       z-index: 10;
     }
 
+    .search-bar {
+      background: var(--clr-surface);
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .search-bar input {
+      flex: 1;
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 13px;
+      padding: 5px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-bar input:focus { border-color: #1a73e8; }
+    .search-bar input::placeholder { color: var(--clr-muted); }
+    .search-clear {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--clr-muted);
+      font-size: 14px;
+      padding: 2px 4px;
+      line-height: 1;
+      display: none;
+    }
+    .search-clear.visible { display: block; }
+    .dark .search-bar input { background: #0f172a; border-color: #334155; }
+    .dark .search-bar input:focus { border-color: #1a73e8; }
+
     .feed-header {
       background: var(--clr-surface);
       padding: 10px 14px 9px;
@@ -706,6 +741,11 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
+    <div class="search-bar">
+      <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
+      <input type="search" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
+    </div>
     <div class="feed-header">
       Active Alerts - <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
     </div>
@@ -1032,6 +1072,22 @@ function applyData(data) {
   renderFeed();
 }
 
+// ── Search ────────────────────────────────────────────────────────────────────
+let searchTerm = '';
+
+function onSearchInput(val) {
+  searchTerm = val.trim().toLowerCase();
+  document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
+  renderFeed();
+}
+
+function clearSearch() {
+  searchTerm = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  renderFeed();
+}
+
 // ── Filtering ─────────────────────────────────────────────────────────────────
 function visible() {
   return alerts.filter(a => {
@@ -1044,6 +1100,10 @@ function visible() {
       }
     }
     if (a.source === 'dwd' && a.severity != null && a.severity < filters.minSev) return false;
+    if (searchTerm) {
+      const hay = `${a.title} ${a.body}`.toLowerCase();
+      if (!hay.includes(searchTerm)) return false;
+    }
     return true;
   });
 }
