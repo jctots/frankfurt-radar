@@ -14,12 +14,22 @@ log = logging.getLogger(__name__)
 
 
 def _rmv_datetime(date: str, time: str) -> Optional[str]:
-    """Normalize RMV YYYYMMDD / HHMMSS fields to ISO 8601."""
+    """Normalize RMV date/time fields to ISO 8601.
+
+    Handles both compact (YYYYMMDD / HHMMSS) and already-separated
+    (YYYY-MM-DD / HH:MM) formats returned by different RMV API versions.
+    """
     if not date:
         return None
     try:
+        # Normalize date: YYYYMMDD → YYYY-MM-DD
+        if '-' not in date and len(date) == 8:
+            date = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        # Normalize time: HHMMSS/HHMM → HH:MM:SS/HH:MM
+        if time and ':' not in time:
+            time = f"{time[:2]}:{time[2:4]}" + (f":{time[4:6]}" if len(time) >= 6 else "")
         s = f"{date}T{time}" if time else date
-        fmt = "%Y%m%dT%H%M%S" if time and len(time) >= 6 else ("%Y%m%dT%H%M" if time else "%Y%m%d")
+        fmt = "%Y-%m-%dT%H:%M:%S" if time and time.count(':') == 2 else ("%Y-%m-%dT%H:%M" if time else "%Y-%m-%d")
         return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
     except ValueError:
         return None

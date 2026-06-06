@@ -42,7 +42,7 @@ class TestRMVPoller:
         assert "S2" in alert.lines
         # HTML stripped from body
         assert "<b>" not in alert.body
-        assert alert.valid_until == "2026-06-04T20:00"
+        assert alert.valid_until == "2026-06-04T20:00:00+00:00"
         # Location extracted from edge
         assert alert.lat == 50.107
         assert alert.lon == 8.664
