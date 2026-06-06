@@ -95,6 +95,7 @@
     .pulse-wrap {
       display: flex;
       align-items: center;
+      margin-right: 8px;
       gap: 6px;
       white-space: nowrap;
       flex-shrink: 0;
@@ -169,7 +170,10 @@
     }
 
     .chip {
-      padding: 3px 10px;
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
       border-radius: 999px;
       border: 1px solid var(--clr-border);
       background: var(--clr-bg);
@@ -180,6 +184,8 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
+    .chip.line-picker,
+    .chip.sev-picker { border-radius: 6px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on     { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -330,6 +336,8 @@
     .feed {
       flex: 1;
       overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
       background: var(--clr-surface);
     }
 
@@ -607,9 +615,12 @@
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip.sev-picker           { background: #2e1065; }
     .dark .chip.sev-picker.filt      { background: #422006; border-color: #92400e; color: #fcd34d; }
-    .dark .feed::-webkit-scrollbar        { width: 6px; }
-    .dark .feed::-webkit-scrollbar-track  { background: #0f172a; }
-    .dark .feed::-webkit-scrollbar-thumb  { background: #334155; border-radius: 3px; }
+    .feed::-webkit-scrollbar                   { width: 6px; }
+    .feed::-webkit-scrollbar-track             { background: transparent; }
+    .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
+    .feed::-webkit-scrollbar-thumb:hover       { background: #94a3b8; }
+    .dark .feed::-webkit-scrollbar-track       { background: #0f172a; }
+    .dark .feed::-webkit-scrollbar-thumb       { background: #334155; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
