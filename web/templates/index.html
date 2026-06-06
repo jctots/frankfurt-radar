@@ -62,16 +62,57 @@
       flex-shrink: 0;
     }
 
-    .header-time {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      white-space: nowrap;
-      margin-right: 4px;
-      line-height: 1.5;
+    /* ── Rotating ticker (desktop only) ────────────────── */
+    .ticker-wrap {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      position: relative;
+      height: 20px;
+      margin: 0 8px;
     }
-    #last-updated-label { font-size: 12px; color: #64748b; }
-    #last-updated       { font-size: 12px; font-weight: 500; color: #94a3b8; }
+    .ticker-item {
+      position: absolute;
+      width: 100%;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    .ticker-item.active { animation: tickerFade 6s forwards; }
+    @keyframes tickerFade {
+      0%   { opacity: 0; transform: translateY(6px); }
+      10%  { opacity: 1; transform: translateY(0); }
+      80%  { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-6px); }
+    }
+    .ticker-wrap:hover .ticker-item { animation-play-state: paused; }
+
+    /* ── Pulse + relative time ──────────────────────────── */
+    .pulse-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+      animation: pulseDot 2s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(34,197,94,0.5); }
+      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0);   }
+    }
+    .updated-full  { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .updated-short { display: none; font-size: 11px; color: rgba(255,255,255,0.45); }
 
     /* ── Buttons ────────────────────────────────────────── */
     .btn {
@@ -517,6 +558,22 @@
     }
     .btn-gh:hover { opacity: 0.9; }
 
+    .btn-confirm {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      background: #0088cc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-confirm:hover { opacity: 0.9; }
+    .btn-center { text-align: center; margin-top: 16px; }
+
     /* ── Footer ─────────────────────────────────────────── */
     footer {
       text-align: center;
@@ -586,6 +643,9 @@
       .btn-label { display: none; }
       .brand { font-size: 20px; }
       header { padding: 0 8px; }
+      .ticker-wrap  { display: none; }
+      .updated-full { display: none; }
+      .updated-short { display: inline; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
       .feed           { flex: 1; max-height: none; }
@@ -617,10 +677,12 @@
 
 <header>
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
+  <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
-    <div class="header-time">
-      <span id="last-updated-label">Last polled</span>
-      <span id="last-updated"></span>
+    <div class="pulse-wrap">
+      <div class="pulse-dot"></div>
+      <span class="updated-full" id="updated-full">Updated just now</span>
+      <span class="updated-short" id="updated-short">—</span>
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ <span class="btn-label">Poll now</span></button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()"><span id="btn-notify-icon">🔔</span><span class="btn-label" id="btn-notify-label"> Notifications</span></button>
@@ -707,7 +769,9 @@
     </p>
     <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
     <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
-    <button class="btn" onclick="dismissDisclaimer()" style="width:100%;margin-top:8px;background:#1a73e8;color:white;border-color:#1a73e8;justify-content:center;font-size:14px;padding:10px 16px">✅ Got it</button>
+    <div class="btn-center">
+      <button class="btn-confirm" onclick="dismissDisclaimer()">✔️ Noted — show me the alerts</button>
+    </div>
   </div>
 </div>
 
@@ -949,8 +1013,8 @@ function applyData(data) {
   localStorage.setItem('fr_seen', JSON.stringify(trimmed));
 
   if (data.updated_at) {
-    const hm = new Date(data.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    document.getElementById('last-updated').textContent = hm;
+    lastUpdatedAt = new Date(data.updated_at);
+    updateRelativeTime();
   }
 
   buildFilterBar();
@@ -975,6 +1039,7 @@ function visible() {
 
 // ── Feed rendering ────────────────────────────────────────────────────────────
 function renderFeed() {
+  updateTicker();
   const feed = document.getElementById('feed');
   const list = visible().sort((a, b) => {
     const ta = a.published_at || a.valid_until || '';
@@ -1254,6 +1319,61 @@ function fireNotification(a) {
   });
 }
 
+// ── Ticker & relative time ────────────────────────────────────────────────────
+let lastUpdatedAt = null;
+let tickerItems   = [];
+let tickerCurrent = 0;
+let tickerTimer   = null;
+
+function relativeTime(date, short = false) {
+  if (!date) return short ? '—' : '—';
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 1)  return short ? 'now'  : 'just now';
+  if (mins < 60) return short ? `${mins}m` : `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  return short ? `${hrs}h` : `${hrs}h ago`;
+}
+
+function updateRelativeTime() {
+  document.getElementById('updated-full').textContent  = 'Updated ' + relativeTime(lastUpdatedAt, false);
+  document.getElementById('updated-short').textContent = relativeTime(lastUpdatedAt, true);
+}
+
+function tickerShowNext() {
+  if (!tickerItems.length) return;
+  const wrap = document.getElementById('ticker-wrap');
+  if (wrap.matches(':hover')) return;
+  tickerItems.forEach(el => { el.classList.remove('active'); el.style.animation = 'none'; });
+  const el = tickerItems[tickerCurrent];
+  el.style.animation = '';
+  void el.offsetWidth;
+  el.classList.add('active');
+  tickerCurrent = (tickerCurrent + 1) % tickerItems.length;
+}
+
+function updateTicker() {
+  const wrap = document.getElementById('ticker-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  tickerItems = [];
+  tickerCurrent = 0;
+  const src = alerts.filter(a => a.source !== 'dwd');
+  const pool = src.length ? src : alerts;
+  pool.slice(0, 10).forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'ticker-item';
+    const src = (SOURCE[a.source] || {}).emoji || '📍';
+    el.textContent = `${src} ${a.title}`;
+    wrap.appendChild(el);
+    tickerItems.push(el);
+  });
+  if (tickerTimer) clearInterval(tickerTimer);
+  if (tickerItems.length) {
+    tickerShowNext();
+    tickerTimer = setInterval(tickerShowNext, 6000);
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1329,6 +1449,8 @@ async function init() {
     try { applyData(await apiGet('/api/status')); }
     catch (e) { console.error('Auto-refresh:', e); }
   }, REFRESH_INTERVAL);
+
+  setInterval(updateRelativeTime, 30_000);
 }
 
 init();

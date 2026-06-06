@@ -13,6 +13,18 @@ from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
 log = logging.getLogger(__name__)
 
 
+def _rmv_datetime(date: str, time: str) -> Optional[str]:
+    """Normalize RMV YYYYMMDD / HHMMSS fields to ISO 8601."""
+    if not date:
+        return None
+    try:
+        s = f"{date}T{time}" if time else date
+        fmt = "%Y%m%dT%H%M%S" if time and len(time) >= 6 else ("%Y%m%dT%H%M" if time else "%Y%m%d")
+        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
+    except ValueError:
+        return None
+
+
 class BasePoller(ABC):
     @abstractmethod
     def fetch(self) -> list[Alert]:
@@ -96,13 +108,8 @@ class RMVPoller(BasePoller):
         product_list = [product_raw] if isinstance(product_raw, dict) else product_raw
         service, lines = _primary_service_and_line(product_list)
 
-        edate = msg.get("eDate", "")
-        etime = msg.get("eTime", "")
-        valid_until = f"{edate}T{etime}" if edate and etime else edate or None
-
-        mdate = msg.get("modDate", "")
-        mtime = msg.get("modTime", "")
-        published_at = f"{mdate}T{mtime}" if mdate and mtime else mdate or None
+        valid_until  = _rmv_datetime(msg.get("eDate", ""), msg.get("eTime", ""))
+        published_at = _rmv_datetime(msg.get("modDate", ""), msg.get("modTime", ""))
 
         edges = msg.get("edge", [])
         lat = lon = location_label = None
