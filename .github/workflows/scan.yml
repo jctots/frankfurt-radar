@@ -1,0 +1,59 @@
+name: Scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 1'  # weekly, Monday 07:00 UTC
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: |
+          pip-audit \
+            -r requirements.txt \
+            -r web/requirements.txt \
+            --format json \
+            --output pip-audit-report.json \
+            --no-deps \
+            || true
+
+      - name: Show summary
+        run: pip-audit -r requirements.txt -r web/requirements.txt --no-deps || true
+
+      - name: Run pip list --outdated
+        run: |
+          pip install -r requirements.txt -r web/requirements.txt --quiet
+          pip list --outdated --format=json > pip-outdated-report.json || true
+          pip list --outdated || true
+
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: |
+            pip-audit-report.json
+            pip-outdated-report.json
+          retention-days: 90
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
