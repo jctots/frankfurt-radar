@@ -12,6 +12,11 @@ services:
     depends_on:
       - ntfy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   web:
     image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
@@ -22,6 +27,11 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   ntfy:
     image: binwiederhier/ntfy:latest

@@ -18,6 +18,15 @@ MAIN_PY = Path(os.getenv("MAIN_PY", "/app/main.py"))
 init_db()
 
 
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Server"] = "unknown"
+    return response
+
+
 @app.route("/")
 def index():
     web_cfg = _web_config()
@@ -79,4 +88,4 @@ def _allow_manual_poll() -> bool:
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=5000)
