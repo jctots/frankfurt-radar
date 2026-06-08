@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from db import expire_processed_alerts, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import DWDPoller, PolizeiPoller, RMVPoller
+from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, TicketmasterPoller
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -55,6 +55,16 @@ def main() -> None:
         pollers.append(PolizeiPoller())
     if config.get("weather", {}).get("enabled", False):
         pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 2)))
+    autobahn_cfg = config.get("autobahn", {})
+    if autobahn_cfg.get("enabled", False):
+        pollers.append(AutobahnPoller(roads=autobahn_cfg.get("roads") or None))
+    events_cfg = config.get("events", {})
+    if events_cfg.get("enabled", False):
+        tm_key = os.getenv("TICKETMASTER_API_KEY", "")
+        if tm_key:
+            pollers.append(TicketmasterPoller(api_key=tm_key, days_ahead=events_cfg.get("days_ahead", 7)))
+        else:
+            log.warning("events.enabled=true but TICKETMASTER_API_KEY not set — skipping")
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 

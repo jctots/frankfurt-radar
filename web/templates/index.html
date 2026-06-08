@@ -15,6 +15,8 @@
       --clr-transport: #1a73e8;
       --clr-weather:   #7c3aed;
       --clr-police:    #dc2626;
+      --clr-roads:     #d97706;
+      --clr-events:    #059669;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -188,9 +190,11 @@
     .chip.sev-picker { border-radius: 6px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
-    .chip.src-rmv.on     { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
-    .chip.src-dwd.on     { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
-    .chip.src-polizei.on { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
+    .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
+    .chip.src-dwd.on      { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
+    .chip.src-polizei.on  { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
+    .chip.src-autobahn.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -385,8 +389,10 @@
     }
     .card:hover { background: #f8fafc; }
     .card.sel { background: #eff6ff; border-left-color: var(--clr-transport); }
-    .card.sel.src-dwd     { background: #f5f3ff; border-left-color: var(--clr-weather); }
-    .card.sel.src-polizei { background: #fef2f2; border-left-color: var(--clr-police); }
+    .card.sel.src-dwd      { background: #f5f3ff; border-left-color: var(--clr-weather); }
+    .card.sel.src-polizei  { background: #fef2f2; border-left-color: var(--clr-police); }
+    .card.sel.src-autobahn { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
 
     .card-src {
       font-size: 10px;
@@ -642,9 +648,13 @@
     .dark .card.sel                  { background: #172554; }
     .dark .card.sel.src-dwd          { background: #2e1065; }
     .dark .card.sel.src-polizei      { background: #450a0a; }
+    .dark .card.sel.src-autobahn     { background: #431407; }
+    .dark .card.sel.src-events       { background: #022c22; }
     .dark .chip.src-rmv.on           { background: #172554; }
     .dark .chip.src-dwd.on           { background: #2e1065; }
     .dark .chip.src-polizei.on       { background: #450a0a; }
+    .dark .chip.src-autobahn.on      { background: #431407; }
+    .dark .chip.src-events.on        { background: #022c22; }
     .dark .chip.svc.on,
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
@@ -842,9 +852,11 @@ const FRANKFURT        = [50.1109, 8.6821];
 const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
 
 const SOURCE = {
-  rmv:     { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
-  dwd:     { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
-  polizei: { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
+  rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
+  dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
+  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
+  autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
+  events:   { label: 'Events',    emoji: '🎫', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.ticketmaster.de/city/frankfurt-am-main' },
 };
 
 // Frankfurt district name → [lat, lon] (approximate centres)
@@ -925,7 +937,7 @@ let _linesClosedBy = null;
 let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true }, services: {}, lines: {}, minSev: 1 };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true }, services: {}, lines: {}, minSev: 1 };
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1097,7 +1109,7 @@ function clearSearch() {
 // ── Filtering ─────────────────────────────────────────────────────────────────
 function visible() {
   return alerts.filter(a => {
-    if (!filters.sources[a.source]) return false;
+    if (filters.sources[a.source] === false) return false;
     if (a.source === 'rmv') {
       if (a.service && filters.services[a.service] === false) return false;
       if (a.lines && a.lines.length) {
@@ -1230,6 +1242,16 @@ function buildFilterBar() {
     const filtered = filters.minSev > 1;
     html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">Sev ≥ ${SEV_LABEL[filters.minSev]} ▾</button>`;
   }
+
+  // Roads
+  html += '<div class="filter-sep"></div>';
+  const abOn = filters.sources.autobahn !== false;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}</button>`;
+
+  // Events
+  html += '<div class="filter-sep"></div>';
+  const evOn = filters.sources.events !== false;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}</button>`;
 
   // Transport + services/lines
   html += '<div class="filter-sep"></div>';

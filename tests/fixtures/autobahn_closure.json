@@ -1,0 +1,15 @@
+{
+  "closure": [
+    {
+      "identifier": "SEQ_CLOSE_001",
+      "title": "A3 Vollsperrung Baustelle",
+      "description": ["Full road closure due to construction works"],
+      "point": "8.654,50.095",
+      "isBlocked": "true",
+      "icon": "closure",
+      "future": false,
+      "startTimestamp": "2026-06-08T06:00:00.000Z",
+      "endTimestamp": "2026-06-08T16:00:00.000Z"
+    }
+  ]
+}

@@ -47,3 +47,19 @@ web:
 weather:
   enabled: true
   min_severity: 1         # 1=minor, 2=moderate, 3=severe, 4=extreme
+
+# Phase 2a v0.2.0 — Autobahn road incidents (no API key required)
+autobahn:
+  enabled: true
+  roads:
+    - A3
+    - A5
+    - A45
+    - A66
+    - A661
+    - A648
+
+# Phase 2a v0.2.0 — Ticketmaster events (requires TICKETMASTER_API_KEY in .env)
+events:
+  enabled: true
+  days_ahead: 7           # query events starting now through this many days ahead

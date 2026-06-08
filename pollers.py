@@ -2,7 +2,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import feedparser
@@ -227,6 +227,166 @@ class DWDPoller(BasePoller):
             ))
         log.info("DWD: %d warnings at severity >= %d", len(alerts), self.min_severity)
         return alerts
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+class AutobahnPoller(BasePoller):
+    BASE_URL = "https://verkehr.autobahn.de/o/autobahn"
+    DEFAULT_ROADS = ["A3", "A5", "A45", "A66", "A661", "A648"]
+    _KINDS = ("warning", "closure")
+    _FRANKFURT_LAT = 50.11
+    _FRANKFURT_LON = 8.68
+
+    def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0):
+        self.roads = roads or self.DEFAULT_ROADS
+        self.radius_km = radius_km
+
+    def fetch(self) -> list[Alert]:
+        seen_ids: set[str] = set()
+        alerts: list[Alert] = []
+        for road in self.roads:
+            for kind in self._KINDS:
+                alerts.extend(self._fetch_road(road, kind, seen_ids))
+        log.info("Autobahn: %d alerts across %d roads", len(alerts), len(self.roads))
+        return alerts
+
+    def _fetch_road(self, road: str, kind: str, seen_ids: set[str]) -> list[Alert]:
+        url = f"{self.BASE_URL}/{road}/services/{kind}"
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 204:
+                return []
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("AutobahnPoller %s/%s: %s", road, kind, e)
+            return []
+
+        alerts = []
+        for item in resp.json().get(kind, []):
+            alert_id = item.get("identifier", "")
+            if not alert_id or alert_id in seen_ids:
+                continue
+            seen_ids.add(alert_id)
+
+            lat = lon = None
+            point = item.get("point", "")
+            if point:
+                try:
+                    lon_str, lat_str = point.split(",", 1)
+                    lon, lat = float(lon_str.strip()), float(lat_str.strip())
+                except (ValueError, TypeError):
+                    pass
+
+            if lat is not None and lon is not None:
+                dist = _haversine_km(self._FRANKFURT_LAT, self._FRANKFURT_LON, lat, lon)
+                if dist > self.radius_km:
+                    log.debug("Autobahn: skipping %s (%.0f km from Frankfurt)", alert_id, dist)
+                    continue
+
+            desc = item.get("description", [])
+            body = "\n".join(desc) if isinstance(desc, list) else str(desc or "")
+
+            end_ts = item.get("endTimestamp")
+            valid_until = None
+            if end_ts:
+                try:
+                    valid_until = datetime.fromisoformat(end_ts.replace("Z", "+00:00")).isoformat()
+                except ValueError:
+                    pass
+
+            alerts.append(Alert(
+                id=alert_id,
+                source="autobahn",
+                title=item.get("title") or f"{road} {kind.capitalize()}",
+                body=body,
+                url=None,
+                valid_until=valid_until,
+                service=road,
+                lat=lat,
+                lon=lon,
+            ))
+        return alerts
+
+
+class TicketmasterPoller(BasePoller):
+    BASE_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
+
+    def __init__(self, api_key: str, days_ahead: int = 7):
+        self.api_key = api_key
+        self.days_ahead = days_ahead
+
+    def fetch(self) -> list[Alert]:
+        now = datetime.now(timezone.utc)
+        start = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end = (now + timedelta(days=self.days_ahead)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            resp = requests.get(
+                self.BASE_URL,
+                params={
+                    "apikey": self.api_key,
+                    "city": "Frankfurt",
+                    "countryCode": "DE",
+                    "startDateTime": start,
+                    "endDateTime": end,
+                    "size": 200,
+                    "locale": "*",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("TicketmasterPoller request failed: %s", e)
+            return []
+
+        events = resp.json().get("_embedded", {}).get("events", [])
+        log.info("Ticketmaster: %d events in next %d days", len(events), self.days_ahead)
+        return [self._to_alert(e) for e in events if e.get("id")]
+
+    def _to_alert(self, event: dict) -> Alert:
+        dates = event.get("dates", {}).get("start", {})
+        valid_until = dates.get("dateTime")
+        if valid_until:
+            try:
+                valid_until = datetime.fromisoformat(valid_until.replace("Z", "+00:00")).isoformat()
+            except ValueError:
+                valid_until = None
+
+        venues = event.get("_embedded", {}).get("venues", [])
+        venue_name = venues[0].get("name", "") if venues else ""
+        local_date = dates.get("localDate", "")
+        local_time = dates.get("localTime", "")
+        when = f"{local_date} {local_time}".strip() if local_time else local_date
+
+        lat = lon = None
+        if venues:
+            loc = venues[0].get("location", {})
+            try:
+                lat = float(loc["latitude"])
+                lon = float(loc["longitude"])
+            except (KeyError, TypeError, ValueError):
+                pass
+
+        body = "\n".join(filter(None, [venue_name, when]))
+
+        return Alert(
+            id=event["id"],
+            source="events",
+            title=event.get("name", "Event"),
+            body=body,
+            url=event.get("url"),
+            valid_until=valid_until,
+            service=None,
+            lat=lat,
+            lon=lon,
+        )
 
 
 # ---------------------------------------------------------------------------

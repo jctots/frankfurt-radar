@@ -1,0 +1,31 @@
+{
+  "warning": [
+    {
+      "identifier": "SEQ_WARN_001",
+      "title": "A5 Gefahr durch Witterung",
+      "description": ["Slippery road due to rain", "Drive carefully"],
+      "point": "8.694,50.113",
+      "isBlocked": "false",
+      "icon": "weather",
+      "future": false
+    },
+    {
+      "identifier": "SEQ_WARN_002",
+      "title": "A5 Stau",
+      "description": ["Heavy traffic between km 450 and km 455"],
+      "point": "8.700,50.120",
+      "isBlocked": "false",
+      "icon": "stau",
+      "future": false
+    },
+    {
+      "identifier": "SEQ_WARN_003",
+      "title": "A5 Unfall bei Köln",
+      "description": ["Incident far north — outside Frankfurt radius"],
+      "point": "6.960,50.938",
+      "isBlocked": "false",
+      "icon": "accident",
+      "future": false
+    }
+  ]
+}

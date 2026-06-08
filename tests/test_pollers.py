@@ -154,3 +154,137 @@ class TestPolizeiPoller:
 
         alerts = PolizeiPoller().fetch()
         assert all(a.source == "polizei" for a in alerts)
+
+
+# ── AutobahnPoller ────────────────────────────────────────────────────────────
+
+class TestAutobahnPoller:
+    def test_warnings_parsed(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
+        resp_warn = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp_warn, resp_empty])
+
+        alerts = AutobahnPoller(roads=["A5"]).fetch()
+        assert len(alerts) == 2  # SEQ_WARN_003 (Cologne) filtered by 50 km radius
+        assert all(a.source == "autobahn" for a in alerts)
+        assert alerts[0].id == "SEQ_WARN_001"
+        assert alerts[0].service == "A5"
+
+    def test_coordinates_parsed_lon_lat_order(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
+        resp_warn = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp_warn, resp_empty])
+
+        alert = AutobahnPoller(roads=["A5"]).fetch()[0]
+        assert alert.lon == pytest.approx(8.694)
+        assert alert.lat == pytest.approx(50.113)
+
+    def test_closure_valid_until_parsed(self, mocker):
+        from pollers import AutobahnPoller
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        fixture = json.loads((FIXTURES_DIR / "autobahn_closure.json").read_text())
+        resp_closure = _mock_response(fixture)
+        mocker.patch("pollers.requests.get", side_effect=[resp_empty, resp_closure])
+
+        alerts = AutobahnPoller(roads=["A3"]).fetch()
+        assert len(alerts) == 1
+        assert alerts[0].valid_until is not None
+        assert "2026-06-08" in alerts[0].valid_until
+
+    def test_204_returns_empty(self, mocker):
+        from pollers import AutobahnPoller
+        resp = MagicMock()
+        resp.status_code = 204
+        mocker.patch("pollers.requests.get", return_value=resp)
+
+        alerts = AutobahnPoller(roads=["A5"]).fetch()
+        assert alerts == []
+
+    def test_request_failure_returns_empty(self, mocker):
+        import requests as req_lib
+        from pollers import AutobahnPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        alerts = AutobahnPoller(roads=["A5"]).fetch()
+        assert alerts == []
+
+    def test_radius_filter_drops_distant_incidents(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
+        resp_warn = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp_warn, resp_empty])
+
+        # Fixture has 3 warnings: 2 near Frankfurt, 1 near Cologne (~190 km away)
+        alerts = AutobahnPoller(roads=["A5"], radius_km=50.0).fetch()
+        assert len(alerts) == 2
+        assert all(a.id != "SEQ_WARN_003" for a in alerts)
+
+    def test_deduplication_across_roads(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
+        # Both roads return the same identifier → should deduplicate
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alerts = AutobahnPoller(roads=["A5", "A3"]).fetch()
+        ids = [a.id for a in alerts]
+        assert len(ids) == len(set(ids))
+
+
+# ── TicketmasterPoller ────────────────────────────────────────────────────────
+
+class TestTicketmasterPoller:
+    def test_events_parsed(self, mocker):
+        from pollers import TicketmasterPoller
+        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alerts = TicketmasterPoller(api_key="key").fetch()
+        assert len(alerts) == 2
+        assert all(a.source == "events" for a in alerts)
+
+    def test_alert_fields_populated(self, mocker):
+        from pollers import TicketmasterPoller
+        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alert = TicketmasterPoller(api_key="key").fetch()[0]
+        assert alert.id == "TM_EVT_001"
+        assert "Coldplay" in alert.title and "Spheres" in alert.title
+        assert alert.url == "https://www.ticketmaster.de/event/coldplay-001"
+        assert "Deutsche Bank Park" in alert.body
+        assert "2026-06-12" in alert.body
+        assert alert.valid_until is not None
+        assert "2026-06-12" in alert.valid_until
+
+    def test_coordinates_from_venue(self, mocker):
+        from pollers import TicketmasterPoller
+        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alert = TicketmasterPoller(api_key="key").fetch()[0]
+        assert alert.lat == pytest.approx(50.0687)
+        assert alert.lon == pytest.approx(8.6454)
+
+    def test_empty_embedded_returns_empty(self, mocker):
+        from pollers import TicketmasterPoller
+        mocker.patch("pollers.requests.get", return_value=_mock_response({}))
+
+        alerts = TicketmasterPoller(api_key="key").fetch()
+        assert alerts == []
+
+    def test_request_failure_returns_empty(self, mocker):
+        import requests as req_lib
+        from pollers import TicketmasterPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        alerts = TicketmasterPoller(api_key="key").fetch()
+        assert alerts == []

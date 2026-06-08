@@ -20,12 +20,14 @@ CLS_LABEL: dict[int, str] = {
 # Priority order for picking the primary service when a message affects multiple types
 CLS_PRIORITY = [8, 16, 32, 64, 4]  # sbahn > ubahn > tram > bus > regional
 
-SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather"}
-SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️"}
+SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "events": "Events"}
+SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "🚧", "events": "🎫"}
 SOURCE_URL: dict[str, Optional[str]] = {
-    "rmv":     "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
-    "dwd":     "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
-    "polizei": None,
+    "rmv":      "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
+    "dwd":      "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
+    "polizei":  None,
+    "autobahn": "https://www.autobahn.de/",
+    "events":   "https://www.ticketmaster.de/city/frankfurt-am-main",
 }
 
 
