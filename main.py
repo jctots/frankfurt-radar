@@ -57,7 +57,10 @@ def main() -> None:
         pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 2)))
     autobahn_cfg = config.get("autobahn", {})
     if autobahn_cfg.get("enabled", False):
-        pollers.append(AutobahnPoller(roads=autobahn_cfg.get("roads") or None))
+        pollers.append(AutobahnPoller(
+            roads=autobahn_cfg.get("roads") or None,
+            radius_km=float(autobahn_cfg.get("radius_km", 50.0)),
+        ))
     events_cfg = config.get("events", {})
     if events_cfg.get("enabled", False):
         tm_key = os.getenv("TICKETMASTER_API_KEY", "")

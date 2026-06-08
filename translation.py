@@ -73,7 +73,5 @@ def translate_alert(alert: "Alert", config: dict) -> tuple[str, str]:
         en_title = f"{_transliterate(location)}: {en_event}"
     else:
         en_title = _transliterate(translate(alert.title, config))
-    if alert.source == "polizei" and not config.get("police", {}).get("translate_body", True):
-        return en_title, "English translation not shown (§87g(2) UrhG — press ancillary copyright). View the original press release via the link — your browser's built-in translation can translate the full text."
     en_body = _transliterate(translate(alert.body, config)) if alert.body else ""
     return en_title, en_body

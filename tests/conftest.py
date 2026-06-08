@@ -22,7 +22,7 @@ _default_config = {
         "notify_burst_threshold": 15,
         "notify_throttle_every": 0,
     },
-    "police": {"enabled": True, "translate_body": True},
+    "police": {"enabled": True},
     "weather": {"enabled": True, "min_severity": 2},
     "transport": {"enabled": True, "services": {}},
 }

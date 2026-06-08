@@ -22,6 +22,7 @@ env_block = "\n".join([
     f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
     f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
     f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
+    f"TICKETMASTER_API_KEY={os.environ.get('TICKETMASTER_API_KEY', '')}",
 ])
 
 job_block = "\n".join([
@@ -36,6 +37,9 @@ with open("/etc/cron.d/frankfurt-radar", "w") as f:
 os.chmod("/etc/cron.d/frankfurt-radar", 0o644)
 print(f"Crontab: poll every {interval_min} min, 24/7")
 PYEOF
+
+# Start admin API in background (POST /poll, GET/PATCH /config)
+python trigger.py &
 
 # Initial poll on startup (best-effort — cron takes over regardless)
 python main.py --mode poll || true

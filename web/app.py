@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import requests as http_requests
 import yaml
 from flask import Flask, jsonify, render_template
 
@@ -11,9 +12,10 @@ from db import get_status_json, init_db
 
 app = Flask(__name__)
 
-CONFIG_FILE    = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
-BUILD_VERSION  = os.getenv("BUILD_VERSION", "dev")
-MAIN_PY = Path(os.getenv("MAIN_PY", "/app/main.py"))
+CONFIG_FILE          = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
+BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
+MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
+POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 
 init_db()
 
@@ -70,18 +72,26 @@ def api_status():
 def api_poll():
     if not _allow_manual_poll():
         return jsonify({"error": "Manual poll disabled"}), 403
-    try:
-        result = subprocess.run(
-            [sys.executable, str(MAIN_PY), "--mode", "poll"],
-            capture_output=True,
-            text=True,
-            timeout=90,
-            cwd=str(MAIN_PY.parent),
-        )
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "Poll timed out after 90s"}), 504
-    if result.returncode != 0:
-        return jsonify({"error": result.stderr[-500:]}), 500
+    if POLLER_TRIGGER_URL:
+        try:
+            resp = http_requests.post(POLLER_TRIGGER_URL, timeout=95)
+            if resp.status_code != 200:
+                return jsonify({"error": resp.text[-500:]}), resp.status_code
+        except http_requests.RequestException as e:
+            return jsonify({"error": str(e)}), 502
+    else:
+        try:
+            result = subprocess.run(
+                [sys.executable, str(MAIN_PY), "--mode", "poll"],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                cwd=str(MAIN_PY.parent),
+            )
+        except subprocess.TimeoutExpired:
+            return jsonify({"error": "Poll timed out after 90s"}), 504
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr[-500:]}), 500
     return jsonify(get_status_json())
 
 

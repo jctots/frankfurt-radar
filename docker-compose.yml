@@ -24,10 +24,7 @@ services:
     container_name: frankfurt-radar-web
     environment:
       - TZ=Europe/Berlin
-      - RMV_API_KEY=${RMV_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
-      - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
+      - POLLER_TRIGGER_URL=http://poller:8888/poll
     volumes:
       - radar_data:/app/data
     ports:
