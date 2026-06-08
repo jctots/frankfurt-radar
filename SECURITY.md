@@ -39,6 +39,7 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - Administrative endpoints disabled in production
 - Security response headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
 - No user input accepted on the public status page
+- Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan
 
 **Supply chain**
 - `pip audit` runs weekly via GitHub Actions — results published as CI badge

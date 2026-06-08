@@ -798,13 +798,17 @@
     <p>Frankfurt Radar is an unofficial community tool, not affiliated with or endorsed by RMV, DWD, or Polizei Frankfurt. Data is automatically fetched and translated and may be delayed or incomplete. <strong>Do not use this site as an emergency service.</strong></p>
     <hr>
 
+    <h2>🔒 Privacy &amp; Security</h2>
+    <p>The status page collects no personal data — no cookies, no analytics, no tracking. Browser notification preferences are stored in your browser only. All connections are encrypted via HTTPS.</p>
+    {% if github_url or privacy_url %}<p>{% if github_url %}<a href="{{ github_url | e }}/blob/main/SECURITY.md" target="_blank" rel="noopener">Security policy ↗</a>{% endif %}{% if github_url and privacy_url %} · {% endif %}{% if privacy_url %}<a href="{{ privacy_url | e }}" target="_blank" rel="noopener">Privacy policy ↗</a>{% endif %}</p>{% endif %}
+    <hr>
+
     <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
     <p class="info-attr" style="margin-top:4px">
       Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
     </p>
-    {% if privacy_url %}<p class="info-attr" style="margin-top:4px"><a href="{{ privacy_url | e }}">Privacy policy</a></p>{% endif %}
   </div>
 </div>
 
@@ -820,6 +824,7 @@
     </p>
     <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
     <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
+    <p style="font-size:12px;color:var(--clr-muted);margin-top:-6px">No account required · No personal data collected{% if privacy_url %} · <a href="{{ privacy_url | e }}" target="_blank" rel="noopener">Privacy policy</a>{% endif %}</p>
     <div class="btn-center">
       <button class="btn-confirm" onclick="dismissDisclaimer()">✔️ Noted — show me the alerts</button>
     </div>

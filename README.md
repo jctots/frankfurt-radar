@@ -88,6 +88,16 @@ On first start, `config.yaml` is seeded to the data volume — edit it at `data/
 | `transport.services` | (all) | Filter by service type and line |
 | `police.translate_body` | `false` | `false` = title + link only (safe harbour); `true` = full translated body |
 
+## 🔒 Security & Privacy
+
+Frankfurt Radar is built with security and privacy in mind:
+
+- The status page collects no personal data — no cookies, no analytics, no account required
+- Periodic security audits covering infrastructure hardening, OWASP Top 10, and dependency CVE scanning
+- Weekly automated `pip audit` and `gitleaks` secret scanning (CI badges above)
+
+See [SECURITY.md](SECURITY.md) for the full security policy and how to report a vulnerability.
+
 ## ⚖️ Legal
 
 - **RMV data**: used under [RMV Open Data terms](https://opendata.rmv.de/). Commercial redistribution requires a separate agreement with RMV.
