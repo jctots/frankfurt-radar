@@ -194,6 +194,7 @@
     .chip.src-dwd.on      { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
     .chip.src-polizei.on  { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
     .chip.src-autobahn.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.road.on         { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
@@ -937,7 +938,8 @@ let _linesClosedBy = null;
 let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true }, services: {}, lines: {}, minSev: 1 };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
+if (!filters.roads) filters.roads = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1111,12 +1113,12 @@ function visible() {
   return alerts.filter(a => {
     if (filters.sources[a.source] === false) return false;
     if (a.source === 'rmv') {
-      if (a.service && filters.services[a.service] === false) return false;
       if (a.lines && a.lines.length) {
         const someFiltered = a.lines.some(l => l in filters.lines);
         if (someFiltered && a.lines.every(l => filters.lines[l] === false)) return false;
       }
     }
+    if (a.source === 'autobahn' && a.service && filters.roads[a.service] === false) return false;
     if (a.source === 'dwd' && a.severity != null && a.severity < filters.minSev) return false;
     if (searchTerm) {
       const hay = `${a.title} ${a.body}`.toLowerCase();
@@ -1247,13 +1249,20 @@ function buildFilterBar() {
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
   html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}</button>`;
+  if (abOn) {
+    const roads = [...new Set(alerts.filter(a => a.source === 'autobahn' && a.service).map(a => a.service))].sort();
+    roads.forEach(road => {
+      const on = filters.roads[road] !== false;
+      html += `<button class="chip road${on ? ' on' : ''}" onclick="toggleRoad('${esc(road)}')">${esc(road)}</button>`;
+    });
+  }
 
   // Events
   html += '<div class="filter-sep"></div>';
   const evOn = filters.sources.events !== false;
   html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}</button>`;
 
-  // Transport + services/lines
+  // Transport + lines
   html += '<div class="filter-sep"></div>';
   const rmvOn = filters.sources.rmv !== false;
   html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}</button>`;
@@ -1261,16 +1270,12 @@ function buildFilterBar() {
     const rmv  = alerts.filter(a => a.source === 'rmv');
     const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
     svcs.forEach(svc => {
-      const on = filters.services[svc] !== false;
-      html += `<button class="chip svc${on ? ' on' : ''}" onclick="toggleSvc('${esc(svc)}')">${esc(svc)}</button>`;
-      if (on) {
-        const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
-        if (lines.length) {
-          const active = lines.filter(l => filters.lines[l] !== false).length;
-          const partial = active < lines.length;
-          const label = partial ? `${active}/${lines.length} lines ▾` : `${lines.length} lines ▾`;
-          html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
-        }
+      const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
+      if (lines.length) {
+        const active = lines.filter(l => filters.lines[l] !== false).length;
+        const partial = active < lines.length;
+        const label = partial ? `${esc(svc)}: ${active}/${lines.length} lines ▾` : `${esc(svc)}: ${lines.length} lines ▾`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
       }
     });
   }
@@ -1278,9 +1283,10 @@ function buildFilterBar() {
   bar.innerHTML = html;
 }
 
-function toggleSrc(src) { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
-function toggleSvc(svc) { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
-function toggleLine(l)  { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
+function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleRoad(road) { filters.roads[road] = filters.roads[road] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
 function setSev(v)      { filters.minSev = parseInt(v); saveFilters(); buildFilterBar(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
 

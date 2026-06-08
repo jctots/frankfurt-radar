@@ -173,7 +173,7 @@ class TestAutobahnPoller:
         assert alerts[0].id == "SEQ_WARN_001"
         assert alerts[0].service == "A5"
 
-    def test_coordinates_parsed_lon_lat_order(self, mocker):
+    def test_coordinates_parsed(self, mocker):
         from pollers import AutobahnPoller
         fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
         resp_warn = _mock_response(fixture)

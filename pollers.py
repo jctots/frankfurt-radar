@@ -12,6 +12,9 @@ from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
 
 log = logging.getLogger(__name__)
 
+_FRANKFURT_LAT = 50.11
+_FRANKFURT_LON = 8.68
+
 
 def _rmv_datetime(date: str, time: str) -> Optional[str]:
     """Normalize RMV date/time fields to ISO 8601.
@@ -242,8 +245,6 @@ class AutobahnPoller(BasePoller):
     BASE_URL = "https://verkehr.autobahn.de/o/autobahn"
     DEFAULT_ROADS = ["A3", "A5", "A45", "A66", "A661", "A648"]
     _KINDS = ("warning", "closure")
-    _FRANKFURT_LAT = 50.11
-    _FRANKFURT_LON = 8.68
 
     def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0):
         self.roads = roads or self.DEFAULT_ROADS
@@ -280,13 +281,13 @@ class AutobahnPoller(BasePoller):
             point = item.get("point", "")
             if point:
                 try:
-                    lon_str, lat_str = point.split(",", 1)
-                    lon, lat = float(lon_str.strip()), float(lat_str.strip())
+                    lat_str, lon_str = point.split(",", 1)
+                    lat, lon = float(lat_str.strip()), float(lon_str.strip())
                 except (ValueError, TypeError):
                     pass
 
             if lat is not None and lon is not None:
-                dist = _haversine_km(self._FRANKFURT_LAT, self._FRANKFURT_LON, lat, lon)
+                dist = _haversine_km(_FRANKFURT_LAT, _FRANKFURT_LON, lat, lon)
                 if dist > self.radius_km:
                     log.debug("Autobahn: skipping %s (%.0f km from Frankfurt)", alert_id, dist)
                     continue
@@ -319,9 +320,10 @@ class AutobahnPoller(BasePoller):
 class TicketmasterPoller(BasePoller):
     BASE_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 
-    def __init__(self, api_key: str, days_ahead: int = 7):
+    def __init__(self, api_key: str, days_ahead: int = 7, radius_km: float = 50.0):
         self.api_key = api_key
         self.days_ahead = days_ahead
+        self.radius_km = radius_km
 
     def fetch(self) -> list[Alert]:
         now = datetime.now(timezone.utc)
@@ -332,8 +334,9 @@ class TicketmasterPoller(BasePoller):
                 self.BASE_URL,
                 params={
                     "apikey": self.api_key,
-                    "city": "Frankfurt",
-                    "countryCode": "DE",
+                    "latlong": f"{_FRANKFURT_LAT},{_FRANKFURT_LON}",
+                    "radius": int(self.radius_km),
+                    "unit": "km",
                     "startDateTime": start,
                     "endDateTime": end,
                     "size": 200,

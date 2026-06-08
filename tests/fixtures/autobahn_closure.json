@@ -4,7 +4,7 @@
       "identifier": "SEQ_CLOSE_001",
       "title": "A3 Vollsperrung Baustelle",
       "description": ["Full road closure due to construction works"],
-      "point": "8.654,50.095",
+      "point": "50.095,8.654",
       "isBlocked": "true",
       "icon": "closure",
       "future": false,

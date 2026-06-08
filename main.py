@@ -55,17 +55,22 @@ def main() -> None:
         pollers.append(PolizeiPoller())
     if config.get("weather", {}).get("enabled", False):
         pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 2)))
+    radius_km = float(config.get("location", {}).get("radius_km", 50.0))
     autobahn_cfg = config.get("autobahn", {})
     if autobahn_cfg.get("enabled", False):
         pollers.append(AutobahnPoller(
             roads=autobahn_cfg.get("roads") or None,
-            radius_km=float(autobahn_cfg.get("radius_km", 50.0)),
+            radius_km=radius_km,
         ))
     events_cfg = config.get("events", {})
     if events_cfg.get("enabled", False):
         tm_key = os.getenv("TICKETMASTER_API_KEY", "")
         if tm_key:
-            pollers.append(TicketmasterPoller(api_key=tm_key, days_ahead=events_cfg.get("days_ahead", 7)))
+            pollers.append(TicketmasterPoller(
+                api_key=tm_key,
+                days_ahead=events_cfg.get("days_ahead", 7),
+                radius_km=radius_km,
+            ))
         else:
             log.warning("events.enabled=true but TICKETMASTER_API_KEY not set — skipping")
 

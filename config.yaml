@@ -13,6 +13,9 @@ transport:
 polling:
   interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
 
+location:
+  radius_km: 50          # shared radius (km) for all location-aware pollers (autobahn, events)
+
 translator:
   backend: libretranslate          # libretranslate | google
   # libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
@@ -50,7 +53,6 @@ weather:
 # Phase 2a v0.2.0 — Autobahn road incidents (no API key required)
 autobahn:
   enabled: true
-  radius_km: 50          # only include incidents within this distance of Frankfurt centre
   roads:
     - A3
     - A5
