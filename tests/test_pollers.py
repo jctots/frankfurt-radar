@@ -210,6 +210,33 @@ class TestAutobahnPoller:
         assert alert.published_at is not None
         assert "2026-06-08" in alert.published_at
 
+    def test_bis_zum_format_fallback(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = {
+            "warning": [{
+                "identifier": "BIS_ZUM_001",
+                "title": "A3 Fahrbahninstandsetzung",
+                "description": [
+                    "Die Baustelle ist zu folgenden Zeiträumen gültig:",
+                    "17.06.26 21:00 bis zum 18.06.26 05:00 Uhr.",
+                    "(Ende der Gesamtmaßnahme: 19.06.26)",
+                ],
+                "point": "50.113,8.694",
+                "startTimestamp": "",
+                "endTimestamp": "",
+            }]
+        }
+        resp = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp, resp_empty])
+
+        alert = AutobahnPoller(roads=["A3"]).fetch()[0]
+        assert alert.published_at is not None
+        assert "2026-06-17" in alert.published_at
+        assert alert.valid_until is not None
+        assert "2026-06-18" in alert.valid_until
+
     def test_204_returns_empty(self, mocker):
         from pollers import AutobahnPoller
         resp = MagicMock()

@@ -16,7 +16,10 @@ _FRANKFURT_LAT = 50.11
 _FRANKFURT_LON = 8.68
 
 _AUTOBAHN_START_TS_RE = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})$")
-_AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr$")
+_AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
+_AUTOBAHN_BIS_ZUM_RE  = re.compile(
+    r"^(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+bis\s+zum\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+Uhr"
+)
 
 
 def _parse_autobahn_ts(ts: str | None) -> str | None:
@@ -42,6 +45,20 @@ def _parse_autobahn_ende(desc: list) -> str | None:
             except ValueError:
                 pass
     return None
+
+
+def _parse_autobahn_bis_zum(desc: list) -> tuple[str | None, str | None]:
+    """Extract (start, end) from 'DD.MM.YY HH:MM bis zum DD.MM.YY HH:MM Uhr.' lines."""
+    for line in desc:
+        m = _AUTOBAHN_BIS_ZUM_RE.match(line.strip())
+        if m:
+            try:
+                start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").isoformat()
+                end   = datetime.strptime(f"{m.group(3)} {m.group(4)}", "%d.%m.%y %H:%M").isoformat()
+                return start, end
+            except ValueError:
+                pass
+    return None, None
 
 
 def _rmv_datetime(date: str, time: str) -> Optional[str]:
@@ -325,14 +342,23 @@ class AutobahnPoller(BasePoller):
                 desc = [str(desc)] if desc else []
             body = "\n".join(desc)
 
+            published_at = _parse_autobahn_ts(item.get("startTimestamp"))
+            valid_until  = _parse_autobahn_ende(desc)
+            if not published_at or not valid_until:
+                bis_start, bis_end = _parse_autobahn_bis_zum(desc)
+                if not published_at:
+                    published_at = bis_start
+                if not valid_until:
+                    valid_until = bis_end
+
             alerts.append(Alert(
                 id=alert_id,
                 source="autobahn",
                 title=item.get("title") or f"{road} {kind.capitalize()}",
                 body=body,
                 url=None,
-                published_at=_parse_autobahn_ts(item.get("startTimestamp")),
-                valid_until=_parse_autobahn_ende(desc),
+                published_at=published_at,
+                valid_until=valid_until,
                 service=road,
                 lat=lat,
                 lon=lon,
