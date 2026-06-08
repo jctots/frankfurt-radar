@@ -198,6 +198,18 @@ class TestAutobahnPoller:
         assert alerts[0].valid_until is not None
         assert "2026-06-08" in alerts[0].valid_until
 
+    def test_published_at_parsed_from_start_timestamp(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
+        resp_warn = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp_warn, resp_empty])
+
+        alert = AutobahnPoller(roads=["A5"]).fetch()[0]
+        assert alert.published_at is not None
+        assert "2026-06-08" in alert.published_at
+
     def test_204_returns_empty(self, mocker):
         from pollers import AutobahnPoller
         resp = MagicMock()

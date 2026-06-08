@@ -57,9 +57,12 @@ autobahn:
     - A3
     - A5
     - A45
+    - A60
     - A66
-    - A661
+    - A67
+    - A480
     - A648
+    - A661
 
 # Phase 2a v0.2.0 — Ticketmaster events (requires TICKETMASTER_API_KEY in .env)
 events:

@@ -15,6 +15,34 @@ log = logging.getLogger(__name__)
 _FRANKFURT_LAT = 50.11
 _FRANKFURT_LON = 8.68
 
+_AUTOBAHN_START_TS_RE = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})$")
+_AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr$")
+
+
+def _parse_autobahn_ts(ts: str | None) -> str | None:
+    if not ts or not ts.strip():
+        return None
+    ts = ts.strip()
+    try:
+        return datetime.strptime(ts, "%m/%d/%Y %H:%M:%S").isoformat()
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).isoformat()
+    except ValueError:
+        return None
+
+
+def _parse_autobahn_ende(desc: list) -> str | None:
+    for line in desc:
+        m = _AUTOBAHN_ENDE_RE.match(line.strip())
+        if m:
+            try:
+                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").isoformat()
+            except ValueError:
+                pass
+    return None
+
 
 def _rmv_datetime(date: str, time: str) -> Optional[str]:
     """Normalize RMV date/time fields to ISO 8601.
@@ -293,15 +321,9 @@ class AutobahnPoller(BasePoller):
                     continue
 
             desc = item.get("description", [])
-            body = "\n".join(desc) if isinstance(desc, list) else str(desc or "")
-
-            end_ts = item.get("endTimestamp")
-            valid_until = None
-            if end_ts:
-                try:
-                    valid_until = datetime.fromisoformat(end_ts.replace("Z", "+00:00")).isoformat()
-                except ValueError:
-                    pass
+            if not isinstance(desc, list):
+                desc = [str(desc)] if desc else []
+            body = "\n".join(desc)
 
             alerts.append(Alert(
                 id=alert_id,
@@ -309,7 +331,8 @@ class AutobahnPoller(BasePoller):
                 title=item.get("title") or f"{road} {kind.capitalize()}",
                 body=body,
                 url=None,
-                valid_until=valid_until,
+                published_at=_parse_autobahn_ts(item.get("startTimestamp")),
+                valid_until=_parse_autobahn_ende(desc),
                 service=road,
                 lat=lat,
                 lon=lon,
