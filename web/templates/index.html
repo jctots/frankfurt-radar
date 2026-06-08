@@ -187,6 +187,7 @@
       white-space: nowrap;
     }
     .chip.line-picker,
+    .chip.road-picker,
     .chip.sev-picker { border-radius: 6px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
@@ -202,6 +203,8 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.road-picker       { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.road-picker.part  { background: #fef3c7; border-color: #b45309; color: #78350f; }
     .chip.sev-picker        { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
     .chip.sev-picker.filt   { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
 
@@ -249,6 +252,7 @@
     }
     .lines-popup-item:hover { background: var(--clr-bg); }
     .lines-popup-item input { cursor: pointer; margin: 0; }
+    #roads-popup .lines-popup-item input { accent-color: var(--clr-roads); }
 
     .filter-select {
       font-size: 12px;
@@ -659,6 +663,8 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .chip.road-picker          { background: #431407; }
+    .dark .chip.road-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip.sev-picker           { background: #2e1065; }
     .dark .chip.sev-picker.filt      { background: #422006; border-color: #92400e; color: #fcd34d; }
     .feed::-webkit-scrollbar                   { width: 6px; }
@@ -1255,7 +1261,7 @@ function buildFilterBar() {
       const active = roads.filter(r => filters.roads[r] !== false).length;
       const partial = active < roads.length;
       const label = partial ? `${active}/${roads.length} roads ▾` : `${roads.length} roads ▾`;
-      html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">${label}</button>`;
+      html += `<button class="chip road-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">${label}</button>`;
     }
   }
 
