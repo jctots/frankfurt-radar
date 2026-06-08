@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Policy — Frankfurt Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --clr-bg:      #f0f2f5;
+      --clr-surface: #ffffff;
+      --clr-border:  #e2e8f0;
+      --clr-text:    #1e293b;
+      --clr-muted:   #64748b;
+      --clr-header:  #0f172a;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    header {
+      background: var(--clr-header);
+      color: white;
+      padding: 0 16px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand { font-size: 16px; font-weight: 700; color: white; text-decoration: none; }
+    .brand span { font-weight: 400; opacity: 0.6; font-size: 13px; margin-left: 8px; }
+    main {
+      max-width: 680px;
+      margin: 40px auto;
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: 12px;
+      padding: 40px 48px;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .meta { color: var(--clr-muted); font-size: 12px; margin-bottom: 32px; }
+    h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; }
+    h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: var(--clr-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    p { margin-bottom: 12px; }
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    ul li { margin-bottom: 4px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 12px; font-size: 13px; }
+    th, td { border: 1px solid var(--clr-border); padding: 6px 12px; text-align: left; }
+    th { background: var(--clr-bg); font-weight: 600; }
+    code { background: var(--clr-bg); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: ui-monospace, monospace; }
+    a { color: #1a73e8; }
+    hr { border: none; border-top: 1px solid var(--clr-border); margin: 32px 0; }
+    .footer { text-align: center; color: var(--clr-muted); font-size: 12px; margin-top: 32px; }
+    .footer a { color: var(--clr-muted); }
+    @media (max-width: 600px) {
+      main { padding: 24px 20px; border-radius: 0; border-left: none; border-right: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/">📡 Frankfurt Radar<span>Security Policy</span></a>
+</header>
+
+<main>
+  <h1>Security Policy</h1>
+  <p class="meta">Last updated: 2026-06-08</p>
+
+  <h2>Supported Versions</h2>
+  <p>Only the latest release on <code>main</code> is actively maintained. Older releases do not receive security fixes.</p>
+  <table>
+    <tr><th>Version</th><th>Supported</th></tr>
+    <tr><td>Latest (<code>main</code>)</td><td>✅</td></tr>
+    <tr><td>Older releases</td><td>❌</td></tr>
+  </table>
+
+  <hr>
+
+  <h2>Reporting a Vulnerability</h2>
+  <p>Please report security vulnerabilities <strong>privately</strong> — do not open a public GitHub issue.</p>
+  <p><strong>Email:</strong> <a href="mailto:{{ contact | e }}">{{ contact | e }}</a><br>
+  <strong>Subject line:</strong> <code>[frankfurt-radar] Security vulnerability</code></p>
+  <p>Response SLA:</p>
+  <ul>
+    <li>Acknowledgement within 48 hours</li>
+    <li>Assessment within 7 days</li>
+    <li>Fix for critical issues within 14 days</li>
+  </ul>
+  <p>We will acknowledge your report and keep you updated on progress. Please allow a reasonable time to fix before public disclosure.</p>
+
+  <hr>
+
+  <h2>Security Protections</h2>
+
+  <h3>Infrastructure</h3>
+  <ul>
+    <li>Cloud firewall: only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) inbound</li>
+    <li>SSH: key-only authentication, password login disabled, fail2ban active</li>
+    <li>Automated OS security updates via <code>unattended-upgrades</code></li>
+  </ul>
+
+  <h3>Network</h3>
+  <ul>
+    <li>Cloudflare proxy: origin IP protected, DDoS mitigation, Bot Fight Mode active</li>
+    <li>TLS 1.2 minimum enforced at the edge</li>
+    <li>HSTS enabled (<code>max-age=31536000</code>)</li>
+  </ul>
+
+  <h3>Application</h3>
+  <ul>
+    <li>Administrative endpoints disabled in production</li>
+    <li>Security response headers: <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code></li>
+    <li>No user input accepted on the public status page</li>
+    <li>Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan</li>
+  </ul>
+
+  <h3>Supply chain</h3>
+  <ul>
+    <li><code>pip audit</code> runs weekly via GitHub Actions — results published as CI badge</li>
+    <li><code>gitleaks</code> secret scanning on every commit</li>
+  </ul>
+
+  <hr>
+
+  <h2>Data Handling</h2>
+  <p>The public status page is read-only and stores no personal data.</p>
+  <p>If Telegram bot features are enabled (per-user alerts — not yet publicly launched): only Telegram <code>chat_id</code> is stored. No name, email, or other personal data is collected. A <code>/deletedata</code> command will be available before public launch.</p>
+  <p>See <a href="/privacy">Privacy Policy</a> for full details.</p>
+
+  <div class="footer">
+    <p><a href="/">← Back to Frankfurt Radar</a></p>
+  </div>
+</main>
+
+</body>
+</html>

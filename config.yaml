@@ -40,6 +40,8 @@ web:
   privacy_url: /privacy
   privacy_controller: Rosanno JC De Dios
   privacy_contact: jctots@pm.me
+  security_url: /security
+  security_contact: jctots@pm.me
 
 # Phase 2b — weather warnings (DWD)
 weather:
