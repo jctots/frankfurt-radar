@@ -7,6 +7,7 @@ services:
       - RMV_API_KEY=${RMV_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
+      - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
       - radar_data:/app/data
     depends_on:
@@ -20,8 +21,13 @@ services:
 
   web:
     image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
+    container_name: frankfurt-radar-web
     environment:
       - TZ=Europe/Berlin
+      - RMV_API_KEY=${RMV_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
+      - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
       - radar_data:/app/data
     ports:
