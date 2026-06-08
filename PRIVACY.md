@@ -1,6 +1,6 @@
 # Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-06-08
 
 ## Who we are
 
@@ -53,6 +53,8 @@ We will respond within 30 days.
 All data is stored and processed within the EU (Hetzner Frankfurt, Germany).
 
 Notifications are delivered via Telegram. Telegram Messenger Inc. operates its own servers — see [telegram.org/privacy](https://telegram.org/privacy).
+
+Alert text is translated to English using the Google Cloud Translation API. Google receives the text of public emergency alerts solely to perform the translation. No personal data is included in translation requests. Google's privacy policy applies: [cloud.google.com/translate](https://cloud.google.com/translate).
 
 ## Changes to this policy
 
