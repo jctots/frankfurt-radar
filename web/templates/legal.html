@@ -93,7 +93,7 @@
 
   <p>
     {{ controller | e }}<br>
-    {% if impressum_address %}{{ impressum_address | trim | e | replace('\n', '<br>') | safe }}{% else %}<em style="color:var(--clr-muted)">[Address pending]</em>{% endif %}<br>
+    {% if impressum_address %}<span style="white-space:pre-line">{{ impressum_address | trim | e }}</span>{% else %}<em style="color:var(--clr-muted)">[Address pending]</em>{% endif %}<br>
     <a href="mailto:{{ contact | e }}">{{ contact | e }}</a>
   </p>
 

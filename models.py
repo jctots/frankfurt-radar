@@ -25,9 +25,9 @@ SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️
 SOURCE_URL: dict[str, Optional[str]] = {
     "rmv":      "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
     "dwd":      "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
-    "polizei":  None,
-    "autobahn": "https://www.autobahn.de/",
-    "events":   None,
+    "polizei":  "https://www.presseportal.de/blaulicht/nr/4970",
+    "autobahn": "https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen",
+    "events":   "https://www.visitfrankfurt.travel/erleben/veranstaltungskalender",
 }
 
 
