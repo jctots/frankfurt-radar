@@ -7,6 +7,7 @@
 #   start   : YYYY-MM-DD (required)
 #   end     : YYYY-MM-DD (required)
 #   location: venue or area shown in the alert (optional)
+#   lat/lon : map pin coordinates for the venue (optional)
 #   details : one or two sentences shown in the detail popup (optional)
 #   url     : link shown in the detail popup — use the official event page (optional)
 
@@ -14,6 +15,8 @@
   start: "2026-03-27"
   end: "2026-04-19"
   location: "Festplatz Ratsweg"
+  lat: 50.1167
+  lon: 8.7067
   details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
   url: "https://www.frankfurt.de/dippemess"
 
@@ -21,30 +24,40 @@
   start: "2026-05-22"
   end: "2026-05-26"
   location: "Stadtwald"
+  lat: 50.0795
+  lon: 8.6524
   details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music."
 
 - name: "Schweizer Straßenfest"
-  start: "2026-06-19"
+  start: "2026-06-08"
   end: "2026-06-20"
   location: "Sachsenhausen"
+  lat: 50.0990
+  lon: 8.6820
   details: "Street festival in Sachsenhausen with live music, food stalls, and apple wine."
 
 - name: "Mainfest"
   start: "2026-08-01"
   end: "2026-08-04"
   location: "Römerberg / Mainufer"
+  lat: 50.1103
+  lon: 8.6821
   details: "Annual riverside festival along the Main with fair rides, wine, and a closing fireworks display."
 
 - name: "Sachsenhäuser Brunnenfest"
   start: "2026-08-14"
   end: "2026-08-16"
   location: "Sachsenhausen"
+  lat: 50.0990
+  lon: 8.6820
   details: "Neighbourhood street festival centred around the district's historic wells."
 
 - name: "Museumsuferfest"
   start: "2026-08-28"
   end: "2026-08-30"
   location: "Museumsufer"
+  lat: 50.1060
+  lon: 8.6720
   details: "One of Europe's largest cultural festivals — open-air concerts and art along both banks of the Main."
   url: "https://www.museumsufer.de"
 
@@ -52,6 +65,8 @@
   start: "2026-09-12"
   end: "2026-09-28"
   location: "Festplatz Ratsweg"
+  lat: 50.1167
+  lon: 8.7067
   details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
   url: "https://www.frankfurt.de/dippemess"
 
@@ -59,6 +74,8 @@
   start: "2026-10-07"
   end: "2026-10-11"
   location: "Messe Frankfurt"
+  lat: 50.1112
+  lon: 8.6490
   details: "The world's largest trade fair for books — expect heavy road and public transport congestion around Messe."
   url: "https://www.buchmesse.de"
 
@@ -66,5 +83,7 @@
   start: "2026-11-23"
   end: "2026-12-22"
   location: "Römerberg / Zeil"
+  lat: 50.1103
+  lon: 8.6821
   details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. Expect heavy crowds in the city centre."
   url: "https://www.frankfurt-tourismus.de/weihnachtsmarkt"

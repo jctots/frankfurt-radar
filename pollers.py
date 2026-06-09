@@ -3,6 +3,9 @@ import re
 from abc import ABC, abstractmethod
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+_BERLIN = ZoneInfo("Europe/Berlin")
 from typing import Optional
 
 import feedparser
@@ -21,10 +24,22 @@ _POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
 _DWD_URL          = "https://api.brightsky.dev/alerts"
 _AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
 
+_AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_BIS_ZUM_RE  = re.compile(
     r"^(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+bis\s+zum\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+Uhr"
 )
+
+
+def _parse_autobahn_beginn(desc: list) -> str | None:
+    for line in desc:
+        m = _AUTOBAHN_BEGINN_RE.match(line.strip())
+        if m:
+            try:
+                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+            except ValueError:
+                pass
+    return None
 
 
 def _parse_autobahn_ende(desc: list) -> str | None:
@@ -32,7 +47,7 @@ def _parse_autobahn_ende(desc: list) -> str | None:
         m = _AUTOBAHN_ENDE_RE.match(line.strip())
         if m:
             try:
-                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").isoformat()
+                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
             except ValueError:
                 pass
     return None
@@ -44,8 +59,8 @@ def _parse_autobahn_bis_zum(desc: list) -> tuple[str | None, str | None]:
         m = _AUTOBAHN_BIS_ZUM_RE.match(line.strip())
         if m:
             try:
-                start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").isoformat()
-                end   = datetime.strptime(f"{m.group(3)} {m.group(4)}", "%d.%m.%y %H:%M").isoformat()
+                start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+                end   = datetime.strptime(f"{m.group(3)} {m.group(4)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
                 return start, end
             except ValueError:
                 pass
@@ -69,7 +84,7 @@ def _rmv_datetime(date: str, time: str) -> Optional[str]:
             time = f"{time[:2]}:{time[2:4]}" + (f":{time[4:6]}" if len(time) >= 6 else "")
         s = f"{date}T{time}" if time else date
         fmt = "%Y-%m-%dT%H:%M:%S" if time and time.count(':') == 2 else ("%Y-%m-%dT%H:%M" if time else "%Y-%m-%d")
-        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
+        return datetime.strptime(s, fmt).replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
     except ValueError:
         return None
 
@@ -329,10 +344,12 @@ class AutobahnPoller(BasePoller):
             body = "\n".join(desc)
 
             published_at = datetime.now(timezone.utc).isoformat()
-            valid_from   = None
+            valid_from   = _parse_autobahn_beginn(desc)
             valid_until  = _parse_autobahn_ende(desc)
             if not valid_until:
-                valid_from, valid_until = _parse_autobahn_bis_zum(desc)
+                bis_from, valid_until = _parse_autobahn_bis_zum(desc)
+                if not valid_from:
+                    valid_from = bis_from
 
             alerts.append(Alert(
                 id=alert_id,
@@ -372,23 +389,19 @@ class StaticEventsPoller(BasePoller):
             if not (start - timedelta(days=self.advance_days) <= now <= end):
                 continue
             slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
-            body_parts = [f"{_fmt_event_date(start)} – {_fmt_event_date(end)} {end.year}"]
-            if ev.get("location"):
-                body_parts.append(ev["location"])
-            if ev.get("details"):
-                body_parts.append(ev["details"])
             alerts.append(Alert(
                 id=f"city-event-{slug}",
                 source="events",
                 title=ev["name"],
-                body="\n".join(body_parts),
+                body=ev.get("details", ""),
                 url=ev.get("url"),
                 published_at=(start - timedelta(days=self.advance_days)).isoformat(),
                 valid_from=start.isoformat(),
                 valid_until=end.isoformat(),
                 service=None,
-                lat=None,
-                lon=None,
+                lat=ev.get("lat"),
+                lon=ev.get("lon"),
+                location_label=ev.get("location"),
             ))
         log.info("StaticEvents: %d events in window", len(alerts))
         return alerts

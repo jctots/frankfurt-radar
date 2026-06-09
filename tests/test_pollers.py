@@ -43,7 +43,7 @@ class TestRMVPoller:
         assert "S2" in alert.lines
         # HTML stripped from body
         assert "<b>" not in alert.body
-        assert alert.valid_until == "2026-06-04T20:00:00+00:00"
+        assert alert.valid_until == "2026-06-04T18:00:00+00:00"
         # Location extracted from edge
         assert alert.lat == 50.107
         assert alert.lon == 8.664
@@ -348,11 +348,12 @@ class TestStaticEventsPoller:
         alerts = self._fetch()
         assert all(a.source == "events" for a in alerts)
 
-    def test_body_contains_date_range_and_location(self):
+    def test_location_label_and_dates_set(self):
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
-        assert "Sep" in dippemess.body
-        assert "Festplatz Ratsweg" in dippemess.body
+        assert dippemess.location_label == "Festplatz Ratsweg"
+        assert "2026-09-12" in dippemess.valid_from
+        assert "2026-09-28" in dippemess.valid_until
 
     def test_url_forwarded(self):
         alerts = self._fetch(advance_days=30)

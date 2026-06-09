@@ -18,7 +18,7 @@ location:
 
 translator:
   backend: libretranslate          # libretranslate | google
-  # libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
+  libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
 
 notifier:
   backend: telegram                # ntfy | telegram

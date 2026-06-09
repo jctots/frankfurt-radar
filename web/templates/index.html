@@ -1043,8 +1043,8 @@ function buildPopupHtml(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
   if (a.published_at && a.source !== 'events') meta.push('Published ' + fmtDateTime(a.published_at));
-  if (a.valid_from)   meta.push('From ' + fmtDateTime(a.valid_from));
-  if (a.valid_until)  meta.push('Until ' + fmtDateTime(a.valid_until));
+  if (a.valid_from)  meta.push('From '  + (a.source === 'events' ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
+  if (a.valid_until) meta.push('Until ' + (a.source === 'events' ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
@@ -1180,9 +1180,10 @@ function renderEventBanners() {
   if (!events.length) { container.style.display = 'none'; return; }
   container.style.display = '';
   container.innerHTML = events.map(a => {
-    const meta = [a.body.split('\n')[0]];
+    const meta = [];
     if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
-    else if (a.valid_until) meta.push('until ' + fmtDate(a.valid_until));
+    else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
+    if (a.location_label) meta.push(a.location_label);
     return `<div class="event-banner" onclick="openEventDetail('${esc(a.id)}')">
   <div class="event-banner-inner">
     <span class="event-banner-icon">🎉</span>
