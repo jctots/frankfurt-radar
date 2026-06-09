@@ -46,7 +46,6 @@ def _reload_crontab(cfg: dict) -> None:
         f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
         f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
         f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
-        f"TICKETMASTER_API_KEY={os.environ.get('TICKETMASTER_API_KEY', '')}",
     ])
     job = (
         f"# Poll every {interval_min} min\n"
