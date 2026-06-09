@@ -39,27 +39,18 @@ def index():
         telegram_channel_url=web_cfg.get("telegram_channel_url") or "",
         kofi_url=web_cfg.get("kofi_url") or "",
         github_url=web_cfg.get("github_url") or "",
-        privacy_url=web_cfg.get("privacy_url") or "",
-        security_url=web_cfg.get("security_url") or "",
+        legal_url=web_cfg.get("legal_url") or "",
     )
 
 
-@app.route("/privacy")
-def privacy():
+@app.route("/legal")
+def legal():
     web_cfg = _web_config()
     return render_template(
-        "privacy.html",
-        controller=web_cfg.get("privacy_controller") or "",
-        contact=web_cfg.get("privacy_contact") or "",
-    )
-
-
-@app.route("/security")
-def security():
-    web_cfg = _web_config()
-    return render_template(
-        "security.html",
-        contact=web_cfg.get("security_contact") or "",
+        "legal.html",
+        controller=web_cfg.get("operator_name") or "",
+        contact=web_cfg.get("operator_contact") or "",
+        impressum_address=web_cfg.get("impressum_address") or "",
     )
 
 

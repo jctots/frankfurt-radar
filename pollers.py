@@ -12,28 +12,19 @@ from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
 
 log = logging.getLogger(__name__)
 
-_FRANKFURT_LAT = 50.11
-_FRANKFURT_LON = 8.68
+_FRANKFURT_LAT   = 50.11
+_FRANKFURT_LON   = 8.68
+_FRANKFURT_ROADS = ["A3", "A5", "A45", "A60", "A66", "A67", "A480", "A648", "A661"]
 
-_AUTOBAHN_START_TS_RE = re.compile(r"^(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})$")
+_RMV_URL          = "https://www.rmv.de/hapi/himSearch"
+_POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
+_DWD_URL          = "https://api.brightsky.dev/alerts"
+_AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
+
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_BIS_ZUM_RE  = re.compile(
     r"^(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+bis\s+zum\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+Uhr"
 )
-
-
-def _parse_autobahn_ts(ts: str | None) -> str | None:
-    if not ts or not ts.strip():
-        return None
-    ts = ts.strip()
-    try:
-        return datetime.strptime(ts, "%m/%d/%Y %H:%M:%S").isoformat()
-    except ValueError:
-        pass
-    try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00")).isoformat()
-    except ValueError:
-        return None
 
 
 def _parse_autobahn_ende(desc: list) -> str | None:
@@ -90,7 +81,6 @@ class BasePoller(ABC):
 
 
 class RMVPoller(BasePoller):
-    BASE_URL = "https://www.rmv.de/hapi/himSearch"
     _REGION_FILTER = frozenset({"frankfurt"})
 
     def __init__(self, api_key: str, services: dict):
@@ -112,7 +102,7 @@ class RMVPoller(BasePoller):
     def fetch(self) -> list[Alert]:
         try:
             resp = requests.get(
-                self.BASE_URL,
+                _RMV_URL,
                 params={"accessId": self.api_key, "format": "json", "maxHim": 1000},
                 timeout=15,
             )
@@ -166,6 +156,7 @@ class RMVPoller(BasePoller):
         product_list = [product_raw] if isinstance(product_raw, dict) else product_raw
         service, lines = _primary_service_and_line(product_list)
 
+        valid_from   = _rmv_datetime(msg.get("sDate", ""), msg.get("sTime", ""))
         valid_until  = _rmv_datetime(msg.get("eDate", ""), msg.get("eTime", ""))
         published_at = _rmv_datetime(msg.get("modDate", ""), msg.get("modTime", ""))
 
@@ -189,6 +180,7 @@ class RMVPoller(BasePoller):
             title=re.sub(r"^Frankfurt\s*[-:–]\s*", "", msg.get("head", "RMV Disruption")).strip(),
             body=body,
             url=None,
+            valid_from=valid_from,
             valid_until=valid_until,
             service=service,
             lines=lines,
@@ -200,10 +192,8 @@ class RMVPoller(BasePoller):
 
 
 class PolizeiPoller(BasePoller):
-    FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
-
     def fetch(self) -> list[Alert]:
-        feed = feedparser.parse(self.FEED_URL)
+        feed = feedparser.parse(_POLIZEI_FEED_URL)
         if feed.bozo and not feed.entries:
             log.error("PolizeiPoller: failed to parse feed: %s", feed.bozo_exception)
             return []
@@ -231,9 +221,6 @@ class PolizeiPoller(BasePoller):
 
 
 class DWDPoller(BasePoller):
-    WARN_URL = "https://api.brightsky.dev/alerts"
-    LAT = 50.11
-    LON = 8.68
     _SEVERITY_RANK = {"minor": 1, "moderate": 2, "severe": 3, "extreme": 4}
 
     def __init__(self, min_severity: int = 2):
@@ -242,8 +229,8 @@ class DWDPoller(BasePoller):
     def fetch(self) -> list[Alert]:
         try:
             resp = requests.get(
-                self.WARN_URL,
-                params={"lat": self.LAT, "lon": self.LON},
+                _DWD_URL,
+                params={"lat": _FRANKFURT_LAT, "lon": _FRANKFURT_LON},
                 timeout=20,
             )
             resp.raise_for_status()
@@ -268,7 +255,8 @@ class DWDPoller(BasePoller):
                 title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
                 body=body,
                 url=None,
-                published_at=w.get("onset"),
+                published_at=w.get("published"),
+                valid_from=w.get("onset"),
                 valid_until=w.get("expires"),
                 service=None,
                 severity=rank,
@@ -287,12 +275,10 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class AutobahnPoller(BasePoller):
-    BASE_URL = "https://verkehr.autobahn.de/o/autobahn"
-    DEFAULT_ROADS = ["A3", "A5", "A45", "A66", "A661", "A648"]
     _KINDS = ("warning", "closure")
 
     def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0):
-        self.roads = roads or self.DEFAULT_ROADS
+        self.roads = roads or _FRANKFURT_ROADS
         self.radius_km = radius_km
 
     def fetch(self) -> list[Alert]:
@@ -305,7 +291,7 @@ class AutobahnPoller(BasePoller):
         return alerts
 
     def _fetch_road(self, road: str, kind: str, seen_ids: set[str]) -> list[Alert]:
-        url = f"{self.BASE_URL}/{road}/services/{kind}"
+        url = f"{_AUTOBAHN_URL}/{road}/services/{kind}"
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code == 204:
@@ -342,14 +328,11 @@ class AutobahnPoller(BasePoller):
                 desc = [str(desc)] if desc else []
             body = "\n".join(desc)
 
-            published_at = _parse_autobahn_ts(item.get("startTimestamp"))
+            published_at = datetime.now(timezone.utc).isoformat()
+            valid_from   = None
             valid_until  = _parse_autobahn_ende(desc)
-            if not published_at or not valid_until:
-                bis_start, bis_end = _parse_autobahn_bis_zum(desc)
-                if not published_at:
-                    published_at = bis_start
-                if not valid_until:
-                    valid_until = bis_end
+            if not valid_until:
+                valid_from, valid_until = _parse_autobahn_bis_zum(desc)
 
             alerts.append(Alert(
                 id=alert_id,
@@ -358,6 +341,7 @@ class AutobahnPoller(BasePoller):
                 body=body,
                 url=None,
                 published_at=published_at,
+                valid_from=valid_from,
                 valid_until=valid_until,
                 service=road,
                 lat=lat,
@@ -366,79 +350,48 @@ class AutobahnPoller(BasePoller):
         return alerts
 
 
-class TicketmasterPoller(BasePoller):
-    BASE_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
+def _fmt_event_date(dt: datetime) -> str:
+    return f"{dt.day} {dt.strftime('%b')}"
 
-    def __init__(self, api_key: str, days_ahead: int = 7, radius_km: float = 50.0):
-        self.api_key = api_key
-        self.days_ahead = days_ahead
-        self.radius_km = radius_km
+
+class StaticEventsPoller(BasePoller):
+    def __init__(self, events: list[dict], advance_days: int = 7):
+        self.events = events
+        self.advance_days = advance_days
 
     def fetch(self) -> list[Alert]:
         now = datetime.now(timezone.utc)
-        start = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        end = (now + timedelta(days=self.days_ahead)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        try:
-            resp = requests.get(
-                self.BASE_URL,
-                params={
-                    "apikey": self.api_key,
-                    "latlong": f"{_FRANKFURT_LAT},{_FRANKFURT_LON}",
-                    "radius": int(self.radius_km),
-                    "unit": "km",
-                    "startDateTime": start,
-                    "endDateTime": end,
-                    "size": 200,
-                    "locale": "*",
-                },
-                timeout=15,
-            )
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            log.error("TicketmasterPoller request failed: %s", e)
-            return []
-
-        events = resp.json().get("_embedded", {}).get("events", [])
-        log.info("Ticketmaster: %d events in next %d days", len(events), self.days_ahead)
-        return [self._to_alert(e) for e in events if e.get("id")]
-
-    def _to_alert(self, event: dict) -> Alert:
-        dates = event.get("dates", {}).get("start", {})
-        valid_until = dates.get("dateTime")
-        if valid_until:
+        alerts = []
+        for ev in self.events:
             try:
-                valid_until = datetime.fromisoformat(valid_until.replace("Z", "+00:00")).isoformat()
-            except ValueError:
-                valid_until = None
-
-        venues = event.get("_embedded", {}).get("venues", [])
-        venue_name = venues[0].get("name", "") if venues else ""
-        local_date = dates.get("localDate", "")
-        local_time = dates.get("localTime", "")
-        when = f"{local_date} {local_time}".strip() if local_time else local_date
-
-        lat = lon = None
-        if venues:
-            loc = venues[0].get("location", {})
-            try:
-                lat = float(loc["latitude"])
-                lon = float(loc["longitude"])
-            except (KeyError, TypeError, ValueError):
-                pass
-
-        body = "\n".join(filter(None, [venue_name, when]))
-
-        return Alert(
-            id=event["id"],
-            source="events",
-            title=event.get("name", "Event"),
-            body=body,
-            url=event.get("url"),
-            valid_until=valid_until,
-            service=None,
-            lat=lat,
-            lon=lon,
-        )
+                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=timezone.utc)
+                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=timezone.utc)
+            except (KeyError, ValueError):
+                log.warning("StaticEvents: skipping malformed entry %r", ev)
+                continue
+            if not (start - timedelta(days=self.advance_days) <= now <= end):
+                continue
+            slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
+            body_parts = [f"{_fmt_event_date(start)} – {_fmt_event_date(end)} {end.year}"]
+            if ev.get("location"):
+                body_parts.append(ev["location"])
+            if ev.get("details"):
+                body_parts.append(ev["details"])
+            alerts.append(Alert(
+                id=f"city-event-{slug}",
+                source="events",
+                title=ev["name"],
+                body="\n".join(body_parts),
+                url=ev.get("url"),
+                published_at=(start - timedelta(days=self.advance_days)).isoformat(),
+                valid_from=start.isoformat(),
+                valid_until=end.isoformat(),
+                service=None,
+                lat=None,
+                lon=None,
+            ))
+        log.info("StaticEvents: %d events in window", len(alerts))
+        return alerts
 
 
 # ---------------------------------------------------------------------------

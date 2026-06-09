@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -198,7 +199,7 @@ class TestAutobahnPoller:
         assert alerts[0].valid_until is not None
         assert "2026-06-08" in alerts[0].valid_until
 
-    def test_published_at_parsed_from_start_timestamp(self, mocker):
+    def test_published_at_is_set_to_poll_time(self, mocker):
         from pollers import AutobahnPoller
         fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
         resp_warn = _mock_response(fixture)
@@ -208,7 +209,6 @@ class TestAutobahnPoller:
 
         alert = AutobahnPoller(roads=["A5"]).fetch()[0]
         assert alert.published_at is not None
-        assert "2026-06-08" in alert.published_at
 
     def test_bis_zum_format_fallback(self, mocker):
         from pollers import AutobahnPoller
@@ -233,7 +233,6 @@ class TestAutobahnPoller:
 
         alert = AutobahnPoller(roads=["A3"]).fetch()[0]
         assert alert.published_at is not None
-        assert "2026-06-17" in alert.published_at
         assert alert.valid_until is not None
         assert "2026-06-18" in alert.valid_until
 
@@ -278,52 +277,114 @@ class TestAutobahnPoller:
         assert len(ids) == len(set(ids))
 
 
-# ── TicketmasterPoller ────────────────────────────────────────────────────────
+# ── StaticEventsPoller ───────────────────────────────────────────────────────
 
-class TestTicketmasterPoller:
-    def test_events_parsed(self, mocker):
-        from pollers import TicketmasterPoller
-        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
-        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+class TestStaticEventsPoller:
+    _NOW = datetime(2026, 9, 15, 12, 0, 0, tzinfo=timezone.utc)   # inside Autumn Dippemess window
 
-        alerts = TicketmasterPoller(api_key="key").fetch()
-        assert len(alerts) == 2
+    _EVENTS = [
+        {
+            "name": "Autumn Dippemess",
+            "start": "2026-09-12",
+            "end": "2026-09-28",
+            "location": "Festplatz Ratsweg",
+        },
+        {
+            "name": "Museumsuferfest",
+            "start": "2026-08-28",
+            "end": "2026-08-30",
+            "location": "Museumsufer",
+        },
+        {
+            "name": "Christmas Market",
+            "start": "2026-11-23",
+            "end": "2026-12-22",
+            "location": "Römerberg / Zeil",
+        },
+        {
+            "name": "Buchmesse",
+            "start": "2026-10-07",
+            "end": "2026-10-11",
+            "location": "Messe Frankfurt",
+            "url": "https://www.buchmesse.de",
+        },
+    ]
+
+    def _poller(self, advance_days=7):
+        from pollers import StaticEventsPoller
+        return StaticEventsPoller(events=self._EVENTS, advance_days=advance_days)
+
+    def _fetch(self, advance_days=7):
+        import unittest.mock as mock
+        poller = self._poller(advance_days)
+        with mock.patch("pollers.datetime") as m:
+            m.now.return_value = self._NOW
+            m.fromisoformat.side_effect = datetime.fromisoformat
+            return poller.fetch()
+
+    def test_active_event_returned(self):
+        alerts = self._fetch()
+        titles = [a.title for a in alerts]
+        assert "Autumn Dippemess" in titles
+
+    def test_past_event_excluded(self):
+        alerts = self._fetch()
+        titles = [a.title for a in alerts]
+        assert "Museumsuferfest" not in titles
+
+    def test_future_event_in_advance_window_returned(self):
+        # Buchmesse starts 2026-10-07; _NOW is 2026-09-15 — 22 days away, outside 7-day window
+        alerts = self._fetch(advance_days=7)
+        assert not any(a.title == "Buchmesse" for a in alerts)
+        # With 30-day window it should appear
+        alerts_wide = self._fetch(advance_days=30)
+        assert any(a.title == "Buchmesse" for a in alerts_wide)
+
+    def test_future_event_outside_window_excluded(self):
+        alerts = self._fetch()
+        assert not any(a.title == "Christmas Market" for a in alerts)
+
+    def test_source_is_events(self):
+        alerts = self._fetch()
         assert all(a.source == "events" for a in alerts)
 
-    def test_alert_fields_populated(self, mocker):
-        from pollers import TicketmasterPoller
-        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
-        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+    def test_body_contains_date_range_and_location(self):
+        alerts = self._fetch()
+        dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
+        assert "Sep" in dippemess.body
+        assert "Festplatz Ratsweg" in dippemess.body
 
-        alert = TicketmasterPoller(api_key="key").fetch()[0]
-        assert alert.id == "TM_EVT_001"
-        assert "Coldplay" in alert.title and "Spheres" in alert.title
-        assert alert.url == "https://www.ticketmaster.de/event/coldplay-001"
-        assert "Deutsche Bank Park" in alert.body
-        assert "2026-06-12" in alert.body
-        assert alert.valid_until is not None
-        assert "2026-06-12" in alert.valid_until
+    def test_url_forwarded(self):
+        alerts = self._fetch(advance_days=30)
+        buchmesse = next(a for a in alerts if a.title == "Buchmesse")
+        assert buchmesse.url == "https://www.buchmesse.de"
 
-    def test_coordinates_from_venue(self, mocker):
-        from pollers import TicketmasterPoller
-        fixture = json.loads((FIXTURES_DIR / "ticketmaster_events.json").read_text())
-        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+    def test_url_none_when_not_configured(self):
+        alerts = self._fetch()
+        dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
+        assert dippemess.url is None
 
-        alert = TicketmasterPoller(api_key="key").fetch()[0]
-        assert alert.lat == pytest.approx(50.0687)
-        assert alert.lon == pytest.approx(8.6454)
+    def test_published_at_is_set(self):
+        alerts = self._fetch()
+        assert all(a.published_at is not None for a in alerts)
 
-    def test_empty_embedded_returns_empty(self, mocker):
-        from pollers import TicketmasterPoller
-        mocker.patch("pollers.requests.get", return_value=_mock_response({}))
+    def test_valid_until_is_event_end(self):
+        alerts = self._fetch()
+        dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
+        assert "2026-09-28" in dippemess.valid_until
 
-        alerts = TicketmasterPoller(api_key="key").fetch()
-        assert alerts == []
+    def test_malformed_entry_skipped(self):
+        from pollers import StaticEventsPoller
+        import unittest.mock as mock
+        bad_events = [{"name": "No dates"}, *self._EVENTS]
+        poller = StaticEventsPoller(events=bad_events, advance_days=7)
+        with mock.patch("pollers.datetime") as m:
+            m.now.return_value = self._NOW
+            m.fromisoformat.side_effect = datetime.fromisoformat
+            alerts = poller.fetch()
+        assert not any(a.title == "No dates" for a in alerts)
 
-    def test_request_failure_returns_empty(self, mocker):
-        import requests as req_lib
-        from pollers import TicketmasterPoller
-        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
-
-        alerts = TicketmasterPoller(api_key="key").fetch()
-        assert alerts == []
+    def test_stable_id(self):
+        alerts = self._fetch()
+        dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
+        assert dippemess.id == "city-event-2026-autumn-dippemess"

@@ -39,11 +39,13 @@ web:
   telegram_channel_url: https://t.me/FrankfurtRadar
   kofi_url: https://ko-fi.com/jctots
   github_url: https://github.com/jctots/frankfurt-radar
-  privacy_url: /privacy
-  privacy_controller: Rosanno JC De Dios
-  privacy_contact: jctots@pm.me
-  security_url: /security
-  security_contact: jctots@pm.me
+  legal_url: /legal
+  operator_name: Rosanno JC De Dios
+  operator_contact: jctots@pm.me
+  impressum_address: |
+    c/o flexdienst
+    Musterstraße 1
+    60311 Frankfurt am Main
 
 # Phase 2b — weather warnings (DWD)
 weather:
@@ -64,7 +66,7 @@ autobahn:
     - A648
     - A661
 
-# Phase 2a v0.2.0 — Ticketmaster events (requires TICKETMASTER_API_KEY in .env)
+# City events — dates and details are in city_events.yaml (same DATA_DIR)
 events:
   enabled: true
-  days_ahead: 7           # query events starting now through this many days ahead
+  advance_days: 7         # show each event this many days before it starts

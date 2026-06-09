@@ -27,7 +27,7 @@ SOURCE_URL: dict[str, Optional[str]] = {
     "dwd":      "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
     "polizei":  None,
     "autobahn": "https://www.autobahn.de/",
-    "events":   "https://www.ticketmaster.de/city/frankfurt-am-main",
+    "events":   None,
 }
 
 
@@ -41,7 +41,8 @@ class Alert:
     valid_until: Optional[str]   # ISO string or None
     service: Optional[str]       # human-readable label, e.g. "S-Bahn"
     lines: list[str] = field(default_factory=list)  # affected lines for primary service
-    published_at: Optional[str] = None  # ISO UTC; set by PolizeiPoller for 24h filter
+    published_at: Optional[str] = None  # ISO UTC — when the alert enters the feed
+    valid_from: Optional[str] = None    # ISO UTC — when the event/disruption actually starts
     severity: Optional[int] = None      # 1–4 (minor→extreme); set by DWDPoller
     lat: Optional[float] = None         # map pin latitude
     lon: Optional[float] = None         # map pin longitude

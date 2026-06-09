@@ -1,0 +1,70 @@
+# Frankfurt city events — update dates each year
+#
+# Source for dates and new events: https://www.visitfrankfurt.travel/erleben/veranstaltungskalender
+#
+# Fields:
+#   name    : display name (required)
+#   start   : YYYY-MM-DD (required)
+#   end     : YYYY-MM-DD (required)
+#   location: venue or area shown in the alert (optional)
+#   details : one or two sentences shown in the detail popup (optional)
+#   url     : link shown in the detail popup — use the official event page (optional)
+
+- name: "Spring Dippemess"
+  start: "2026-03-27"
+  end: "2026-04-19"
+  location: "Festplatz Ratsweg"
+  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  url: "https://www.frankfurt.de/dippemess"
+
+- name: "Wäldchestag"
+  start: "2026-05-22"
+  end: "2026-05-26"
+  location: "Stadtwald"
+  details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music."
+
+- name: "Schweizer Straßenfest"
+  start: "2026-06-19"
+  end: "2026-06-20"
+  location: "Sachsenhausen"
+  details: "Street festival in Sachsenhausen with live music, food stalls, and apple wine."
+
+- name: "Mainfest"
+  start: "2026-08-01"
+  end: "2026-08-04"
+  location: "Römerberg / Mainufer"
+  details: "Annual riverside festival along the Main with fair rides, wine, and a closing fireworks display."
+
+- name: "Sachsenhäuser Brunnenfest"
+  start: "2026-08-14"
+  end: "2026-08-16"
+  location: "Sachsenhausen"
+  details: "Neighbourhood street festival centred around the district's historic wells."
+
+- name: "Museumsuferfest"
+  start: "2026-08-28"
+  end: "2026-08-30"
+  location: "Museumsufer"
+  details: "One of Europe's largest cultural festivals — open-air concerts and art along both banks of the Main."
+  url: "https://www.museumsufer.de"
+
+- name: "Autumn Dippemess"
+  start: "2026-09-12"
+  end: "2026-09-28"
+  location: "Festplatz Ratsweg"
+  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  url: "https://www.frankfurt.de/dippemess"
+
+- name: "Frankfurter Buchmesse"
+  start: "2026-10-07"
+  end: "2026-10-11"
+  location: "Messe Frankfurt"
+  details: "The world's largest trade fair for books — expect heavy road and public transport congestion around Messe."
+  url: "https://www.buchmesse.de"
+
+- name: "Christmas Market"
+  start: "2026-11-23"
+  end: "2026-12-22"
+  location: "Römerberg / Zeil"
+  details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. Expect heavy crowds in the city centre."
+  url: "https://www.frankfurt-tourismus.de/weihnachtsmarkt"

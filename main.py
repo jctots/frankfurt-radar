@@ -10,13 +10,14 @@ from dotenv import load_dotenv
 
 from db import expire_processed_alerts, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, TicketmasterPoller
+from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, StaticEventsPoller
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-CONFIG_FILE = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
+CONFIG_FILE  = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
+EVENTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "city_events.yaml"
 
 
 def load_config() -> dict:
@@ -25,6 +26,14 @@ def load_config() -> dict:
         sys.exit(1)
     with CONFIG_FILE.open() as f:
         return yaml.safe_load(f)
+
+
+def load_city_events() -> list:
+    if not EVENTS_FILE.exists():
+        log.warning("city_events.yaml not found — no city events will be shown")
+        return []
+    with EVENTS_FILE.open(encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
 
 
 def main() -> None:
@@ -54,7 +63,7 @@ def main() -> None:
     if config.get("police", {}).get("enabled", False):
         pollers.append(PolizeiPoller())
     if config.get("weather", {}).get("enabled", False):
-        pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 2)))
+        pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 1)))
     radius_km = float(config.get("location", {}).get("radius_km", 50.0))
     autobahn_cfg = config.get("autobahn", {})
     if autobahn_cfg.get("enabled", False):
@@ -64,15 +73,10 @@ def main() -> None:
         ))
     events_cfg = config.get("events", {})
     if events_cfg.get("enabled", False):
-        tm_key = os.getenv("TICKETMASTER_API_KEY", "")
-        if tm_key:
-            pollers.append(TicketmasterPoller(
-                api_key=tm_key,
-                days_ahead=events_cfg.get("days_ahead", 7),
-                radius_km=radius_km,
-            ))
-        else:
-            log.warning("events.enabled=true but TICKETMASTER_API_KEY not set — skipping")
+        pollers.append(StaticEventsPoller(
+            events=load_city_events(),
+            advance_days=events_cfg.get("advance_days", 7),
+        ))
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 

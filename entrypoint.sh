@@ -3,8 +3,9 @@ set -e
 
 DATA_DIR="${DATA_DIR:-/app/data}"
 
-# Seed config on first start so users can edit it from the bind-mounted data dir
-[ -f "$DATA_DIR/config.yaml" ] || cp /app/config.yaml "$DATA_DIR/config.yaml"
+# Seed config and events on first start so users can edit them from the data dir
+[ -f "$DATA_DIR/config.yaml" ]      || cp /app/config.yaml      "$DATA_DIR/config.yaml"
+[ -f "$DATA_DIR/city_events.yaml" ] || cp /app/city_events.yaml "$DATA_DIR/city_events.yaml"
 
 # Generate crontab from config — injects all runtime env vars
 python3 - "$DATA_DIR/config.yaml" <<'PYEOF'
@@ -22,7 +23,6 @@ env_block = "\n".join([
     f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
     f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
     f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
-    f"TICKETMASTER_API_KEY={os.environ.get('TICKETMASTER_API_KEY', '')}",
 ])
 
 job_block = "\n".join([

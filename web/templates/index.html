@@ -674,6 +674,33 @@
     .dark .feed::-webkit-scrollbar-track       { background: #0f172a; }
     .dark .feed::-webkit-scrollbar-thumb       { background: #334155; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* ── Event banners ──────────────────────────────────────── */
+    #event-banners { flex-shrink: 0; }
+    .event-banner {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      background: #ecfdf5;
+      border-left: 3px solid var(--clr-events);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .event-banner:hover { background: #d1fae5; }
+    .event-banner-inner { display: flex; align-items: center; gap: 10px; }
+    .event-banner-icon  { font-size: 18px; flex-shrink: 0; }
+    .event-banner-content { flex: 1; min-width: 0; }
+    .event-banner-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--clr-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .event-banner-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
+    .event-banner-chevron { color: var(--clr-muted); font-size: 16px; flex-shrink: 0; }
+    .dark .event-banner       { background: #022c22; border-color: #059669; }
+    .dark .event-banner:hover { background: #064e3b; }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
     .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -766,6 +793,7 @@
     <div class="feed-header">
       Active Alerts - <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
     </div>
+    <div id="event-banners" style="display:none"></div>
     <div class="feed" id="feed">
       <div class="empty-state">Loading…</div>
     </div>
@@ -817,7 +845,7 @@
 
     <h2>🔒 Privacy &amp; Security</h2>
     <p>The status page collects no personal data — no cookies, no analytics, no tracking. Browser notification preferences are stored in your browser only. All connections are encrypted via HTTPS.</p>
-    {% if security_url or privacy_url %}<p>{% if security_url %}<a href="{{ security_url | e }}">Security policy ↗</a>{% endif %}{% if security_url and privacy_url %} · {% endif %}{% if privacy_url %}<a href="{{ privacy_url | e }}">Privacy policy ↗</a>{% endif %}</p>{% endif %}
+    {% if legal_url %}<p><a href="{{ legal_url | e }}#impressum">Impressum</a> · <a href="{{ legal_url | e }}#privacy">Privacy policy ↗</a> · <a href="{{ legal_url | e }}#security">Security policy ↗</a></p>{% endif %}
     <hr>
 
     <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
@@ -841,10 +869,18 @@
     </p>
     <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
     <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
-    <p style="font-size:12px;color:var(--clr-muted);margin-top:-6px">No account required · No personal data collected{% if privacy_url %} · <a href="{{ privacy_url | e }}" target="_blank" rel="noopener">Privacy policy</a>{% endif %}</p>
+    <p style="font-size:12px;color:var(--clr-muted);margin-top:-6px">No account required · No personal data collected{% if legal_url %} · <a href="{{ legal_url | e }}#privacy" target="_blank" rel="noopener">Privacy policy</a>{% endif %}</p>
     <div class="btn-center">
       <button class="btn-confirm" onclick="dismissDisclaimer()">✔️ Noted — show me the alerts</button>
     </div>
+  </div>
+</div>
+
+<!-- Event detail modal -->
+<div class="modal-overlay centered" id="event-detail-modal" onclick="closeEventDetail()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeEventDetail()">✕</button>
+    <div id="event-detail-content"></div>
   </div>
 </div>
 
@@ -862,7 +898,7 @@ const SOURCE = {
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
   autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
-  events:   { label: 'Events',    emoji: '🎫', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.ticketmaster.de/city/frankfurt-am-main' },
+  events:   { label: 'Events',    emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
 };
 
 // Frankfurt district name → [lat, lon] (approximate centres)
@@ -944,7 +980,7 @@ let _roadsClosedBy = null;
 let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
 if (!filters.roads) filters.roads = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
@@ -1006,8 +1042,9 @@ function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
-  if (a.published_at) meta.push('Published ' + fmtDateTime(a.published_at));
-  if (a.valid_until)  meta.push('Valid until ' + fmtDateTime(a.valid_until));
+  if (a.published_at && a.source !== 'events') meta.push('Published ' + fmtDateTime(a.published_at));
+  if (a.valid_from)   meta.push('From ' + fmtDateTime(a.valid_from));
+  if (a.valid_until)  meta.push('Until ' + fmtDateTime(a.valid_until));
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
@@ -1095,6 +1132,7 @@ function applyData(data) {
   }
 
   buildFilterBar();
+  renderEventBanners();
   renderFeed();
 }
 
@@ -1117,6 +1155,7 @@ function clearSearch() {
 // ── Filtering ─────────────────────────────────────────────────────────────────
 function visible() {
   return alerts.filter(a => {
+    if (a.source === 'events') return false;
     if (filters.sources[a.source] === false) return false;
     if (a.source === 'rmv') {
       if (a.lines && a.lines.length) {
@@ -1132,6 +1171,48 @@ function visible() {
     }
     return true;
   });
+}
+
+// ── Event banners ─────────────────────────────────────────────────────────────
+function renderEventBanners() {
+  const container = document.getElementById('event-banners');
+  const events = alerts.filter(a => a.source === 'events');
+  if (!events.length) { container.style.display = 'none'; return; }
+  container.style.display = '';
+  container.innerHTML = events.map(a => {
+    const meta = [a.body.split('\n')[0]];
+    if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
+    else if (a.valid_until) meta.push('until ' + fmtDate(a.valid_until));
+    return `<div class="event-banner" onclick="openEventDetail('${esc(a.id)}')">
+  <div class="event-banner-inner">
+    <span class="event-banner-icon">🎉</span>
+    <div class="event-banner-content">
+      <div class="event-banner-title">${esc(a.title)}</div>
+      <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
+    </div>
+    <span class="event-banner-chevron">›</span>
+  </div>
+</div>`;
+  }).join('');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+  } catch { return iso; }
+}
+
+function openEventDetail(id) {
+  const a = alerts.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('event-detail-content').innerHTML = buildPopupHtml(a);
+  document.getElementById('event-detail-modal').classList.add('open');
+}
+
+function closeEventDetail() {
+  document.getElementById('event-detail-modal').classList.remove('open');
 }
 
 // ── Feed rendering ────────────────────────────────────────────────────────────
@@ -1264,11 +1345,6 @@ function buildFilterBar() {
       html += `<button class="chip road-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">${label}</button>`;
     }
   }
-
-  // Events
-  html += '<div class="filter-sep"></div>';
-  const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}</button>`;
 
   // Transport + lines
   html += '<div class="filter-sep"></div>';
@@ -1536,7 +1612,7 @@ function updateTicker() {
   wrap.innerHTML = '';
   tickerItems = [];
   tickerCurrent = 0;
-  const src = alerts.filter(a => a.source !== 'dwd');
+  const src = alerts.filter(a => a.source !== 'dwd' && a.source !== 'events');
   const pool = src.length ? src : alerts;
   pool.slice(0, 10).forEach(a => {
     const el = document.createElement('div');
