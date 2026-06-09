@@ -839,21 +839,13 @@
     <hr>
     {% endif %}
 
-    <h2>⚠️ Disclaimer</h2>
-    <p>Frankfurt Radar is an unofficial community tool, not affiliated with or endorsed by RMV, DWD, or Polizei Frankfurt. Data is automatically fetched and translated and may be delayed or incomplete. <strong>Do not use this site as an emergency service.</strong></p>
-    <hr>
-
-    <h2>🔒 Privacy &amp; Security</h2>
-    <p>The status page collects no personal data — no cookies, no analytics, no tracking. Browser notification preferences are stored in your browser only. All connections are encrypted via HTTPS.</p>
-    {% if legal_url %}<p><a href="{{ legal_url | e }}#impressum">Impressum</a> · <a href="{{ legal_url | e }}#privacy">Privacy policy ↗</a> · <a href="{{ legal_url | e }}#security">Security policy ↗</a></p>{% endif %}
-    <hr>
-
     <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
     <p class="info-attr" style="margin-top:4px">
       Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>
     </p>
+    {% if legal_url %}<p class="info-attr" style="margin-top:4px"><a href="{{ legal_url | e }}#impressum">Impressum</a> · <a href="{{ legal_url | e }}#privacy">Privacy policy</a></p>{% endif %}
   </div>
 </div>
 
@@ -876,13 +868,6 @@
   </div>
 </div>
 
-<!-- Event detail modal -->
-<div class="modal-overlay centered" id="event-detail-modal" onclick="closeEventDetail()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeEventDetail()">✕</button>
-    <div id="event-detail-content"></div>
-  </div>
-</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -1061,7 +1046,8 @@ function buildPopupHtml(a) {
 function renderMarkers() {
   if (!map || !clusterGroup) return;
   const list = visible();
-  const visibleIds = new Set(list.map(a => a.id));
+  const events = alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null);
+  const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id)]);
 
   // Remove markers for alerts no longer visible
   Object.keys(markers).forEach(id => {
@@ -1074,6 +1060,16 @@ function renderMarkers() {
     if (markers[a.id]) return;
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a.source) })
+      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+    m.on('click', () => selectAlert(a.id));
+    clusterGroup.addLayer(m);
+    markers[a.id] = m;
+  });
+
+  // Add markers for events with coordinates
+  events.forEach(a => {
+    if (markers[a.id]) return;
+    const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
     m.on('click', () => selectAlert(a.id));
     clusterGroup.addLayer(m);
@@ -1183,8 +1179,7 @@ function renderEventBanners() {
     const meta = [];
     if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
     else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-    if (a.location_label) meta.push(a.location_label);
-    return `<div class="event-banner" onclick="openEventDetail('${esc(a.id)}')">
+    return `<div class="event-banner" onclick="selectAlert('${esc(a.id)}')">
   <div class="event-banner-inner">
     <span class="event-banner-icon">🎉</span>
     <div class="event-banner-content">
@@ -1203,17 +1198,6 @@ function fmtDate(iso) {
     const d = new Date(iso);
     return `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
   } catch { return iso; }
-}
-
-function openEventDetail(id) {
-  const a = alerts.find(x => x.id === id);
-  if (!a) return;
-  document.getElementById('event-detail-content').innerHTML = buildPopupHtml(a);
-  document.getElementById('event-detail-modal').classList.add('open');
-}
-
-function closeEventDetail() {
-  document.getElementById('event-detail-modal').classList.remove('open');
 }
 
 // ── Feed rendering ────────────────────────────────────────────────────────────

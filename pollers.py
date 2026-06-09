@@ -290,17 +290,18 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class AutobahnPoller(BasePoller):
-    _KINDS = ("warning", "closure")
+    _ALL_KINDS = ("warning", "closure")
 
-    def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0):
+    def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0, kinds: list[str] | None = None):
         self.roads = roads or _FRANKFURT_ROADS
         self.radius_km = radius_km
+        self.kinds = kinds if kinds is not None else list(self._ALL_KINDS)
 
     def fetch(self) -> list[Alert]:
         seen_ids: set[str] = set()
         alerts: list[Alert] = []
         for road in self.roads:
-            for kind in self._KINDS:
+            for kind in self.kinds:
                 alerts.extend(self._fetch_road(road, kind, seen_ids))
         log.info("Autobahn: %d alerts across %d roads", len(alerts), len(self.roads))
         return alerts

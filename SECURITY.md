@@ -13,7 +13,7 @@ Only the latest release on `main` is actively maintained. Older releases do not 
 
 Please report security vulnerabilities **privately** — do not open a public GitHub issue.
 
-**Email:** jctots@pm.me  
+**Email:** see [/legal](/legal#impressum) for the operator's contact email  
 **Subject line:** `[frankfurt-radar] Security vulnerability`
 
 Response SLA:

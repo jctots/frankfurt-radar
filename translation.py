@@ -65,7 +65,7 @@ def _transliterate(text: str) -> str:
 
 
 def translate_alert(alert: "Alert", config: dict) -> tuple[str, str]:
-    if alert.source == "dwd":
+    if alert.source in ("dwd", "events"):
         return alert.title, alert.body
     if alert.source == "polizei" and ":" in alert.title:
         location, _, event = alert.title.partition(":")

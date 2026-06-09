@@ -31,10 +31,10 @@ def set_security_headers(response):
 
 @app.route("/")
 def index():
-    web_cfg = _web_config()
+    web_cfg = _web_config() or {}
     return render_template(
         "index.html",
-        allow_poll=web_cfg.get("allow_manual_poll", False),
+        allow_poll=_allow_manual_poll(),
         version=BUILD_VERSION,
         telegram_channel_url=web_cfg.get("telegram_channel_url") or "",
         kofi_url=web_cfg.get("kofi_url") or "",
@@ -45,12 +45,16 @@ def index():
 
 @app.route("/legal")
 def legal():
-    web_cfg = _web_config()
+    web_cfg = _web_config() or {}
+    impressum_address = web_cfg.get("impressum_address") or ""
+    if not impressum_address:
+        from flask import abort
+        abort(404)
     return render_template(
         "legal.html",
         controller=web_cfg.get("operator_name") or "",
         contact=web_cfg.get("operator_contact") or "",
-        impressum_address=web_cfg.get("impressum_address") or "",
+        impressum_address=impressum_address,
     )
 
 
@@ -86,16 +90,19 @@ def api_poll():
     return jsonify(get_status_json())
 
 
-def _web_config() -> dict:
+def _web_config() -> dict | None:
     try:
         cfg = yaml.safe_load(CONFIG_FILE.read_text())
-        return cfg.get("web", {}) or {}
+        return cfg.get("web")  # None when section is absent
     except Exception:
-        return {}
+        return None
 
 
 def _allow_manual_poll() -> bool:
-    return bool(_web_config().get("allow_manual_poll", False))
+    web = _web_config()
+    if web is None:
+        return True   # no web: section → self-hosted, poll always available
+    return bool(web.get("allow_manual_poll", False))
 
 
 if __name__ == "__main__":

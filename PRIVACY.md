@@ -4,8 +4,8 @@
 
 ## Who we are
 
-Frankfurt Radar is operated by Rosanno JC De Dios (jctots@pm.me).
-The service is hosted on a Hetzner VPS in Frankfurt, Germany (EU jurisdiction).
+Frankfurt Radar is a privately operated open-source service hosted on a Hetzner VPS in Frankfurt, Germany (EU jurisdiction).
+For operator details, see the [Impressum](/legal#impressum) on the deployed instance.
 
 ## What data we collect
 
@@ -44,7 +44,7 @@ Until you send `/deletedata` to the bot, which permanently deletes all stored da
 You have the right to access, correct, and erase your data.
 
 - **To delete all stored data:** send `/deletedata` to @FrankfurtRadarBot
-- **For all other requests:** jctots@pm.me
+- **For all other requests:** see [/legal](/legal#impressum) for the operator's contact details
 
 We will respond within 30 days.
 
@@ -62,4 +62,4 @@ Material changes will be noted here with an updated date.
 
 ## Contact
 
-Rosanno JC De Dios · jctots@pm.me
+See [/legal](/legal#impressum) on the deployed instance for the operator's name and contact email.

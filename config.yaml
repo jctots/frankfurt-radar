@@ -33,19 +33,6 @@ police:
   enabled: true
   max_age_hours: 48                # drop police alerts older than this many hours; 0 = no limit
 
-web:
-  allow_manual_poll: false   # set to true only for private/self-hosted deployments
-  # Optional — omit or leave blank to hide from the "More info" modal
-  telegram_channel_url: https://t.me/FrankfurtRadar
-  kofi_url: https://ko-fi.com/jctots
-  github_url: https://github.com/jctots/frankfurt-radar
-  legal_url: /legal
-  operator_name: Rosanno JC De Dios
-  operator_contact: jctots@pm.me
-  impressum_address: |
-    c/o flexdienst
-    Musterstraße 1
-    60311 Frankfurt am Main
 
 # Phase 2b — weather warnings (DWD)
 weather:
@@ -55,6 +42,9 @@ weather:
 # Phase 2a v0.2.0 — Autobahn road incidents (no API key required)
 autobahn:
   enabled: true
+  kinds:
+    - closure       # planned roadworks and closures (days/weeks)
+    # - warning     # real-time incidents (jams, accidents) — noisy during rush hour
   roads:
     - A3
     - A5

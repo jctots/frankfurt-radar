@@ -82,7 +82,6 @@
 <nav>
   <a href="#impressum">Impressum</a>
   <a href="#privacy">Privacy Policy</a>
-  <a href="#security">Security Policy</a>
 </nav>
 
 <main>
@@ -94,7 +93,7 @@
 
   <p>
     {{ controller | e }}<br>
-    {% if impressum_address %}{{ impressum_address | e }}{% else %}<em style="color:var(--clr-muted)">[Address pending]</em>{% endif %}<br>
+    {% if impressum_address %}{{ impressum_address | trim | e | replace('\n', '<br>') | safe }}{% else %}<em style="color:var(--clr-muted)">[Address pending]</em>{% endif %}<br>
     <a href="mailto:{{ contact | e }}">{{ contact | e }}</a>
   </p>
 
@@ -171,74 +170,6 @@
 
   <h2>Contact</h2>
   <p>{{ controller | e }} · <a href="mailto:{{ contact | e }}">{{ contact | e }}</a></p>
-
-  <hr>
-
-  <!-- ── Security Policy ──────────────────────────── -->
-  <span class="section-anchor" id="security"></span>
-  <h1>Security Policy</h1>
-  <p class="meta">Last updated: 2026-06-08</p>
-
-  <h2>Supported Versions</h2>
-  <p>Only the latest release on <code>main</code> is actively maintained. Older releases do not receive security fixes.</p>
-  <table>
-    <tr><th>Version</th><th>Supported</th></tr>
-    <tr><td>Latest (<code>main</code>)</td><td>✅</td></tr>
-    <tr><td>Older releases</td><td>❌</td></tr>
-  </table>
-
-  <hr>
-
-  <h2>Reporting a Vulnerability</h2>
-  <p>Please report security vulnerabilities <strong>privately</strong> — do not open a public GitHub issue.</p>
-  <p><strong>Email:</strong> <a href="mailto:{{ contact | e }}">{{ contact | e }}</a><br>
-  <strong>Subject line:</strong> <code>[frankfurt-radar] Security vulnerability</code></p>
-  <p>Response SLA:</p>
-  <ul>
-    <li>Acknowledgement within 48 hours</li>
-    <li>Assessment within 7 days</li>
-    <li>Fix for critical issues within 14 days</li>
-  </ul>
-  <p>We will acknowledge your report and keep you updated on progress. Please allow a reasonable time to fix before public disclosure.</p>
-
-  <hr>
-
-  <h2>Security Protections</h2>
-
-  <h3>Infrastructure</h3>
-  <ul>
-    <li>Cloud firewall: only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) inbound</li>
-    <li>SSH: key-only authentication, password login disabled, fail2ban active</li>
-    <li>Automated OS security updates via <code>unattended-upgrades</code></li>
-  </ul>
-
-  <h3>Network</h3>
-  <ul>
-    <li>Cloudflare proxy: origin IP protected, DDoS mitigation, Bot Fight Mode active</li>
-    <li>TLS 1.2 minimum enforced at the edge</li>
-    <li>HSTS enabled (<code>max-age=31536000</code>)</li>
-  </ul>
-
-  <h3>Application</h3>
-  <ul>
-    <li>Administrative endpoints disabled in production</li>
-    <li>Security response headers: <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code></li>
-    <li>No user input accepted on the public status page</li>
-    <li>Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan</li>
-  </ul>
-
-  <h3>Supply chain</h3>
-  <ul>
-    <li><code>pip audit</code> runs weekly via GitHub Actions — results published as CI badge</li>
-    <li><code>gitleaks</code> secret scanning on every commit</li>
-  </ul>
-
-  <hr>
-
-  <h2>Data Handling</h2>
-  <p>The public status page is read-only and stores no personal data.</p>
-  <p>If Telegram bot features are enabled (per-user alerts — not yet publicly launched): only Telegram <code>chat_id</code> is stored. No name, email, or other personal data is collected. A <code>/deletedata</code> command will be available before public launch.</p>
-  <p>See <a href="#privacy">Privacy Policy</a> for full details.</p>
 
   <div class="footer">
     <p><a href="/">← Back to Frankfurt Radar</a></p>

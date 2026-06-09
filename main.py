@@ -70,6 +70,7 @@ def main() -> None:
         pollers.append(AutobahnPoller(
             roads=autobahn_cfg.get("roads") or None,
             radius_km=radius_km,
+            kinds=autobahn_cfg.get("kinds") or None,
         ))
     events_cfg = config.get("events", {})
     if events_cfg.get("enabled", False):

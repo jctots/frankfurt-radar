@@ -82,6 +82,23 @@ def dwd_alert():
 
 
 @pytest.fixture
+def events_alert():
+    from models import Alert
+    return Alert(
+        id="city-event-2026-schweizer-strassenfest",
+        source="events",
+        title="Schweizer Straßenfest",
+        body="Annual street festival in Sachsenhausen.",
+        url=None,
+        valid_from="2026-06-19T00:00:00+00:00",
+        valid_until="2026-06-22T23:59:00+00:00",
+        service=None,
+        lat=50.0970,
+        lon=8.6840,
+    )
+
+
+@pytest.fixture
 def polizei_alert():
     from models import Alert
     return Alert(
