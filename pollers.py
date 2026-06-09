@@ -2,7 +2,10 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+_BERLIN = ZoneInfo("Europe/Berlin")
 from typing import Optional
 
 import feedparser
@@ -11,6 +14,57 @@ import requests
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
 
 log = logging.getLogger(__name__)
+
+_FRANKFURT_LAT   = 50.11
+_FRANKFURT_LON   = 8.68
+_FRANKFURT_ROADS = ["A3", "A5", "A45", "A60", "A66", "A67", "A480", "A648", "A661"]
+
+_RMV_URL          = "https://www.rmv.de/hapi/himSearch"
+_POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
+_DWD_URL          = "https://api.brightsky.dev/alerts"
+_AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
+
+_AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
+_AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
+_AUTOBAHN_BIS_ZUM_RE  = re.compile(
+    r"^(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+bis\s+zum\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+Uhr"
+)
+
+
+def _parse_autobahn_beginn(desc: list) -> str | None:
+    for line in desc:
+        m = _AUTOBAHN_BEGINN_RE.match(line.strip())
+        if m:
+            try:
+                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+            except ValueError:
+                pass
+    return None
+
+
+def _parse_autobahn_ende(desc: list) -> str | None:
+    for line in desc:
+        m = _AUTOBAHN_ENDE_RE.match(line.strip())
+        if m:
+            try:
+                return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+            except ValueError:
+                pass
+    return None
+
+
+def _parse_autobahn_bis_zum(desc: list) -> tuple[str | None, str | None]:
+    """Extract (start, end) from 'DD.MM.YY HH:MM bis zum DD.MM.YY HH:MM Uhr.' lines."""
+    for line in desc:
+        m = _AUTOBAHN_BIS_ZUM_RE.match(line.strip())
+        if m:
+            try:
+                start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+                end   = datetime.strptime(f"{m.group(3)} {m.group(4)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+                return start, end
+            except ValueError:
+                pass
+    return None, None
 
 
 def _rmv_datetime(date: str, time: str) -> Optional[str]:
@@ -30,7 +84,7 @@ def _rmv_datetime(date: str, time: str) -> Optional[str]:
             time = f"{time[:2]}:{time[2:4]}" + (f":{time[4:6]}" if len(time) >= 6 else "")
         s = f"{date}T{time}" if time else date
         fmt = "%Y-%m-%dT%H:%M:%S" if time and time.count(':') == 2 else ("%Y-%m-%dT%H:%M" if time else "%Y-%m-%d")
-        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
+        return datetime.strptime(s, fmt).replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
     except ValueError:
         return None
 
@@ -42,7 +96,6 @@ class BasePoller(ABC):
 
 
 class RMVPoller(BasePoller):
-    BASE_URL = "https://www.rmv.de/hapi/himSearch"
     _REGION_FILTER = frozenset({"frankfurt"})
 
     def __init__(self, api_key: str, services: dict):
@@ -64,7 +117,7 @@ class RMVPoller(BasePoller):
     def fetch(self) -> list[Alert]:
         try:
             resp = requests.get(
-                self.BASE_URL,
+                _RMV_URL,
                 params={"accessId": self.api_key, "format": "json", "maxHim": 1000},
                 timeout=15,
             )
@@ -118,6 +171,7 @@ class RMVPoller(BasePoller):
         product_list = [product_raw] if isinstance(product_raw, dict) else product_raw
         service, lines = _primary_service_and_line(product_list)
 
+        valid_from   = _rmv_datetime(msg.get("sDate", ""), msg.get("sTime", ""))
         valid_until  = _rmv_datetime(msg.get("eDate", ""), msg.get("eTime", ""))
         published_at = _rmv_datetime(msg.get("modDate", ""), msg.get("modTime", ""))
 
@@ -141,6 +195,7 @@ class RMVPoller(BasePoller):
             title=re.sub(r"^Frankfurt\s*[-:–]\s*", "", msg.get("head", "RMV Disruption")).strip(),
             body=body,
             url=None,
+            valid_from=valid_from,
             valid_until=valid_until,
             service=service,
             lines=lines,
@@ -152,10 +207,8 @@ class RMVPoller(BasePoller):
 
 
 class PolizeiPoller(BasePoller):
-    FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
-
     def fetch(self) -> list[Alert]:
-        feed = feedparser.parse(self.FEED_URL)
+        feed = feedparser.parse(_POLIZEI_FEED_URL)
         if feed.bozo and not feed.entries:
             log.error("PolizeiPoller: failed to parse feed: %s", feed.bozo_exception)
             return []
@@ -183,9 +236,6 @@ class PolizeiPoller(BasePoller):
 
 
 class DWDPoller(BasePoller):
-    WARN_URL = "https://api.brightsky.dev/alerts"
-    LAT = 50.11
-    LON = 8.68
     _SEVERITY_RANK = {"minor": 1, "moderate": 2, "severe": 3, "extreme": 4}
 
     def __init__(self, min_severity: int = 2):
@@ -194,8 +244,8 @@ class DWDPoller(BasePoller):
     def fetch(self) -> list[Alert]:
         try:
             resp = requests.get(
-                self.WARN_URL,
-                params={"lat": self.LAT, "lon": self.LON},
+                _DWD_URL,
+                params={"lat": _FRANKFURT_LAT, "lon": _FRANKFURT_LON},
                 timeout=20,
             )
             resp.raise_for_status()
@@ -220,12 +270,141 @@ class DWDPoller(BasePoller):
                 title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
                 body=body,
                 url=None,
-                published_at=w.get("onset"),
+                published_at=w.get("published"),
+                valid_from=w.get("onset"),
                 valid_until=w.get("expires"),
                 service=None,
                 severity=rank,
             ))
         log.info("DWD: %d warnings at severity >= %d", len(alerts), self.min_severity)
+        return alerts
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+class AutobahnPoller(BasePoller):
+    _ALL_KINDS = ("warning", "closure")
+
+    def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0, kinds: list[str] | None = None):
+        self.roads = roads or _FRANKFURT_ROADS
+        self.radius_km = radius_km
+        self.kinds = kinds if kinds is not None else list(self._ALL_KINDS)
+
+    def fetch(self) -> list[Alert]:
+        seen_ids: set[str] = set()
+        alerts: list[Alert] = []
+        for road in self.roads:
+            for kind in self.kinds:
+                alerts.extend(self._fetch_road(road, kind, seen_ids))
+        log.info("Autobahn: %d alerts across %d roads", len(alerts), len(self.roads))
+        return alerts
+
+    def _fetch_road(self, road: str, kind: str, seen_ids: set[str]) -> list[Alert]:
+        url = f"{_AUTOBAHN_URL}/{road}/services/{kind}"
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 204:
+                return []
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("AutobahnPoller %s/%s: %s", road, kind, e)
+            return []
+
+        alerts = []
+        for item in resp.json().get(kind, []):
+            alert_id = item.get("identifier", "")
+            if not alert_id or alert_id in seen_ids:
+                continue
+            seen_ids.add(alert_id)
+
+            lat = lon = None
+            point = item.get("point", "")
+            if point:
+                try:
+                    lat_str, lon_str = point.split(",", 1)
+                    lat, lon = float(lat_str.strip()), float(lon_str.strip())
+                except (ValueError, TypeError):
+                    pass
+
+            if lat is not None and lon is not None:
+                dist = _haversine_km(_FRANKFURT_LAT, _FRANKFURT_LON, lat, lon)
+                if dist > self.radius_km:
+                    log.debug("Autobahn: skipping %s (%.0f km from Frankfurt)", alert_id, dist)
+                    continue
+
+            desc = item.get("description", [])
+            if not isinstance(desc, list):
+                desc = [str(desc)] if desc else []
+            body = "\n".join(desc)
+
+            published_at = datetime.now(timezone.utc).isoformat()
+            valid_from   = _parse_autobahn_beginn(desc)
+            valid_until  = _parse_autobahn_ende(desc)
+            if not valid_until:
+                bis_from, valid_until = _parse_autobahn_bis_zum(desc)
+                if not valid_from:
+                    valid_from = bis_from
+
+            alerts.append(Alert(
+                id=alert_id,
+                source="autobahn",
+                title=item.get("title") or f"{road} {kind.capitalize()}",
+                body=body,
+                url=None,
+                published_at=published_at,
+                valid_from=valid_from,
+                valid_until=valid_until,
+                service=road,
+                lat=lat,
+                lon=lon,
+            ))
+        return alerts
+
+
+def _fmt_event_date(dt: datetime) -> str:
+    return f"{dt.day} {dt.strftime('%b')}"
+
+
+class StaticEventsPoller(BasePoller):
+    def __init__(self, events: list[dict], advance_days: int = 7):
+        self.events = events
+        self.advance_days = advance_days
+
+    def fetch(self) -> list[Alert]:
+        now = datetime.now(timezone.utc)
+        alerts = []
+        for ev in self.events:
+            try:
+                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=timezone.utc)
+                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=timezone.utc)
+            except (KeyError, ValueError):
+                log.warning("StaticEvents: skipping malformed entry %r", ev)
+                continue
+            if not (start - timedelta(days=self.advance_days) <= now <= end):
+                continue
+            slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
+            alerts.append(Alert(
+                id=f"city-event-{slug}",
+                source="events",
+                title=ev["name"],
+                body=ev.get("details", ""),
+                url=ev.get("url"),
+                published_at=(start - timedelta(days=self.advance_days)).isoformat(),
+                valid_from=start.isoformat(),
+                valid_until=end.isoformat(),
+                service=None,
+                lat=ev.get("lat"),
+                lon=ev.get("lon"),
+                location_label=ev.get("location"),
+            ))
+        log.info("StaticEvents: %d events in window", len(alerts))
         return alerts
 
 

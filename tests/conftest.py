@@ -22,7 +22,7 @@ _default_config = {
         "notify_burst_threshold": 15,
         "notify_throttle_every": 0,
     },
-    "police": {"enabled": True, "translate_body": True},
+    "police": {"enabled": True},
     "weather": {"enabled": True, "min_severity": 2},
     "transport": {"enabled": True, "services": {}},
 }
@@ -78,6 +78,23 @@ def dwd_alert():
         valid_until="2026-06-04T18:00:00Z",
         service=None,
         severity=3,
+    )
+
+
+@pytest.fixture
+def events_alert():
+    from models import Alert
+    return Alert(
+        id="city-event-2026-schweizer-strassenfest",
+        source="events",
+        title="Schweizer Straßenfest",
+        body="Annual street festival in Sachsenhausen.",
+        url=None,
+        valid_from="2026-06-19T00:00:00+00:00",
+        valid_until="2026-06-22T23:59:00+00:00",
+        service=None,
+        lat=50.0970,
+        lon=8.6840,
     )
 
 

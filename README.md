@@ -86,7 +86,6 @@ On first start, `config.yaml` is seeded to the data volume — edit it at `data/
 | `notifier.notify_burst_threshold` | `10` | Cold-start guard — skip notifications if ≥ N new alerts on first run |
 | `weather.min_severity` | `1` | 1=minor, 2=moderate, 3=severe, 4=extreme |
 | `transport.services` | (all) | Filter by service type and line |
-| `police.translate_body` | `false` | `false` = title + link only (safe harbour); `true` = full translated body |
 
 ## 🔒 Security & Privacy
 
@@ -102,7 +101,7 @@ See [SECURITY.md](SECURITY.md) for the full security policy and how to report a 
 
 - **RMV data**: used under [RMV Open Data terms](https://opendata.rmv.de/). Commercial redistribution requires a separate agreement with RMV.
 - **DWD data**: [DL-DE→Zero](https://www.govdata.de/dl-de/zero-2-0) — freely reusable, including commercially.
-- **Police press releases**: Presseportal RSS — personal and non-commercial use only (§87g(2) UrhG). The public instance runs with `police.translate_body: false` (title + link only). Full-body translation is available for personal self-hosted deployments.
+- **Police press releases**: Presseportal RSS — non-commercial use only (§87g(2) UrhG). Only the RSS summary (not the full article) is fetched and translated; a link to the original press release is always included.
 
 ## 🤝 Contributing
 

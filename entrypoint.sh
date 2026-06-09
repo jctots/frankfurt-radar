@@ -3,8 +3,9 @@ set -e
 
 DATA_DIR="${DATA_DIR:-/app/data}"
 
-# Seed config on first start so users can edit it from the bind-mounted data dir
-[ -f "$DATA_DIR/config.yaml" ] || cp /app/config.yaml "$DATA_DIR/config.yaml"
+# Seed config and events on first start so users can edit them from the data dir
+[ -f "$DATA_DIR/config.yaml" ]      || cp /app/config.yaml      "$DATA_DIR/config.yaml"
+[ -f "$DATA_DIR/city_events.yaml" ] || cp /app/city_events.yaml "$DATA_DIR/city_events.yaml"
 
 # Generate crontab from config — injects all runtime env vars
 python3 - "$DATA_DIR/config.yaml" <<'PYEOF'
@@ -36,6 +37,9 @@ with open("/etc/cron.d/frankfurt-radar", "w") as f:
 os.chmod("/etc/cron.d/frankfurt-radar", 0o644)
 print(f"Crontab: poll every {interval_min} min, 24/7")
 PYEOF
+
+# Start admin API in background (POST /poll, GET/PATCH /config)
+python trigger.py &
 
 # Initial poll on startup (best-effort — cron takes over regardless)
 python main.py --mode poll || true

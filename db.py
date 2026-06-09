@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     service        TEXT,
     lines          TEXT,
     published_at   TEXT,
+    valid_from     TEXT,
     severity       INTEGER,
     lat            REAL,
     lon            REAL,
@@ -81,6 +82,10 @@ def _conn():
 def init_db() -> None:
     with _conn() as conn:
         conn.executescript(_SCHEMA)
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN valid_from TEXT")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -160,7 +165,7 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.id, alert.source, en_title, en_body, alert.url,
                 alert.valid_until, alert.service,
                 json.dumps(alert.lines) if alert.lines else None,
-                alert.published_at, alert.severity,
+                alert.published_at, alert.valid_from, alert.severity,
                 alert.lat, alert.lon, alert.location_label,
             ))
 
@@ -170,8 +175,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, severity, lat, lon, location_label, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    lines, published_at, valid_from, severity, lat, lon, location_label, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
             )
@@ -203,6 +208,7 @@ def get_status_json() -> dict:
             "service":        r["service"],
             "lines":          json.loads(r["lines"]) if r["lines"] else [],
             "published_at":   r["published_at"],
+            "valid_from":     r["valid_from"],
             "severity":       r["severity"],
             "lat":            r["lat"],
             "lon":            r["lon"],

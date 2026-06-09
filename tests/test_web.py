@@ -47,7 +47,7 @@ class TestStatusEndpoint:
             id="WEB_TEST_001", source="rmv", title="Test", body="",
             url=None, valid_until=None, service="S-Bahn", lines=["S1"],
         )
-        cfg = {"translator": {"backend": "libretranslate"}, "police": {"translate_body": True}}
+        cfg = {"translator": {"backend": "libretranslate"}, "police": {"enabled": True}}
         db.sync_alert_cache([alert], cfg)
 
         resp = _client.get("/api/status")
@@ -63,7 +63,7 @@ class TestStatusEndpoint:
             id="WEB_SEARCH_001", source="rmv", title="Searchable Title", body="Searchable body text",
             url=None, valid_until=None, service="S-Bahn", lines=["S1"],
         )
-        cfg = {"translator": {"backend": "libretranslate"}, "police": {"translate_body": True}}
+        cfg = {"translator": {"backend": "libretranslate"}, "police": {"enabled": True}}
         db.sync_alert_cache([alert], cfg)
 
         resp = _client.get("/api/status")

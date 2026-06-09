@@ -69,17 +69,12 @@ class TestTranslateAlert:
         assert en_title == dwd_alert.title
         assert en_body == dwd_alert.body
 
-    def test_polizei_body_suppressed_when_flag_false(self, mocker, polizei_alert, config):
-        config["police"]["translate_body"] = False
-        mocker.patch("translation.translate", return_value="translated")
-        _, en_body = translation.translate_alert(polizei_alert, config)
-        assert "§87g" in en_body  # standard safe harbour message
-
-    def test_polizei_body_translated_when_flag_true(self, mocker, polizei_alert, config):
-        config["police"]["translate_body"] = True
-        mocker.patch("translation.translate", return_value="translated text")
-        _, en_body = translation.translate_alert(polizei_alert, config)
-        assert en_body == "translated text"
+    def test_events_alert_skips_translation(self, mocker, events_alert, config):
+        mock_translate = mocker.patch("translation.translate")
+        en_title, en_body = translation.translate_alert(events_alert, config)
+        mock_translate.assert_not_called()
+        assert en_title == events_alert.title
+        assert en_body == events_alert.body
 
     def test_umlaut_transliteration_applied(self, mocker, rmv_alert, config):
         mocker.patch("translation.translate", return_value="Züge verspätet")

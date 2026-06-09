@@ -1,0 +1,100 @@
+# Frankfurt city events — update dates each year
+#
+# Source for dates and new events: https://www.visitfrankfurt.travel/erleben/veranstaltungskalender
+# Official city festival list: https://frankfurt.de/frankfurt-entdecken-und-erleben/stadtportrait/frankfurter-feste
+#
+# Fields:
+#   name    : display name (required)
+#   start   : YYYY-MM-DD (required)
+#   end     : YYYY-MM-DD (required)
+#   location: venue or area shown in the alert (optional)
+#   lat/lon : map pin coordinates for the venue (optional)
+#   details : one or two sentences shown in the detail popup (optional)
+#   url     : link shown in the detail popup — use the official event page (optional)
+
+- name: "Frühjahrs-Dippemess (Spring Folk Fair)"
+  start: "2026-03-27"
+  end: "2026-04-19"
+  location: "Festplatz Ratsweg"
+  lat: 50.1167
+  lon: 8.7067
+  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  url: "https://www.frankfurt.de/dippemess"
+
+- name: "Wäldchestag (Forest Day)"
+  start: "2026-05-22"
+  end: "2026-05-26"
+  location: "Stadtwald"
+  lat: 50.0795
+  lon: 8.6524
+  details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music."
+
+- name: "Opernplatzfest (Opera Square Festival)"
+  start: "2026-06-17"
+  end: "2026-06-26"
+  location: "Opernplatz"
+  lat: 50.1158
+  lon: 8.6709
+  details: "Ten days of live music, food, and drinks on the square in front of the Alte Oper."
+  url: "https://www.opernplatzfest.eu/"
+
+- name: "Mainfest (Main River Festival)"
+  start: "2026-07-31"
+  end: "2026-08-03"
+  location: "Römerberg / Mainufer"
+  lat: 50.1103
+  lon: 8.6821
+  details: "Annual riverside festival along the Main with fair rides, wine, and a closing fireworks display."
+
+- name: "Frankfurter Apfelweinfestival (Apple Wine Festival)"
+  start: "2026-08-07"
+  end: "2026-08-16"
+  location: "Roßmarkt"
+  lat: 50.1151
+  lon: 8.6780
+  details: "Official city festival celebrating Frankfurt's signature drink — apple wine, live music, and traditional food at the Roßmarkt."
+  url: "https://www.visitfrankfurt.travel/en/experience/festival-and-events/frankfurt-apple-wine-festival"
+
+- name: "Sachsenhäuser Brunnenfest (Sachsenhausen Fountain Festival)"
+  start: "2026-08-14"
+  end: "2026-08-16"
+  location: "Paradiesplatz, Alt-Sachsenhausen"
+  lat: 50.0990
+  lon: 8.6820
+  details: "One of Frankfurt's oldest festivals, first recorded in 1490 — traditional processions, the Kerbebaum pole, and neighbourhood celebrations."
+
+- name: "Museumsuferfest (Museum Embankment Festival)"
+  start: "2026-08-28"
+  end: "2026-08-30"
+  location: "Museumsufer"
+  lat: 50.1060
+  lon: 8.6720
+  details: "One of Europe's largest cultural festivals — open-air concerts and art along both banks of the Main."
+  url: "https://www.museumsufer.de"
+
+- name: "Herbst-Dippemess (Autumn Folk Fair)"
+  start: "2026-09-11"
+  end: "2026-09-27"
+  location: "Festplatz Ratsweg"
+  lat: 50.1167
+  lon: 8.7067
+  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  url: "https://www.frankfurt.de/dippemess"
+
+- name: "Frankfurter Buchmesse (Frankfurt Book Fair)"
+  start: "2026-10-07"
+  end: "2026-10-11"
+  location: "Messe Frankfurt"
+  lat: 50.1112
+  lon: 8.6490
+  details: "The world's largest trade fair for books — expect heavy road and public transport congestion around Messe."
+  url: "https://www.buchmesse.de"
+
+- name: "Weihnachtsmarkt (Christmas Market)"
+  start: "2026-11-23"
+  end: "2026-12-22"
+  location: "Römerberg / Zeil"
+  lat: 50.1103
+  lon: 8.6821
+  details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. Expect heavy crowds in the city centre."
+  url: "https://www.frankfurt-tourismus.de/weihnachtsmarkt"

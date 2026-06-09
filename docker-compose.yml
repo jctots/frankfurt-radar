@@ -20,8 +20,10 @@ services:
 
   web:
     image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
+    container_name: frankfurt-radar-web
     environment:
       - TZ=Europe/Berlin
+      - POLLER_TRIGGER_URL=http://poller:8888/poll
     volumes:
       - radar_data:/app/data
     ports:

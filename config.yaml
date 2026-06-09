@@ -13,9 +13,12 @@ transport:
 polling:
   interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
 
+location:
+  radius_km: 50          # shared radius (km) for all location-aware pollers (autobahn, events)
+
 translator:
   backend: libretranslate          # libretranslate | google
-  # libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
+  libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
 
 notifier:
   backend: telegram                # ntfy | telegram
@@ -28,22 +31,32 @@ notifier:
 
 police:
   enabled: true
-  translate_body: false            # false = title + link only (§87g(2) safe harbour); applies to notifications and web page
   max_age_hours: 48                # drop police alerts older than this many hours; 0 = no limit
 
-web:
-  allow_manual_poll: false   # set to true only for private/self-hosted deployments
-  # Optional — omit or leave blank to hide from the "More info" modal
-  telegram_channel_url: https://t.me/FrankfurtRadar
-  kofi_url: https://ko-fi.com/jctots
-  github_url: https://github.com/jctots/frankfurt-radar
-  privacy_url: /privacy
-  privacy_controller: Rosanno JC De Dios
-  privacy_contact: jctots@pm.me
-  security_url: /security
-  security_contact: jctots@pm.me
 
 # Phase 2b — weather warnings (DWD)
 weather:
   enabled: true
   min_severity: 1         # 1=minor, 2=moderate, 3=severe, 4=extreme
+
+# Phase 2a v0.2.0 — Autobahn road incidents (no API key required)
+autobahn:
+  enabled: true
+  kinds:
+    - closure       # planned roadworks and closures (days/weeks)
+    # - warning     # real-time incidents (jams, accidents) — noisy during rush hour
+  roads:
+    - A3
+    - A5
+    - A45
+    - A60
+    - A66
+    - A67
+    - A480
+    - A648
+    - A661
+
+# City events — dates and details are in city_events.yaml (same DATA_DIR)
+events:
+  enabled: true
+  advance_days: 7         # show each event this many days before it starts
