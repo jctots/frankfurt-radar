@@ -14,6 +14,18 @@ from translation import translate_alert
 log = logging.getLogger(__name__)
 
 
+def _fmt_event_meta(alert: "Alert") -> str:
+    parts = []
+    if alert.valid_from and alert.valid_until:
+        def _d(iso): return datetime.fromisoformat(iso).strftime("%-d %b")
+        parts.append(f"{_d(alert.valid_from)} – {_d(alert.valid_until)}")
+    elif alert.valid_from:
+        parts.append(f"From {datetime.fromisoformat(alert.valid_from).strftime('%-d %b')}")
+    if alert.location_label:
+        parts.append(alert.location_label)
+    return " · ".join(parts)
+
+
 def process_alerts(alerts: list["Alert"], mode: str, config: dict) -> None:
     if mode == "daily":
         _process_daily(alerts, config)
@@ -37,6 +49,9 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
     for i, alert in enumerate(new_alerts):
         en_title, en_body = translate_alert(alert, config)
         emoji = SOURCE_EMOJI.get(alert.source, "")
+        if alert.source == "events":
+            meta = _fmt_event_meta(alert)
+            en_body = f"{meta}\n{en_body}".strip() if meta else en_body
         notify(
             title=f"{emoji} {en_title}".strip(),
             body=en_body,
@@ -101,8 +116,8 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
 
     events = [a for a in alerts if a.source == "events"]
     if events:
-        rows = [f"• {translate_alert(a, config)[0]}" for a in events]
-        sections.append("🎫 Events\n" + "\n".join(rows))
+        rows = [f"• {translate_alert(a, config)[0]} — {_fmt_event_meta(a)}" if _fmt_event_meta(a) else f"• {translate_alert(a, config)[0]}" for a in events]
+        sections.append("🎉 Events\n" + "\n".join(rows))
         to_mark.extend(events)
 
     if not sections:
