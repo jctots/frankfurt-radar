@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from db import expire_processed_alerts, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, StaticEventsPoller
+from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 CONFIG_FILE  = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
 EVENTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "city_events.yaml"
+SPORTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "sports_events.yaml"
 
 
 def load_config() -> dict:
@@ -33,6 +34,14 @@ def load_city_events() -> list:
         log.warning("city_events.yaml not found — no city events will be shown")
         return []
     with EVENTS_FILE.open(encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
+
+
+def load_sports_events() -> list:
+    if not SPORTS_FILE.exists():
+        log.warning("sports_events.yaml not found — no sports events will be shown")
+        return []
+    with SPORTS_FILE.open(encoding="utf-8") as f:
         return yaml.safe_load(f) or []
 
 
@@ -78,6 +87,15 @@ def main() -> None:
             events=load_city_events(),
             advance_days=events_cfg.get("advance_days", 7),
         ))
+    sports_cfg = config.get("sports", {})
+    if sports_cfg.get("enabled", False):
+        pollers.append(StaticSportsPoller(
+            events=load_sports_events(),
+            advance_days=sports_cfg.get("advance_days", 3),
+        ))
+        tm_api_key = os.getenv("TICKETMASTER_API_KEY", "")
+        if tm_api_key:
+            pollers.append(TicketmasterPoller(api_key=tm_api_key))
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 

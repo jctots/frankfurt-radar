@@ -17,6 +17,7 @@
       --clr-police:    #dc2626;
       --clr-roads:     #d97706;
       --clr-events:    #059669;
+      --clr-sports:    #ea580c;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -196,6 +197,7 @@
     .chip.src-polizei.on  { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
     .chip.src-autobahn.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
+    .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #fff7ed; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -397,6 +399,7 @@
     .card.sel.src-polizei  { background: #fef2f2; border-left-color: var(--clr-police); }
     .card.sel.src-autobahn { background: #fffbeb; border-left-color: var(--clr-roads); }
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
+    .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
 
     .card-src {
       font-size: 10px;
@@ -654,6 +657,8 @@
     .dark .card.sel.src-polizei      { background: #450a0a; }
     .dark .card.sel.src-autobahn     { background: #431407; }
     .dark .card.sel.src-events       { background: #022c22; }
+    .dark .card.sel.src-sports       { background: #431a06; }
+    .dark .chip.src-sports.on        { background: #431a06; }
     .dark .chip.src-rmv.on           { background: #172554; }
     .dark .chip.src-dwd.on           { background: #2e1065; }
     .dark .chip.src-polizei.on       { background: #450a0a; }
@@ -676,7 +681,7 @@
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
 
     /* ── Event banners ──────────────────────────────────────── */
-    #event-banners { flex-shrink: 0; }
+    #event-banners, #sport-banners { flex-shrink: 0; }
     .event-banner {
       padding: 10px 14px;
       border-bottom: 1px solid var(--clr-border);
@@ -701,6 +706,25 @@
     .event-banner-chevron { color: var(--clr-muted); font-size: 16px; flex-shrink: 0; }
     .dark .event-banner       { background: #022c22; border-color: #059669; }
     .dark .event-banner:hover { background: #064e3b; }
+    .sport-banner {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      background: #fff7ed;
+      border-left: 3px solid var(--clr-sports);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sport-banner:hover { background: #ffedd5; }
+    .dark .sport-banner       { background: #431a06; border-color: #ea580c; }
+    .dark .sport-banner:hover { background: #7c2d12; }
+    .sport-banner-status {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--clr-sports);
+      margin-bottom: 2px;
+    }
     .event-banner-status {
       font-size: 10px;
       font-weight: 700;
@@ -802,6 +826,7 @@
       Active Alerts - <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
     </div>
     <div id="event-banners" style="display:none"></div>
+    <div id="sport-banners" style="display:none"></div>
     <div class="feed" id="feed">
       <div class="empty-state">Loading…</div>
     </div>
@@ -896,6 +921,7 @@ const SOURCE = {
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
   autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   events:   { label: 'Events',    emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
+  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
 };
 
 // Frankfurt district name → [lat, lon] (approximate centres)
@@ -977,8 +1003,9 @@ let _roadsClosedBy = null;
 let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
 if (!filters.sources.hasOwnProperty('events')) filters.sources.events = true;
+if (!filters.sources.hasOwnProperty('sports')) filters.sources.sports = true;
 if (!filters.roads) filters.roads = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
@@ -1059,7 +1086,8 @@ function renderMarkers() {
   if (!map || !clusterGroup) return;
   const list = visible();
   const events = alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null);
-  const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id)]);
+  const sports = alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null);
+  const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id), ...sports.map(a => a.id)]);
 
   // Remove markers for alerts no longer visible
   Object.keys(markers).forEach(id => {
@@ -1080,6 +1108,16 @@ function renderMarkers() {
 
   // Add markers for events with coordinates
   events.forEach(a => {
+    if (markers[a.id]) return;
+    const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
+      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+    m.on('click', () => selectAlert(a.id));
+    clusterGroup.addLayer(m);
+    markers[a.id] = m;
+  });
+
+  // Add markers for sports events with coordinates
+  sports.forEach(a => {
     if (markers[a.id]) return;
     const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
@@ -1141,6 +1179,7 @@ function applyData(data) {
 
   buildFilterBar();
   renderEventBanners();
+  renderSportsBanners();
   renderFeed();
 }
 
@@ -1164,6 +1203,7 @@ function clearSearch() {
 function visible() {
   return alerts.filter(a => {
     if (a.source === 'events') return false;
+    if (a.source === 'sports') return false;
     if (filters.sources[a.source] === false) return false;
     if (a.source === 'rmv') {
       if (a.lines && a.lines.length) {
@@ -1213,6 +1253,41 @@ function renderEventBanners() {
   container.innerHTML = html;
 }
 
+const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', football: '⚽', american_football: '🏈', basketball: '🏀' };
+
+function renderSportsBanners() {
+  const container = document.getElementById('sport-banners');
+  if (filters.sources.sports === false) { container.style.display = 'none'; return; }
+  const sports = alerts.filter(a => a.source === 'sports');
+  if (!sports.length) { container.style.display = 'none'; return; }
+  container.style.display = '';
+  const now = new Date();
+  const active   = sports.filter(a => !a.valid_from || new Date(a.valid_from) <= now);
+  const upcoming = sports.filter(a =>  a.valid_from && new Date(a.valid_from) >  now);
+  function renderBanner(a, status) {
+    const meta = [];
+    if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
+    else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
+    if (a.location_label) meta.push(a.location_label);
+    const icon = SPORT_EMOJI[a.service] || '🏟️';
+    return `<div class="sport-banner" onclick="selectAlert('${esc(a.id)}')">
+  <div class="event-banner-inner">
+    <span class="event-banner-icon">${icon}</span>
+    <div class="event-banner-content">
+      <div class="sport-banner-status">${status}</div>
+      <div class="event-banner-title">${esc(a.title)}</div>
+      <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
+    </div>
+    <span class="event-banner-chevron">›</span>
+  </div>
+</div>`;
+  }
+  let html = '';
+  if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
+  if (upcoming.length) html += upcoming.map(a => renderBanner(a, 'Upcoming')).join('');
+  container.innerHTML = html;
+}
+
 function fmtDate(iso) {
   if (!iso) return '';
   try {
@@ -1231,7 +1306,8 @@ function renderFeed() {
     return tb > ta ? 1 : tb < ta ? -1 : 0;
   });
 
-  const eventCount = filters.sources.events !== false ? alerts.filter(a => a.source === 'events').length : 0;
+  const eventCount = (filters.sources.events !== false ? alerts.filter(a => a.source === 'events').length : 0)
+                   + (filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports').length : 0);
   document.getElementById('feed-count').textContent = (list.length + eventCount) || '—';
 
   if (!list.length) {
@@ -1358,6 +1434,11 @@ function buildFilterBar() {
   const evOn = filters.sources.events !== false;
   html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}</button>`;
 
+  // Sports
+  html += '<div class="filter-sep"></div>';
+  const spOn = filters.sources.sports !== false;
+  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}</button>`;
+
   // Transport + lines
   html += '<div class="filter-sep"></div>';
   const rmvOn = filters.sources.rmv !== false;
@@ -1379,7 +1460,7 @@ function buildFilterBar() {
   bar.innerHTML = html;
 }
 
-function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); renderEventBanners(); }
+function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); renderEventBanners(); renderSportsBanners(); }
 function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleRoad(road) { filters.roads[road] = filters.roads[road] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }

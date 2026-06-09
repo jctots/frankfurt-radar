@@ -49,7 +49,7 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
     for i, alert in enumerate(new_alerts):
         en_title, en_body = translate_alert(alert, config)
         emoji = SOURCE_EMOJI.get(alert.source, "")
-        if alert.source == "events":
+        if alert.source in ("events", "sports"):
             meta = _fmt_event_meta(alert)
             en_body = f"{meta}\n{en_body}".strip() if meta else en_body
         notify(
@@ -119,6 +119,12 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
         rows = [f"• {translate_alert(a, config)[0]} — {_fmt_event_meta(a)}" if _fmt_event_meta(a) else f"• {translate_alert(a, config)[0]}" for a in events]
         sections.append("🎉 Events\n" + "\n".join(rows))
         to_mark.extend(events)
+
+    sports = [a for a in alerts if a.source == "sports"]
+    if sports:
+        rows = [f"• {translate_alert(a, config)[0]} — {_fmt_event_meta(a)}" if _fmt_event_meta(a) else f"• {translate_alert(a, config)[0]}" for a in sports]
+        sections.append("⚽ Sports\n" + "\n".join(rows))
+        to_mark.extend(sports)
 
     if not sections:
         log.info("Daily: nothing to report")
