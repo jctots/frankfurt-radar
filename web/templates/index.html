@@ -701,6 +701,14 @@
     .event-banner-chevron { color: var(--clr-muted); font-size: 16px; flex-shrink: 0; }
     .dark .event-banner       { background: #022c22; border-color: #059669; }
     .dark .event-banner:hover { background: #064e3b; }
+    .event-banner-status {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--clr-events);
+      margin-bottom: 2px;
+    }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
     .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -1027,7 +1035,6 @@ function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
-  if (a.published_at && a.source !== 'events') meta.push('Published ' + fmtDateTime(a.published_at));
   if (a.valid_from)  meta.push('From '  + (a.source === 'events' ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (a.source === 'events' ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
@@ -1175,7 +1182,10 @@ function renderEventBanners() {
   const events = alerts.filter(a => a.source === 'events');
   if (!events.length) { container.style.display = 'none'; return; }
   container.style.display = '';
-  container.innerHTML = events.map(a => {
+  const now = new Date();
+  const active   = events.filter(a => !a.valid_from || new Date(a.valid_from) <= now);
+  const upcoming = events.filter(a =>  a.valid_from && new Date(a.valid_from) >  now);
+  function renderBanner(a, status) {
     const meta = [];
     if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
     else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
@@ -1183,13 +1193,18 @@ function renderEventBanners() {
   <div class="event-banner-inner">
     <span class="event-banner-icon">🎉</span>
     <div class="event-banner-content">
+      <div class="event-banner-status">${status}</div>
       <div class="event-banner-title">${esc(a.title)}</div>
       <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
     </div>
     <span class="event-banner-chevron">›</span>
   </div>
 </div>`;
-  }).join('');
+  }
+  let html = '';
+  if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
+  if (upcoming.length) html += upcoming.map(a => renderBanner(a, 'Upcoming')).join('');
+  container.innerHTML = html;
 }
 
 function fmtDate(iso) {
