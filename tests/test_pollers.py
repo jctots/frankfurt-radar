@@ -352,8 +352,8 @@ class TestStaticEventsPoller:
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
         assert dippemess.location_label == "Festplatz Ratsweg"
-        assert "2026-09-12" in dippemess.valid_from
-        assert "2026-09-28" in dippemess.valid_until
+        assert "2026-09-11T22:00:00" in dippemess.valid_from
+        assert "2026-09-27T22:00:00" in dippemess.valid_until
 
     def test_url_forwarded(self):
         alerts = self._fetch(advance_days=30)
@@ -372,7 +372,7 @@ class TestStaticEventsPoller:
     def test_valid_until_is_event_end(self):
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
-        assert "2026-09-28" in dippemess.valid_until
+        assert "2026-09-27T22:00:00" in dippemess.valid_until
 
     def test_malformed_entry_skipped(self):
         from pollers import StaticEventsPoller
@@ -389,3 +389,63 @@ class TestStaticEventsPoller:
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
         assert dippemess.id == "city-event-2026-autumn-dippemess"
+
+
+# ── ok flag ───────────────────────────────────────────────────────────────────
+
+class TestPollerOkFlag:
+    def test_ok_true_after_successful_rmv_fetch(self, mocker):
+        from pollers import RMVPoller
+        import json
+        from pathlib import Path
+        fixture = json.loads((Path(__file__).parent / "fixtures" / "rmv_him_response.json").read_text(encoding="utf-8"))
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        poller = RMVPoller(api_key="key", services={})
+        poller.fetch()
+
+        assert poller.ok is True
+
+    def test_ok_false_after_rmv_request_failure(self, mocker):
+        import requests as req_lib
+        from pollers import RMVPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        poller = RMVPoller(api_key="key", services={})
+        poller.fetch()
+
+        assert poller.ok is False
+
+    def test_ok_false_after_dwd_request_failure(self, mocker):
+        import requests as req_lib
+        from pollers import DWDPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        poller = DWDPoller()
+        poller.fetch()
+
+        assert poller.ok is False
+
+    def test_ok_false_after_autobahn_request_failure(self, mocker):
+        import requests as req_lib
+        from pollers import AutobahnPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        poller = AutobahnPoller(roads=["A3"])
+        poller.fetch()
+
+        assert poller.ok is False
+
+    def test_ok_always_true_for_static_events_poller(self):
+        from pollers import StaticEventsPoller
+        poller = StaticEventsPoller(events=[])
+        poller.fetch()
+
+        assert poller.ok is True
+
+    def test_ok_always_true_for_static_sports_poller(self):
+        from pollers import StaticSportsPoller
+        poller = StaticSportsPoller(events=[])
+        poller.fetch()
+
+        assert poller.ok is True

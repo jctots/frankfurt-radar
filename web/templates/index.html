@@ -111,9 +111,25 @@
       flex-shrink: 0;
       animation: pulseDot 2s ease-in-out infinite;
     }
+    .pulse-dot.degraded {
+      background: #eab308;
+      animation: pulseDotYellow 2s ease-in-out infinite;
+    }
+    .pulse-dot.down {
+      background: #ef4444;
+      animation: pulseDotRed 2s ease-in-out infinite;
+    }
     @keyframes pulseDot {
       0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(34,197,94,0.5); }
       50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0);   }
+    }
+    @keyframes pulseDotYellow {
+      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(234,179,8,0.5); }
+      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(234,179,8,0);   }
+    }
+    @keyframes pulseDotRed {
+      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(239,68,68,0.5); }
+      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(239,68,68,0);   }
     }
     .updated-full  { font-size: 11px; color: rgba(255,255,255,0.45); }
     .updated-short { display: none; font-size: 11px; color: rgba(255,255,255,0.45); }
@@ -207,6 +223,13 @@
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip.road-picker       { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.road-picker.part  { background: #fef3c7; border-color: #b45309; color: #78350f; }
+    .chip-count {
+      font-size: 10px; font-weight: 700;
+      background: rgba(0,0,0,0.12); border-radius: 999px;
+      min-width: 16px; height: 16px; padding: 0 4px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+      margin-left: 4px;
+    }
     .chip.sev-picker        { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
     .chip.sev-picker.filt   { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
 
@@ -400,6 +423,9 @@
     .card.sel.src-autobahn { background: #fffbeb; border-left-color: var(--clr-roads); }
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
+
+    @keyframes card-new-pulse { 0% { background: #fef9c3; } 100% { background: transparent; } }
+    .card-new { animation: card-new-pulse 1.5s ease-out forwards; }
 
     .card-src {
       font-size: 10px;
@@ -658,6 +684,9 @@
     .dark .card.sel.src-autobahn     { background: #431407; }
     .dark .card.sel.src-events       { background: #022c22; }
     .dark .card.sel.src-sports       { background: #431a06; }
+
+    @keyframes card-new-pulse-dark { 0% { background: #422006; } 100% { background: transparent; } }
+    .dark .card-new { animation: card-new-pulse-dark 1.5s ease-out forwards; }
     .dark .chip.src-sports.on        { background: #431a06; }
     .dark .chip.src-rmv.on           { background: #172554; }
     .dark .chip.src-dwd.on           { background: #2e1065; }
@@ -670,6 +699,7 @@
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip.road-picker          { background: #431407; }
     .dark .chip.road-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .chip-count                { background: rgba(255,255,255,0.15); }
     .dark .chip.sev-picker           { background: #2e1065; }
     .dark .chip.sev-picker.filt      { background: #422006; border-color: #92400e; color: #fcd34d; }
     .feed::-webkit-scrollbar                   { width: 6px; }
@@ -802,7 +832,7 @@
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
-      <div class="pulse-dot"></div>
+      <div class="pulse-dot" id="pulse-dot"></div>
       <span class="updated-full" id="updated-full">Updated just now</span>
       <span class="updated-short" id="updated-short">—</span>
     </div>
@@ -819,7 +849,7 @@
   <div class="feed-panel">
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
-      <input type="search" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-header">
@@ -931,10 +961,16 @@ const SOURCE = {
 // Frankfurt district name → [lat, lon] (approximate centres)
 const DISTRICT_COORDS = {
   'sachsenhausen':        [50.0953, 8.6828],
+  'sachsenhausen-nord':   [50.1020, 8.6828],
+  'sachsenhausen-sued':   [50.0880, 8.6828],
   'bornheim':             [50.1261, 8.7147],
   'innenstadt':           [50.1109, 8.6821],
+  'stadtmitte':           [50.1109, 8.6821],
   'nordend':              [50.1242, 8.6873],
+  'nordend-ost':          [50.1270, 8.7010],
+  'nordend-west':         [50.1270, 8.6800],
   'westend':              [50.1186, 8.6648],
+  'westend-nord':         [50.1240, 8.6648],
   'westend-sued':         [50.1133, 8.6580],
   'bockenheim':           [50.1176, 8.6506],
   'gallus':               [50.1032, 8.6461],
@@ -957,6 +993,10 @@ const DISTRICT_COORDS = {
   'nied':                 [50.1168, 8.5870],
   'hoechst':              [50.0987, 8.5456],
   'flughafen':            [50.0379, 8.5622],
+  'bahnhofsviertel':      [50.1069, 8.6624],
+  'bahnhof':              [50.1069, 8.6624],
+  'riedberg':             [50.1750, 8.6341],
+  'schluechtern':         [50.3494, 9.5254],
   'schwanheim':           [50.0826, 8.5778],
   'griesheim':            [50.1083, 8.6020],
   'oberrad':              [50.0893, 8.7031],
@@ -1000,7 +1040,9 @@ let map          = null;
 let clusterGroup = null;
 let tileLayer    = null;
 let markers      = {}; // id → L.Marker
+let policeCircles = {}; // id → L.Circle, shown when police marker is expanded
 let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let pendingHighlight = new Set();
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
@@ -1087,26 +1129,56 @@ function buildPopupHtml(a) {
   </div>`;
 }
 
+function expandPoliceMarker(a, coords) {
+  if (policeCircles[a.id]) return;
+  clusterGroup.removeLayer(markers[a.id]);
+  const circle = L.circle(coords, {
+    radius: 1500,
+    color: '#dc2626',
+    fillColor: '#dc2626',
+    fillOpacity: 0.12,
+    weight: 2,
+    opacity: 0.5,
+  }).bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 }).addTo(map);
+  circle.openPopup();
+  policeCircles[a.id] = circle;
+  circle.on('popupclose', () => {
+    circle.remove();
+    delete policeCircles[a.id];
+    if (markers[a.id]) clusterGroup.addLayer(markers[a.id]);
+  });
+}
+
 function renderMarkers() {
   if (!map || !clusterGroup) return;
   const list = visible();
-  const events = alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null);
-  const sports = alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null);
+  const events = filters.sources.events !== false ? alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null) : [];
+  const sports = filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null) : [];
   const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id), ...sports.map(a => a.id)]);
 
-  // Remove markers for alerts no longer visible
+  // Remove markers (and any active circles) for alerts no longer visible
   Object.keys(markers).forEach(id => {
-    if (!visibleIds.has(id)) { clusterGroup.removeLayer(markers[id]); delete markers[id]; }
+    if (!visibleIds.has(id)) {
+      clusterGroup.removeLayer(markers[id]);
+      delete markers[id];
+      if (policeCircles[id]) { policeCircles[id].remove(); delete policeCircles[id]; }
+    }
   });
 
   // Add markers for newly visible alerts (DWD is city-wide — no pin)
   list.forEach(a => {
     if (a.source === 'dwd') return;
     if (markers[a.id]) return;
+    if (policeCircles[a.id]) return; // circle is showing — marker was temporarily removed
     const { coords } = alertCoords(a);
-    const m = L.marker(coords, { icon: sourceIcon(a.source) })
-      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-    m.on('click', () => selectAlert(a.id));
+    const m = L.marker(coords, { icon: sourceIcon(a.source) });
+    if (a.source === 'polizei') {
+      // Police: clicking replaces the pin with an area circle to show location is approximate
+      m.on('click', () => { selectAlert(a.id); expandPoliceMarker(a, coords); });
+    } else {
+      m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+      m.on('click', () => selectAlert(a.id));
+    }
     clusterGroup.addLayer(m);
     markers[a.id] = m;
   });
@@ -1172,6 +1244,7 @@ function applyData(data) {
   alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
     seenIds.add(a.id);
     fireNotification(a);
+    pendingHighlight.add(a.id);
   });
   const trimmed = [...seenIds].slice(-SEEN_MAX);
   seenIds = new Set(trimmed);
@@ -1182,10 +1255,37 @@ function applyData(data) {
     updateRelativeTime();
   }
 
+  const dot = document.getElementById('pulse-dot');
+  if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
+    const sources = Object.entries(data.source_health);
+    const failed = sources.filter(([, ok]) => !ok).map(([name]) => name.replace('Poller', ''));
+    dot.classList.remove('degraded', 'down');
+    if (failed.length === 0) {
+      dot.title = '';
+    } else if (failed.length === sources.length) {
+      dot.classList.add('down');
+      dot.title = 'All sources unavailable: ' + failed.join(', ');
+    } else {
+      dot.classList.add('degraded');
+      dot.title = 'Source(s) unavailable: ' + failed.join(', ');
+    }
+  }
+
   buildFilterBar();
   renderEventBanners();
   renderSportsBanners();
   renderFeed();
+  flushHighlights();
+}
+
+// ── Highlight new alerts ──────────────────────────────────────────────────────
+function flushHighlights() {
+  if (!pendingHighlight.size || document.visibilityState !== 'visible') return;
+  pendingHighlight.forEach(id => {
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (card) card.classList.add('card-new');
+  });
+  pendingHighlight.clear();
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -1273,7 +1373,6 @@ function renderSportsBanners() {
     const meta = [];
     if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
     else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-    if (a.location_label) meta.push(a.location_label);
     const icon = SPORT_EMOJI[a.service] || '🏟️';
     return `<div class="sport-banner" onclick="selectAlert('${esc(a.id)}')">
   <div class="event-banner-inner">
@@ -1370,6 +1469,15 @@ function selectAlert(id) {
   const a = alerts.find(x => x.id === id);
   if (!a) return;
 
+  // Close any open police area circle that belongs to a different alert
+  Object.keys(policeCircles).forEach(cid => {
+    if (cid !== id) {
+      policeCircles[cid].remove();
+      if (markers[cid]) clusterGroup.addLayer(markers[cid]);
+      delete policeCircles[cid];
+    }
+  });
+
   // Highlight card and scroll it into view
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
@@ -1381,11 +1489,20 @@ function selectAlert(id) {
   if (a.source === 'dwd') {
     map.setView(FRANKFURT, 12, { animate: true });
     showWeatherPanel(a);
+  } else if (a.source === 'polizei') {
+    // Circle popup is geo-anchored — no need to wait for pan animation
+    const { coords } = alertCoords(a);
+    map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
+    expandPoliceMarker(a, coords);
   } else {
     const marker = markers[id];
     if (marker && clusterGroup) {
-      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
+      const targetZoom = Math.max(map.getZoom(), 14);
+      map.setView(marker.getLatLng(), targetZoom, { animate: true });
+      // Capture id at call time to avoid stale closure if user clicks again before moveend
+      const expectedId = id;
       map.once('moveend', () => {
+        if (selectedId !== expectedId) return; // selection changed before pan finished
         const visible = clusterGroup.getVisibleParent(marker);
         if (visible === marker) {
           marker.openPopup();
@@ -1412,18 +1529,27 @@ function maybeShowDisclaimer() {
 }
 
 // ── Filter bar ────────────────────────────────────────────────────────────────
+function badge(n) {
+  return n ? ` <span class="chip-count">${n}</span>` : '';
+}
+
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
 
+  const counts = {};
+  ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
+    counts[src] = alerts.filter(a => a.source === src).length;
+  });
+
   // Police
   const polOn = filters.sources.polizei !== false;
-  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}</button>`;
+  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
 
   // Weather + inline severity picker
   html += '<div class="filter-sep"></div>';
   const dwdOn = filters.sources.dwd !== false;
-  html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}</button>`;
+  html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}${badge(counts.dwd)}</button>`;
   if (dwdOn) {
     const filtered = filters.minSev > 1;
     html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">Sev ≥ ${SEV_LABEL[filters.minSev]} ▾</button>`;
@@ -1432,7 +1558,7 @@ function buildFilterBar() {
   // Roads
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}</button>`;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
   if (abOn) {
     const roads = [...new Set(alerts.filter(a => a.source === 'autobahn' && a.service).map(a => a.service))].sort();
     if (roads.length) {
@@ -1446,17 +1572,17 @@ function buildFilterBar() {
   // Events
   html += '<div class="filter-sep"></div>';
   const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}</button>`;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}${badge(counts.events)}</button>`;
 
   // Sports
   html += '<div class="filter-sep"></div>';
   const spOn = filters.sources.sports !== false;
-  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}</button>`;
+  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}${badge(counts.sports)}</button>`;
 
   // Transport + lines
   html += '<div class="filter-sep"></div>';
   const rmvOn = filters.sources.rmv !== false;
-  html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}</button>`;
+  html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
   if (rmvOn) {
     const rmv  = alerts.filter(a => a.source === 'rmv');
     const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
@@ -1815,6 +1941,10 @@ async function init() {
   }, REFRESH_INTERVAL);
 
   setInterval(updateRelativeTime, 30_000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushHighlights();
+  });
 }
 
 init();

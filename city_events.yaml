@@ -5,8 +5,8 @@
 #
 # Fields:
 #   name    : display name (required)
-#   start   : YYYY-MM-DD (required)
-#   end     : YYYY-MM-DD (required)
+#   start   : YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS — Frankfurt local time (Europe/Berlin) (required)
+#   end     : YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS — Frankfurt local time (Europe/Berlin) (required)
 #   location: venue or area shown in the alert (optional)
 #   lat/lon : map pin coordinates for the venue (optional)
 #   details : one or two sentences shown in the detail popup (optional)

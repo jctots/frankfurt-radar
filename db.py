@@ -215,7 +215,10 @@ def get_status_json() -> dict:
             "location_label": r["location_label"],
         })
 
-    return {"updated_at": updated_at, "alerts": alerts}
+    source_health_raw = get_meta("source_health")
+    source_health = json.loads(source_health_raw) if source_health_raw else {}
+
+    return {"updated_at": updated_at, "alerts": alerts, "source_health": source_health}
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────

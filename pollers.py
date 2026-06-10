@@ -94,6 +94,9 @@ def _rmv_datetime(date: str, time: str) -> Optional[str]:
 
 
 class BasePoller(ABC):
+    def __init__(self) -> None:
+        self.ok = True  # set to False by network pollers on fetch failure
+
     @abstractmethod
     def fetch(self) -> list[Alert]:
         """Return a list of currently active Alert objects."""
@@ -103,6 +106,7 @@ class RMVPoller(BasePoller):
     _REGION_FILTER = frozenset({"frankfurt"})
 
     def __init__(self, api_key: str, services: dict):
+        super().__init__()
         self.api_key = api_key
         self.service_filter: Optional[dict[int, Optional[set[str]]]] = (
             self._parse_services(services) if services else None
@@ -128,6 +132,7 @@ class RMVPoller(BasePoller):
             resp.raise_for_status()
         except requests.RequestException as e:
             log.error("RMV API request failed: %s", e)
+            self.ok = False
             return []
 
         data = resp.json()
@@ -215,6 +220,7 @@ class PolizeiPoller(BasePoller):
         feed = feedparser.parse(_POLIZEI_FEED_URL)
         if feed.bozo and not feed.entries:
             log.error("PolizeiPoller: failed to parse feed: %s", feed.bozo_exception)
+            self.ok = False
             return []
         alerts = [
             Alert(
@@ -243,6 +249,7 @@ class DWDPoller(BasePoller):
     _SEVERITY_RANK = {"minor": 1, "moderate": 2, "severe": 3, "extreme": 4}
 
     def __init__(self, min_severity: int = 2):
+        super().__init__()
         self.min_severity = min_severity
 
     def fetch(self) -> list[Alert]:
@@ -255,6 +262,7 @@ class DWDPoller(BasePoller):
             resp.raise_for_status()
         except requests.RequestException as e:
             log.error("DWD/BrightSky request failed: %s", e)
+            self.ok = False
             return []
 
         warnings = resp.json().get("alerts", [])
@@ -297,6 +305,7 @@ class AutobahnPoller(BasePoller):
     _ALL_KINDS = ("warning", "closure")
 
     def __init__(self, roads: list[str] | None = None, radius_km: float = 50.0, kinds: list[str] | None = None):
+        super().__init__()
         self.roads = roads or _FRANKFURT_ROADS
         self.radius_km = radius_km
         self.kinds = kinds if kinds is not None else list(self._ALL_KINDS)
@@ -319,6 +328,7 @@ class AutobahnPoller(BasePoller):
             resp.raise_for_status()
         except requests.RequestException as e:
             log.error("AutobahnPoller %s/%s: %s", road, kind, e)
+            self.ok = False
             return []
 
         alerts = []
@@ -378,6 +388,7 @@ def _fmt_event_date(dt: datetime) -> str:
 
 class StaticEventsPoller(BasePoller):
     def __init__(self, events: list[dict], advance_days: int = 7):
+        super().__init__()
         self.events = events
         self.advance_days = advance_days
 
@@ -386,8 +397,8 @@ class StaticEventsPoller(BasePoller):
         alerts = []
         for ev in self.events:
             try:
-                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=timezone.utc)
-                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=timezone.utc)
+                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
+                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
             except (KeyError, ValueError):
                 log.warning("StaticEvents: skipping malformed entry %r", ev)
                 continue
@@ -432,6 +443,7 @@ class TicketmasterPoller(BasePoller):
     _BASE_URL = "https://app.ticketmaster.com/discovery/v2"
 
     def __init__(self, api_key: str):
+        super().__init__()
         self.api_key = api_key
 
     def fetch(self) -> list[Alert]:
@@ -450,6 +462,7 @@ class TicketmasterPoller(BasePoller):
             resp.raise_for_status()
         except requests.RequestException as e:
             log.error("TicketmasterPoller: request failed: %s", e)
+            self.ok = False
             return []
 
         events = resp.json().get("_embedded", {}).get("events", [])
@@ -507,6 +520,7 @@ class TicketmasterPoller(BasePoller):
 
 class StaticSportsPoller(BasePoller):
     def __init__(self, events: list[dict], advance_days: int = 3):
+        super().__init__()
         self.events = events
         self.advance_days = advance_days
 
@@ -515,8 +529,8 @@ class StaticSportsPoller(BasePoller):
         alerts = []
         for ev in self.events:
             try:
-                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=timezone.utc)
-                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=timezone.utc)
+                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
+                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
             except (KeyError, ValueError):
                 log.warning("StaticSports: skipping malformed entry %r", ev)
                 continue
@@ -545,6 +559,7 @@ class OpenLigaPoller(BasePoller):
     """Eintracht Frankfurt Bundesliga home games via OpenLigaDB (free, no key)."""
 
     def __init__(self, advance_days: int = 3):
+        super().__init__()
         self.advance_days = advance_days
 
     def _season_year(self) -> int:
@@ -558,6 +573,7 @@ class OpenLigaPoller(BasePoller):
             resp.raise_for_status()
         except requests.RequestException as e:
             log.error("OpenLigaPoller: request failed: %s", e)
+            self.ok = False
             return []
 
         matches = resp.json()
