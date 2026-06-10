@@ -1096,15 +1096,17 @@ function initMap() {
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
   map.on('click', () => {
-    if (isMobileView()) { closeMobileMap(); }
-    else { map.setView(FRANKFURT, 12, { animate: true }); }
+    resetState();
+    if (isMobileView()) closeMobileMap();
+    else map.setView(FRANKFURT, 12, { animate: true });
   });
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
     if (btn) L.DomEvent.on(btn, 'click', (ev) => {
       L.DomEvent.preventDefault(ev);
-      if (isMobileView()) { map.closePopup(); closeMobileMap(); }
-      else { map.setView(FRANKFURT, 12, { animate: true }); }
+      resetState();
+      if (isMobileView()) closeMobileMap();
+      else map.setView(FRANKFURT, 12, { animate: true });
     });
   });
 }
@@ -1205,7 +1207,7 @@ function renderMarkers() {
       // Police: clicking replaces the pin with an area circle to show location is approximate
       m.on('click', () => selectAlert(a.id, true));
     } else {
-      m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+      m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
       m.on('click', () => selectAlert(a.id, true));
     }
     clusterGroup.addLayer(m);
@@ -1216,7 +1218,7 @@ function renderMarkers() {
   events.forEach(a => {
     if (markers[a.id]) return;
     const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
-      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
     m.on('click', () => selectAlert(a.id, true));
     clusterGroup.addLayer(m);
     markers[a.id] = m;
@@ -1226,7 +1228,7 @@ function renderMarkers() {
   sports.forEach(a => {
     if (markers[a.id]) return;
     const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
-      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
+      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
     m.on('click', () => selectAlert(a.id, true));
     clusterGroup.addLayer(m);
     markers[a.id] = m;
@@ -1492,12 +1494,31 @@ function closeMobileMap() {
 }
 
 // ── Alert selection ───────────────────────────────────────────────────────────
+function resetState() {
+  map.closePopup();
+  Object.keys(policeCircles).forEach(cid => {
+    policeCircles[cid].remove();
+    if (markers[cid]) clusterGroup.addLayer(markers[cid]);
+    delete policeCircles[cid];
+  });
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+  closeWeatherPanel();
+  selectedId = null;
+}
+
 function selectAlert(id, fromMap = false) {
-  selectedId = id;
+  if (id === selectedId) {
+    resetState();
+    if (isMobileView()) closeMobileMap();
+    else map.setView(FRANKFURT, 12, { animate: true });
+    return;
+  }
+
   const a = alerts.find(x => x.id === id);
   if (!a) return;
+  selectedId = id;
 
-  // Close any open police area circle that belongs to a different alert
+  // Close any open police circle for a different alert
   Object.keys(policeCircles).forEach(cid => {
     if (cid !== id) {
       policeCircles[cid].remove();
@@ -1506,67 +1527,68 @@ function selectAlert(id, fromMap = false) {
     }
   });
 
-  // Highlight card and scroll it into view
+  // Highlight card and scroll into view
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
 
   closeWeatherPanel();
 
-  if (fromMap) {
-    const marker = markers[id];
-    if (marker) {
-      map.panTo(marker.getLatLng(), { animate: true });
-      if (a.source === 'polizei') {
-        const { coords } = alertCoords(a);
-        expandPoliceMarker(a, coords);
-      } else {
-        marker.openPopup();
-      }
+  const openPopup = (m) => {
+    if (a.source === 'polizei') {
+      const { coords } = alertCoords(a);
+      expandPoliceMarker(a, coords);
+    } else {
+      m.openPopup();
     }
-    return;
-  }
+  };
 
   const applyMapOp = () => {
     if (a.source === 'dwd') {
       map.setView(FRANKFURT, 12, { animate: true });
       showWeatherPanel(a);
+      return;
+    }
+
+    const marker = markers[id];
+    if (!marker || !clusterGroup) return;
+    const expectedId = id;
+
+    const zoomAndOpen = (m) => {
+      if (map.getZoom() < 14) {
+        map.setView(m.getLatLng(), 14, { animate: true });
+      } else {
+        map.panTo(m.getLatLng(), { animate: true });
+      }
+      map.once('moveend', () => {
+        if (selectedId !== expectedId) return;
+        const latest = markers[id];
+        if (latest) openPopup(latest);
+      });
+    };
+
+    if (fromMap) {
+      zoomAndOpen(marker);
     } else {
-      const marker = markers[id];
-      if (marker && clusterGroup) {
-        const expectedId = id;
-        const visible = clusterGroup.getVisibleParent(marker);
-        if (visible === marker && map.getZoom() === 12) {
-          map.setView(marker.getLatLng(), 14, { animate: true });
+      const visibleParent = clusterGroup.getVisibleParent(marker);
+      if (visibleParent === marker) {
+        zoomAndOpen(marker);
+      } else {
+        clusterGroup.zoomToShowLayer(marker, () => {
+          const m = markers[id];
+          if (!m) return;
+          map.panTo(m.getLatLng(), { animate: true });
           map.once('moveend', () => {
             if (selectedId !== expectedId) return;
-            const m = markers[id];
-            if (!m) return;
-            if (a.source === 'polizei') {
-              const { coords } = alertCoords(a);
-              expandPoliceMarker(a, coords);
-            } else {
-              m.openPopup();
-            }
+            const latest = markers[id];
+            if (latest) openPopup(latest);
           });
-        } else {
-          clusterGroup.zoomToShowLayer(marker, () => {
-            const m = markers[id];
-            if (!m) return;
-            map.panTo(m.getLatLng(), { animate: true });
-            if (a.source === 'polizei') {
-              const { coords } = alertCoords(a);
-              expandPoliceMarker(a, coords);
-            } else {
-              m.openPopup();
-            }
-          });
-        }
+        });
       }
     }
   };
 
-  if (isMobileView()) openMobileMap(applyMapOp);
+  if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
   else applyMapOp();
 }
 
