@@ -424,6 +424,9 @@
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
 
+    @keyframes card-new-pulse { 0% { background: #fef9c3; } 100% { background: transparent; } }
+    .card-new { animation: card-new-pulse 1.5s ease-out forwards; }
+
     .card-src {
       font-size: 10px;
       font-weight: 700;
@@ -681,6 +684,9 @@
     .dark .card.sel.src-autobahn     { background: #431407; }
     .dark .card.sel.src-events       { background: #022c22; }
     .dark .card.sel.src-sports       { background: #431a06; }
+
+    @keyframes card-new-pulse-dark { 0% { background: #422006; } 100% { background: transparent; } }
+    .dark .card-new { animation: card-new-pulse-dark 1.5s ease-out forwards; }
     .dark .chip.src-sports.on        { background: #431a06; }
     .dark .chip.src-rmv.on           { background: #172554; }
     .dark .chip.src-dwd.on           { background: #2e1065; }
@@ -1036,6 +1042,7 @@ let tileLayer    = null;
 let markers      = {}; // id → L.Marker
 let policeCircles = {}; // id → L.Circle, shown when police marker is expanded
 let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let pendingHighlight = new Set();
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
@@ -1237,6 +1244,7 @@ function applyData(data) {
   alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
     seenIds.add(a.id);
     fireNotification(a);
+    pendingHighlight.add(a.id);
   });
   const trimmed = [...seenIds].slice(-SEEN_MAX);
   seenIds = new Set(trimmed);
@@ -1267,6 +1275,17 @@ function applyData(data) {
   renderEventBanners();
   renderSportsBanners();
   renderFeed();
+  flushHighlights();
+}
+
+// ── Highlight new alerts ──────────────────────────────────────────────────────
+function flushHighlights() {
+  if (!pendingHighlight.size || document.visibilityState !== 'visible') return;
+  pendingHighlight.forEach(id => {
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (card) card.classList.add('card-new');
+  });
+  pendingHighlight.clear();
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -1922,6 +1941,10 @@ async function init() {
   }, REFRESH_INTERVAL);
 
   setInterval(updateRelativeTime, 30_000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushHighlights();
+  });
 }
 
 init();
