@@ -871,7 +871,7 @@
     {% if telegram_channel_url %}
     <h2>📱 Frankfurt Radar on Telegram</h2>
     <p>Join the channel for real-time Frankfurt alerts — transit disruptions, weather warnings, and police reports, translated to English.</p>
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ telegram_channel_url | urlencode }}" width="120" height="120" alt="QR code" style="border-radius:8px;border:1px solid var(--clr-border)">
       <div>
         <a class="btn-tg" href="{{ telegram_channel_url | e }}" target="_blank" rel="noopener">
@@ -887,11 +887,13 @@
     {% if kofi_url or github_url %}
     <h2>🤝 Get Involved</h2>
     <p>Free, ad-free, and open source. If it saves you a missed train or a soaked commute — buy us a coffee, or just tell us what to fix.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
       {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener">☕ Buy a coffee</a>{% endif %}
       {% if github_url %}
-      <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">🐛 Report a bug</a>
-      <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=enhancement&template=feature_request.md" target="_blank" rel="noopener">💡 Request a feature</a>
+      <div style="display:flex;gap:8px">
+        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">🐛 Report a bug</a>
+        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=enhancement&template=feature_request.md" target="_blank" rel="noopener">💡 Request a feature</a>
+      </div>
       {% endif %}
     </div>
     <hr>
