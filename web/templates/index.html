@@ -1480,14 +1480,15 @@ function isMobileView() {
   return window.matchMedia('(max-width: 767px)').matches;
 }
 
-function openMobileMap() {
+function openMobileMap(cb) {
   document.body.classList.add('mobile-map-open');
-  setTimeout(() => map && map.invalidateSize(), 250);
+  setTimeout(() => { map && map.invalidateSize(); if (cb) cb(); }, 250);
 }
 
 function closeMobileMap() {
   document.body.classList.remove('mobile-map-open');
   closeWeatherPanel();
+  if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
 // ── Alert selection ───────────────────────────────────────────────────────────
@@ -1511,34 +1512,38 @@ function selectAlert(id) {
   if (card) card.scrollIntoView({ block: 'nearest' });
 
   closeWeatherPanel();
-  if (isMobileView()) openMobileMap();
 
-  if (a.source === 'dwd') {
-    map.setView(FRANKFURT, 12, { animate: true });
-    showWeatherPanel(a);
-  } else if (a.source === 'polizei') {
-    // Circle popup is geo-anchored — no need to wait for pan animation
-    const { coords } = alertCoords(a);
-    map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
-    expandPoliceMarker(a, coords);
-  } else {
-    const marker = markers[id];
-    if (marker && clusterGroup) {
-      const targetZoom = Math.max(map.getZoom(), 14);
-      map.setView(marker.getLatLng(), targetZoom, { animate: true });
-      // Capture id at call time to avoid stale closure if user clicks again before moveend
-      const expectedId = id;
-      map.once('moveend', () => {
-        if (selectedId !== expectedId) return; // selection changed before pan finished
-        const visible = clusterGroup.getVisibleParent(marker);
-        if (visible === marker) {
-          marker.openPopup();
-        } else if (visible) {
-          clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
-        }
-      });
+  const applyMapOp = () => {
+    if (a.source === 'dwd') {
+      map.setView(FRANKFURT, 12, { animate: true });
+      showWeatherPanel(a);
+    } else if (a.source === 'polizei') {
+      // Circle popup is geo-anchored — no need to wait for pan animation
+      const { coords } = alertCoords(a);
+      map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
+      expandPoliceMarker(a, coords);
+    } else {
+      const marker = markers[id];
+      if (marker && clusterGroup) {
+        const targetZoom = Math.max(map.getZoom(), 14);
+        map.setView(marker.getLatLng(), targetZoom, { animate: true });
+        // Capture id at call time to avoid stale closure if user clicks again before moveend
+        const expectedId = id;
+        map.once('moveend', () => {
+          if (selectedId !== expectedId) return; // selection changed before pan finished
+          const visible = clusterGroup.getVisibleParent(marker);
+          if (visible === marker) {
+            marker.openPopup();
+          } else if (visible) {
+            clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+          }
+        });
+      }
     }
-  }
+  };
+
+  if (isMobileView()) openMobileMap(applyMapOp);
+  else applyMapOp();
 }
 
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
