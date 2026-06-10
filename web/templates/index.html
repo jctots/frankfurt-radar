@@ -1203,10 +1203,10 @@ function renderMarkers() {
     const m = L.marker(coords, { icon: sourceIcon(a.source) });
     if (a.source === 'polizei') {
       // Police: clicking replaces the pin with an area circle to show location is approximate
-      m.on('click', () => { selectAlert(a.id); expandPoliceMarker(a, coords); });
+      m.on('click', () => { selectAlert(a.id, true); expandPoliceMarker(a, coords); });
     } else {
       m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-      m.on('click', () => selectAlert(a.id));
+      m.on('click', () => selectAlert(a.id, true));
     }
     clusterGroup.addLayer(m);
     markers[a.id] = m;
@@ -1217,7 +1217,7 @@ function renderMarkers() {
     if (markers[a.id]) return;
     const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-    m.on('click', () => selectAlert(a.id));
+    m.on('click', () => selectAlert(a.id, true));
     clusterGroup.addLayer(m);
     markers[a.id] = m;
   });
@@ -1227,7 +1227,7 @@ function renderMarkers() {
     if (markers[a.id]) return;
     const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
       .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
-    m.on('click', () => selectAlert(a.id));
+    m.on('click', () => selectAlert(a.id, true));
     clusterGroup.addLayer(m);
     markers[a.id] = m;
   });
@@ -1492,7 +1492,7 @@ function closeMobileMap() {
 }
 
 // ── Alert selection ───────────────────────────────────────────────────────────
-function selectAlert(id) {
+function selectAlert(id, fromMap = false) {
   selectedId = id;
   const a = alerts.find(x => x.id === id);
   if (!a) return;
@@ -1512,6 +1512,12 @@ function selectAlert(id) {
   if (card) card.scrollIntoView({ block: 'nearest' });
 
   closeWeatherPanel();
+
+  if (fromMap) {
+    const marker = markers[id];
+    if (marker) { map.panTo(marker.getLatLng(), { animate: true }); marker.openPopup(); }
+    return;
+  }
 
   const applyMapOp = () => {
     if (a.source === 'dwd') {
@@ -1539,7 +1545,9 @@ function selectAlert(id) {
           // Clustered or already zoomed — zoom directly to the split level
           clusterGroup.zoomToShowLayer(marker, () => {
             const m = markers[id];
-            if (m) m.openPopup();
+            if (!m) return;
+            map.panTo(m.getLatLng(), { animate: true });
+            m.openPopup();
           });
         }
       }
