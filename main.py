@@ -5,6 +5,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import json
+
 import yaml
 from dotenv import load_dotenv
 
@@ -114,7 +116,12 @@ def main() -> None:
         else:
             log.info("Sports network pollers skipped — last run %s", last_sports)
 
-    all_alerts = [a for p in pollers for a in p.fetch()]
+    fetched = [(p, p.fetch()) for p in pollers]
+    all_alerts = [a for _, alerts in fetched for a in alerts]
+
+    # Collect per-source health; static pollers (no network) are always ok.
+    source_health = {type(p).__name__: p.ok for p, _ in fetched}
+    set_meta("source_health", json.dumps(source_health))
 
     max_age = config.get("police", {}).get("max_age_hours", 48)
     if max_age:
