@@ -1203,7 +1203,7 @@ function renderMarkers() {
     const m = L.marker(coords, { icon: sourceIcon(a.source) });
     if (a.source === 'polizei') {
       // Police: clicking replaces the pin with an area circle to show location is approximate
-      m.on('click', () => { selectAlert(a.id, true); expandPoliceMarker(a, coords); });
+      m.on('click', () => selectAlert(a.id, true));
     } else {
       m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 });
       m.on('click', () => selectAlert(a.id, true));
@@ -1515,7 +1515,15 @@ function selectAlert(id, fromMap = false) {
 
   if (fromMap) {
     const marker = markers[id];
-    if (marker) { map.panTo(marker.getLatLng(), { animate: true }); marker.openPopup(); }
+    if (marker) {
+      map.panTo(marker.getLatLng(), { animate: true });
+      if (a.source === 'polizei') {
+        const { coords } = alertCoords(a);
+        expandPoliceMarker(a, coords);
+      } else {
+        marker.openPopup();
+      }
+    }
     return;
   }
 
@@ -1523,31 +1531,35 @@ function selectAlert(id, fromMap = false) {
     if (a.source === 'dwd') {
       map.setView(FRANKFURT, 12, { animate: true });
       showWeatherPanel(a);
-    } else if (a.source === 'polizei') {
-      // Circle popup is geo-anchored — no need to wait for pan animation
-      const { coords } = alertCoords(a);
-      map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
-      expandPoliceMarker(a, coords);
     } else {
       const marker = markers[id];
       if (marker && clusterGroup) {
         const expectedId = id;
         const visible = clusterGroup.getVisibleParent(marker);
         if (visible === marker && map.getZoom() === 12) {
-          // Marker visible at default zoom — zoom in for context then open
           map.setView(marker.getLatLng(), 14, { animate: true });
           map.once('moveend', () => {
             if (selectedId !== expectedId) return;
             const m = markers[id];
-            if (m) m.openPopup();
+            if (!m) return;
+            if (a.source === 'polizei') {
+              const { coords } = alertCoords(a);
+              expandPoliceMarker(a, coords);
+            } else {
+              m.openPopup();
+            }
           });
         } else {
-          // Clustered or already zoomed — zoom directly to the split level
           clusterGroup.zoomToShowLayer(marker, () => {
             const m = markers[id];
             if (!m) return;
             map.panTo(m.getLatLng(), { animate: true });
-            m.openPopup();
+            if (a.source === 'polizei') {
+              const { coords } = alertCoords(a);
+              expandPoliceMarker(a, coords);
+            } else {
+              m.openPopup();
+            }
           });
         }
       }
