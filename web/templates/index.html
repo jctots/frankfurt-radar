@@ -203,8 +203,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker,
-    .chip.road-picker { border-radius: 6px; }
+    .chip.line-picker { border-radius: 6px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -220,9 +219,7 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
-    .chip.road-picker       { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
-    .chip.road-picker.part  { background: #fef3c7; border-color: #b45309; color: #78350f; }
-    .chip-count {
+.chip-count {
       font-size: 10px; font-weight: 700;
       background: rgba(0,0,0,0.12); border-radius: 999px;
       min-width: 16px; height: 16px; padding: 0 4px; flex-shrink: 0;
@@ -274,7 +271,6 @@
     }
     .lines-popup-item:hover { background: var(--clr-bg); }
     .lines-popup-item input { cursor: pointer; margin: 0; }
-    #roads-popup .lines-popup-item input { accent-color: var(--clr-roads); }
 
     .filter-select {
       font-size: 12px;
@@ -608,13 +604,13 @@
     .btn-tg {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
+      gap: 6px;
+      padding: 9px 14px;
       background: #0088cc;
       color: white;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
     }
     .btn-tg:hover { opacity: 0.9; }
@@ -622,13 +618,13 @@
     .btn-kofi-lg {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
+      gap: 6px;
+      padding: 9px 14px;
       background: #FF5E5B;
       color: white;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
     }
     .btn-kofi-lg:hover { opacity: 0.9; }
@@ -636,13 +632,13 @@
     .btn-gh {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
+      gap: 6px;
+      padding: 9px 14px;
       background: #24292e;
       color: white;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
     }
     .btn-gh:hover { opacity: 0.9; }
@@ -703,8 +699,6 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
-    .dark .chip.road-picker          { background: #431407; }
-    .dark .chip.road-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip-count                { background: rgba(255,255,255,0.15); }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
@@ -881,7 +875,7 @@
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ telegram_channel_url | urlencode }}" width="120" height="120" alt="QR code" style="border-radius:8px;border:1px solid var(--clr-border)">
       <div>
         <a class="btn-tg" href="{{ telegram_channel_url | e }}" target="_blank" rel="noopener">
-          Join on Telegram ↗
+          ✈️ Join on Telegram
         </a>
         <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">{{ telegram_channel_url | e }}</p>
       </div>
@@ -890,19 +884,16 @@
     <hr>
     {% endif %}
 
-    {% if kofi_url %}
-    <h2>☕ Support Frankfurt Radar</h2>
-    <p>Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.</p>
-    <a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
-    <hr>
-    {% endif %}
-
-    {% if github_url %}
-    <h2>📂 Source &amp; Issues</h2>
-    <p>Frankfurt Radar is open source. Found a bug or want to suggest a feature? Open an issue or pull request on GitHub.</p>
-    <a class="btn-gh" href="{{ github_url | e }}" target="_blank" rel="noopener">
-      View on GitHub ↗
-    </a>
+    {% if kofi_url or github_url %}
+    <h2>🤝 Get Involved</h2>
+    <p>Free, ad-free, and open source. If it saves you a missed train or a soaked commute — buy us a coffee, or just tell us what to fix.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener">☕ Buy a coffee</a>{% endif %}
+      {% if github_url %}
+      <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">🐛 Report a bug</a>
+      <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=enhancement&template=feature_request.md" target="_blank" rel="noopener">💡 Request a feature</a>
+      {% endif %}
+    </div>
     <hr>
     {% endif %}
 
@@ -1051,13 +1042,11 @@ let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]')
 let pendingHighlight = new Set();
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
-let _roadsClosedBy = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {} };
 if (!filters.sources.hasOwnProperty('events')) filters.sources.events = true;
 if (!filters.sources.hasOwnProperty('sports')) filters.sources.sports = true;
-if (!filters.roads) filters.roads = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1322,7 +1311,6 @@ function visible() {
         if (someFiltered && a.lines.every(l => filters.lines[l] === false)) return false;
       }
     }
-    if (a.source === 'autobahn' && a.service && filters.roads[a.service] === false) return false;
     if (searchTerm) {
       const hay = `${a.title} ${a.body}`.toLowerCase();
       if (!hay.includes(searchTerm)) return false;
@@ -1560,15 +1548,6 @@ function buildFilterBar() {
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
   html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
-  if (abOn) {
-    const roads = [...new Set(alerts.filter(a => a.source === 'autobahn' && a.service).map(a => a.service))].sort();
-    if (roads.length) {
-      const active = roads.filter(r => filters.roads[r] !== false).length;
-      const partial = active < roads.length;
-      const label = partial ? `${active}/${roads.length} roads ▾` : `${roads.length} roads ▾`;
-      html += `<button class="chip road-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">${label}</button>`;
-    }
-  }
 
   // Events
   html += '<div class="filter-sep"></div>';
@@ -1603,7 +1582,6 @@ function buildFilterBar() {
 
 function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); renderEventBanners(); renderSportsBanners(); }
 function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
-function toggleRoad(road) { filters.roads[road] = filters.roads[road] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
 
@@ -1676,72 +1654,7 @@ function setAllLines(svc, val) {
   }
 }
 
-// ── Roads popup ───────────────────────────────────────────────────────────────
-function openRoadsPopup(btn) {
-  if (_roadsClosedBy === btn) { _roadsClosedBy = null; return; }
-  _roadsClosedBy = null;
-  closeRoadsPopup(false);
-  const roads = [...new Set(alerts.filter(a => a.source === 'autobahn' && a.service).map(a => a.service))].sort();
-  if (!roads.length) return;
 
-  const rect  = btn.getBoundingClientRect();
-  const popup = document.createElement('div');
-  popup.className = 'lines-popup';
-  popup.id = 'roads-popup';
-  popup.style.top  = (rect.bottom + 4) + 'px';
-  popup.style.left = rect.left + 'px';
-
-  popup.innerHTML = `
-    <div class="lines-popup-actions">
-      <button onclick="setAllRoads(true)">Select all</button>
-      <button onclick="setAllRoads(false)">Select none</button>
-    </div>
-    <div class="lines-popup-body">
-      ${roads.map(r => `
-        <label class="lines-popup-item">
-          <input type="checkbox" ${filters.roads[r] !== false ? 'checked' : ''} onchange="toggleRoad('${esc(r)}')">
-          ${esc(r)}
-        </label>`).join('')}
-    </div>`;
-
-  document.body.appendChild(popup);
-  setTimeout(() => document.addEventListener('click', _roadsOutsideClose, { capture: true }), 0);
-}
-
-function _roadsOutsideClose(e) {
-  const popup = document.getElementById('roads-popup');
-  if (!popup) return;
-  if (!popup.contains(e.target)) {
-    _roadsClosedBy = e.target;
-    closeRoadsPopup(false);
-    setTimeout(() => buildFilterBar(), 0);
-  } else {
-    document.addEventListener('click', _roadsOutsideClose, { capture: true, once: true });
-  }
-}
-
-function closeRoadsPopup(rebuild = true) {
-  document.removeEventListener('click', _roadsOutsideClose, { capture: true });
-  const popup = document.getElementById('roads-popup');
-  if (popup) popup.remove();
-  if (rebuild) buildFilterBar();
-}
-
-function setAllRoads(val) {
-  const roads = [...new Set(alerts.filter(a => a.source === 'autobahn' && a.service).map(a => a.service))].sort();
-  roads.forEach(r => { filters.roads[r] = val; });
-  saveFilters();
-  renderFeed();
-  buildFilterBar();
-  const body = document.querySelector('#roads-popup .lines-popup-body');
-  if (body) {
-    body.innerHTML = roads.map(r => `
-        <label class="lines-popup-item">
-          <input type="checkbox" ${filters.roads[r] !== false ? 'checked' : ''} onchange="toggleRoad('${esc(r)}')">
-          ${esc(r)}
-        </label>`).join('');
-  }
-}
 
 
 // ── Browser notifications ─────────────────────────────────────────────────────
