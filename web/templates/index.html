@@ -878,7 +878,9 @@
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a>,
       <a href="https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen" target="_blank" rel="noopener">Autobahn GmbH</a>,
-      <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a>
+      <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a>,
+      <a href="https://openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a>,
+      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a>
     </p>
     {% if legal_url %}<p class="info-attr" style="margin-top:4px"><a href="{{ legal_url | e }}#impressum">Impressum</a> · <a href="{{ legal_url | e }}#privacy">Privacy policy</a></p>{% endif %}
   </div>
@@ -894,7 +896,9 @@
       <a href="https://brightsky.dev" target="_blank" rel="noopener">DWD via BrightSky</a> (weather) ·
       <a href="https://www.presseportal.de/blaulicht/4970" target="_blank" rel="noopener">Polizei Frankfurt</a> (police notices) ·
       <a href="https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen" target="_blank" rel="noopener">Autobahn GmbH</a> (road disruptions) ·
-      <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a> (city events)
+      <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a> (festivals) ·
+      <a href="https://openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a> (Bundesliga) ·
+      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a> (sports events)
     </p>
     <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
     <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
@@ -920,7 +924,7 @@ const SOURCE = {
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
   autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
-  events:   { label: 'Events',    emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
+  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
 };
 
@@ -1250,7 +1254,7 @@ function renderEventBanners() {
   }
   let html = '';
   if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
-  if (upcoming.length) html += upcoming.map(a => renderBanner(a, 'Upcoming')).join('');
+  if (upcoming.length) html += upcoming.map(a => renderBanner(a, daysUntil(a.valid_from))).join('');
   container.innerHTML = html;
 }
 
@@ -1285,7 +1289,7 @@ function renderSportsBanners() {
   }
   let html = '';
   if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
-  if (upcoming.length) html += upcoming.map(a => renderBanner(a, 'Upcoming')).join('');
+  if (upcoming.length) html += upcoming.map(a => renderBanner(a, daysUntil(a.valid_from))).join('');
   container.innerHTML = html;
 }
 
@@ -1295,6 +1299,15 @@ function fmtDate(iso) {
     const d = new Date(iso);
     return `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
   } catch { return iso; }
+}
+
+function daysUntil(iso) {
+  if (!iso) return 'Upcoming';
+  const msPerDay = 86400000;
+  const diff = Math.ceil((new Date(iso) - Date.now()) / msPerDay);
+  if (diff <= 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return `In ${diff} days`;
 }
 
 // ── Feed rendering ────────────────────────────────────────────────────────────

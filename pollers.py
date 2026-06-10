@@ -23,7 +23,10 @@ _RMV_URL          = "https://www.rmv.de/hapi/himSearch"
 _POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
 _DWD_URL          = "https://api.brightsky.dev/alerts"
 _AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
-_TM_DEUTSCHE_BANK_PARK_ID = "ZFr9jZ766k"
+_TM_DEUTSCHE_BANK_PARK_ID   = "ZFr9jZ766k"
+_DBP_LAT                    = 50.0690   # Deutsche Bank Park
+_DBP_LON                    = 8.6453
+_OPENLIGA_URL               = "https://api.openligadb.de/getmatchdata/bl1"
 
 _AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
@@ -535,6 +538,64 @@ class StaticSportsPoller(BasePoller):
                 location_label=ev.get("location"),
             ))
         log.info("StaticSports: %d events in window", len(alerts))
+        return alerts
+
+
+class OpenLigaPoller(BasePoller):
+    """Eintracht Frankfurt Bundesliga home games via OpenLigaDB (free, no key)."""
+
+    def __init__(self, advance_days: int = 3):
+        self.advance_days = advance_days
+
+    def _season_year(self) -> int:
+        now = datetime.now(_BERLIN)
+        return now.year if now.month >= 7 else now.year - 1
+
+    def fetch(self) -> list[Alert]:
+        season = self._season_year()
+        try:
+            resp = requests.get(f"{_OPENLIGA_URL}/{season}", timeout=15)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("OpenLigaPoller: request failed: %s", e)
+            return []
+
+        matches = resp.json()
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=self.advance_days)
+
+        alerts = []
+        for m in matches:
+            if "Frankfurt" not in m.get("team1", {}).get("teamName", ""):
+                continue  # away game or not Frankfurt
+            dt_str = m.get("matchDateTime")
+            if not dt_str:
+                continue
+            try:
+                start = datetime.fromisoformat(dt_str).astimezone(timezone.utc)
+            except ValueError:
+                continue
+            if not (now - timedelta(hours=2) <= start <= cutoff):
+                continue
+            end = start + timedelta(hours=2)
+            opponent = m.get("team2", {}).get("teamName", "Unknown")
+            match_id = m.get("matchID", "")
+            alerts.append(Alert(
+                id=f"ol-{match_id}",
+                source="sports",
+                title=f"Eintracht Frankfurt vs {opponent}",
+                body="Bundesliga home game at Deutsche Bank Park.",
+                url="https://www.eintracht.de/tickets/",
+                published_at=now.isoformat(),
+                valid_from=start.isoformat(),
+                valid_until=end.isoformat(),
+                service="football",
+                lat=_DBP_LAT,
+                lon=_DBP_LON,
+                location_label="Deutsche Bank Park",
+            ))
+
+        log.info("OpenLigaPoller: %d Eintracht home games in window (season %d)", len(alerts), season)
         return alerts
 
 

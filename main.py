@@ -8,9 +8,9 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from db import expire_processed_alerts, init_db, set_meta, sync_alert_cache
+from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import AutobahnPoller, DWDPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
+from pollers import AutobahnPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -89,15 +89,30 @@ def main() -> None:
         ))
     sports_cfg = config.get("sports", {})
     if sports_cfg.get("enabled", False):
+        advance_days = sports_cfg.get("advance_days", 3)
         pollers.append(StaticSportsPoller(
             events=load_sports_events(),
-            advance_days=sports_cfg.get("advance_days", 3),
+            advance_days=advance_days,
         ))
-        tm_api_key = os.getenv("TICKETMASTER_API_KEY", "")
-        if tm_api_key:
-            pollers.append(TicketmasterPoller(api_key=tm_api_key))
+        # Network sports pollers run at most once per day
+        last_sports = get_meta("last_sports_polled_at")
+        sports_due = True
+        if last_sports:
+            try:
+                age = datetime.now(timezone.utc) - datetime.fromisoformat(last_sports)
+                sports_due = age >= timedelta(hours=24)
+            except ValueError:
+                pass
+        if sports_due:
+            pollers.append(OpenLigaPoller(advance_days=advance_days))
+            tm_api_key = os.getenv("TICKETMASTER_API_KEY", "")
+            if tm_api_key:
+                pollers.append(TicketmasterPoller(api_key=tm_api_key))
+            else:
+                log.warning("TICKETMASTER_API_KEY not set — Ticketmaster poller disabled")
+            set_meta("last_sports_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         else:
-            log.warning("TICKETMASTER_API_KEY not set — Ticketmaster poller disabled")
+            log.info("Sports network pollers skipped — last run %s", last_sports)
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 
