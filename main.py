@@ -96,6 +96,8 @@ def main() -> None:
         tm_api_key = os.getenv("TICKETMASTER_API_KEY", "")
         if tm_api_key:
             pollers.append(TicketmasterPoller(api_key=tm_api_key))
+        else:
+            log.warning("TICKETMASTER_API_KEY not set — Ticketmaster poller disabled")
 
     all_alerts = [a for p in pollers for a in p.fetch()]
 
