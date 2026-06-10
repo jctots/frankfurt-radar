@@ -1527,15 +1527,20 @@ function selectAlert(id) {
       if (marker && clusterGroup) {
         const targetZoom = Math.max(map.getZoom(), 14);
         map.setView(marker.getLatLng(), targetZoom, { animate: true });
-        // Capture id at call time to avoid stale closure if user clicks again before moveend
         const expectedId = id;
         map.once('moveend', () => {
-          if (selectedId !== expectedId) return; // selection changed before pan finished
-          const visible = clusterGroup.getVisibleParent(marker);
-          if (visible === marker) {
-            marker.openPopup();
+          if (selectedId !== expectedId) return;
+          // Re-fetch marker — renderMarkers may have replaced the object during animation
+          const m = markers[id];
+          if (!m) return;
+          const visible = clusterGroup.getVisibleParent(m);
+          if (visible === m) {
+            m.openPopup();
           } else if (visible) {
-            clusterGroup.zoomToShowLayer(marker, () => marker.openPopup());
+            clusterGroup.zoomToShowLayer(m, () => {
+              const m2 = markers[id];
+              if (m2) m2.openPopup();
+            });
           }
         });
       }
