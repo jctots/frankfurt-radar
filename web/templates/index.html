@@ -427,10 +427,6 @@
     }
 
     .feed {
-      flex: 1;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #cbd5e1 transparent;
       background: var(--clr-surface);
     }
 
@@ -472,8 +468,10 @@
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
-    details.feed-section { display: flex; flex-direction: column; min-height: 0; }
+    details.feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     details.feed-section[open] { flex: 1; }
+    .section-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    details.feed-section:not([open]) .section-body { display: none; }
     .section-summary {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 14px;
@@ -853,7 +851,7 @@
       .updated-short { display: inline; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
-      .feed           { flex: 1; max-height: none; }
+      .feed           { max-height: none; }
       .filter-bar     { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; position: sticky; top: 52px; }
       .filter-sep     { display: none; }
 
@@ -905,8 +903,6 @@
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
-    <div id="event-banners" style="display:none"></div>
-    <div id="sport-banners" style="display:none"></div>
     <div class="feed-sections">
       <details class="feed-section" id="sec-active" open>
         <summary class="section-summary">
@@ -914,7 +910,11 @@
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </summary>
-        <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
+        <div class="section-body">
+          <div id="event-banners" style="display:none"></div>
+          <div id="sport-banners" style="display:none"></div>
+          <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
+        </div>
       </details>
       <details class="feed-section" id="sec-removed">
         <summary class="section-summary">
@@ -922,7 +922,9 @@
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
         </summary>
-        <div class="feed" id="removed-feed"></div>
+        <div class="section-body">
+          <div class="feed" id="removed-feed"></div>
+        </div>
       </details>
     </div>
   </div>
