@@ -121,3 +121,20 @@ class TestMeta:
         db.set_meta("key", "v1")
         db.set_meta("key", "v2")
         assert db.get_meta("key") == "v2"
+
+
+class TestSourceHealthInStatus:
+    def test_source_health_included_when_set(self):
+        import json
+        health = {"RMVPoller": True, "DWDPoller": False}
+        db.set_meta("source_health", json.dumps(health))
+
+        status = db.get_status_json()
+
+        assert status["source_health"] == health
+
+    def test_source_health_empty_when_meta_missing(self):
+        # clean_db fixture wipes meta — source_health key is absent
+        status = db.get_status_json()
+
+        assert status["source_health"] == {}
