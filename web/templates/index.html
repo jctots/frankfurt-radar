@@ -1067,8 +1067,9 @@ function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
-  if (a.valid_from)  meta.push('From '  + (a.source === 'events' ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
-  if (a.valid_until) meta.push('Until ' + (a.source === 'events' ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
+  const useDateOnly = a.source === 'events' || a.source === 'sports';
+  if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
+  if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
