@@ -1538,9 +1538,27 @@ function selectAlert(id, fromMap = false) {
     if (a.source === 'polizei') {
       const { coords } = alertCoords(a);
       expandPoliceMarker(a, coords);
-    } else {
-      m.openPopup();
+      return;
     }
+
+    // If marker is still clustered at current zoom, temporarily remove siblings
+    // so the selected marker can display its popup individually
+    const parent = clusterGroup.getVisibleParent(m);
+    const siblings = (parent && parent !== m)
+      ? parent.getAllChildMarkers().filter(s => s !== m)
+      : [];
+    siblings.forEach(s => clusterGroup.removeLayer(s));
+
+    // On mobile, re-enable autoPan after our centering so the full popup stays in view
+    const popup = m.getPopup();
+    if (isMobileView() && popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
+
+    m.openPopup();
+
+    m.once('popupclose', () => {
+      siblings.forEach(s => clusterGroup.addLayer(s));
+      if (isMobileView() && popup) popup.options.autoPan = false;
+    });
   };
 
   const applyMapOp = () => {
@@ -1554,38 +1572,16 @@ function selectAlert(id, fromMap = false) {
     if (!marker || !clusterGroup) return;
     const expectedId = id;
 
-    const zoomAndOpen = (m) => {
-      if (map.getZoom() < 14) {
-        map.setView(m.getLatLng(), 14, { animate: true });
-      } else {
-        map.panTo(m.getLatLng(), { animate: true });
-      }
-      map.once('moveend', () => {
-        if (selectedId !== expectedId) return;
-        const latest = markers[id];
-        if (latest) openPopup(latest);
-      });
-    };
-
-    if (fromMap) {
-      zoomAndOpen(marker);
+    if (map.getZoom() < 14) {
+      map.setView(marker.getLatLng(), 14, { animate: true });
     } else {
-      const visibleParent = clusterGroup.getVisibleParent(marker);
-      if (visibleParent === marker) {
-        zoomAndOpen(marker);
-      } else {
-        clusterGroup.zoomToShowLayer(marker, () => {
-          const m = markers[id];
-          if (!m) return;
-          map.panTo(m.getLatLng(), { animate: true });
-          map.once('moveend', () => {
-            if (selectedId !== expectedId) return;
-            const latest = markers[id];
-            if (latest) openPopup(latest);
-          });
-        });
-      }
+      map.panTo(marker.getLatLng(), { animate: true });
     }
+    map.once('moveend', () => {
+      if (selectedId !== expectedId) return;
+      const latest = markers[id];
+      if (latest) openPopup(latest);
+    });
   };
 
   if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
