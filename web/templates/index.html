@@ -228,6 +228,7 @@
       background: rgba(0,0,0,0.12); border-radius: 50%;
       width: 16px; height: 16px; flex-shrink: 0;
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+      margin-left: 4px;
     }
     .chip.sev-picker        { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
     .chip.sev-picker.filt   { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
@@ -842,7 +843,7 @@
   <div class="feed-panel">
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
-      <input type="search" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-header">
@@ -1472,12 +1473,12 @@ function selectAlert(id) {
   } else if (a.source === 'polizei') {
     // Circle popup is geo-anchored — no need to wait for pan animation
     const { coords } = alertCoords(a);
-    map.setView(coords, Math.max(map.getZoom(), 13), { animate: true });
+    map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
     expandPoliceMarker(a, coords);
   } else {
     const marker = markers[id];
     if (marker && clusterGroup) {
-      const targetZoom = Math.max(map.getZoom(), 15);
+      const targetZoom = Math.max(map.getZoom(), 14);
       map.setView(marker.getLatLng(), targetZoom, { animate: true });
       // Capture id at call time to avoid stale closure if user clicks again before moveend
       const expectedId = id;
