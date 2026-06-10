@@ -16,6 +16,7 @@
 #   lat/lon : map pin coordinates (optional)
 #   details : one or two sentences shown in the detail popup (optional)
 #   url     : link shown in the detail popup (optional)
+#   image   : direct upload.wikimedia.org URL for popup photo (optional, CC-licensed)
 
 # ── Cycling ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@
   lon: 8.6821
   details: "UCI WorldTour one-day classic — start in Eschborn, finish at Römerberg. Road closures along the finish circuit in the city centre from mid-morning."
   url: "https://www.eschborn-frankfurt.de/en"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Henninger_Turm-2005-Finale-Runde3-Spitzengruppe.jpg/960px-Henninger_Turm-2005-Finale-Runde3-Spitzengruppe.jpg"
 
 # ── Triathlon / IRONMAN ───────────────────────────────────────────────────────
 
@@ -40,6 +42,7 @@
   lon: 8.6453
   details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike loop through Frankfurt, marathon finish. Extensive road closures across the city all day."
   url: "https://www.ironman.com"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg/960px-Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg"
 
 - name: "Frankfurt City Triathlon"
   sport: triathlon
@@ -50,9 +53,11 @@
   lon: 8.6776
   details: "Multi-distance city triathlon — run finish at Hauptwache with road closures through the city centre."
   url: "https://www.frankfurt-city-triathlon.de/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/FCT_Unger.jpg/960px-FCT_Unger.jpg"
 
 # ── American Football — Frankfurt Galaxy (ELF) ────────────────────────────────
 # Home games at PSD Bank Arena, Bornheimer Hang
+# All Galaxy games share the same image field value — update all when changing.
 
 - name: "Frankfurt Galaxy vs Prague Lions (ELF Week 6)"
   sport: american_football
@@ -63,6 +68,7 @@
   lon: 8.7207
   details: "Frankfurt Galaxy home game — European League of Football regular season."
   url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 - name: "Frankfurt Galaxy vs Paris Musketeers (ELF Week 8)"
   sport: american_football
@@ -73,6 +79,7 @@
   lon: 8.7207
   details: "Frankfurt Galaxy home game — European League of Football regular season."
   url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 - name: "Frankfurt Galaxy vs Munich Ravens (ELF Week 9)"
   sport: american_football
@@ -83,6 +90,7 @@
   lon: 8.7207
   details: "Frankfurt Galaxy home game — European League of Football regular season."
   url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 - name: "Frankfurt Galaxy vs Raiders Tirol (ELF Week 10)"
   sport: american_football
@@ -93,6 +101,7 @@
   lon: 8.7207
   details: "Frankfurt Galaxy home game — European League of Football regular season."
   url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 - name: "Frankfurt Galaxy vs Nordic Storm (ELF Week 12)"
   sport: american_football
@@ -103,6 +112,7 @@
   lon: 8.7207
   details: "Frankfurt Galaxy home game — European League of Football regular season."
   url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 - name: "ELF Semi-Finals at Frankfurt (BIG4)"
   sport: american_football
@@ -113,6 +123,7 @@
   lon: 8.7207
   details: "European League of Football semi-finals hosted at PSD Bank Arena. High attendance expected."
   url: "https://europeanleague.football"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 # ── Running ───────────────────────────────────────────────────────────────────
 
@@ -125,3 +136,4 @@
   lon: 8.6820
   details: "Annual marathon — road closures across city centre, Sachsenhausen, and the Römerberg finish. Expect major disruption to road and public transport all morning."
   url: "https://www.frankfurt-marathon.com/en/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/b/b5/Frankfurt_marathon_2004_erster_kilometer.jpg"

@@ -204,8 +204,7 @@
       white-space: nowrap;
     }
     .chip.line-picker,
-    .chip.road-picker,
-    .chip.sev-picker { border-radius: 6px; }
+    .chip.road-picker { border-radius: 6px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -230,8 +229,6 @@
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
       margin-left: 4px;
     }
-    .chip.sev-picker        { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
-    .chip.sev-picker.filt   { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
 
     .lines-popup {
       position: fixed;
@@ -473,6 +470,15 @@
     }
     .leaflet-popup-tip-container { margin-top: -1px; }
 
+    .popup-img-wrap { position: relative; }
+    .popup-img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+    .wm-badge {
+      position: absolute; bottom: 6px; right: 6px;
+      background: rgba(0,0,0,0.45); border-radius: 4px;
+      display: flex; align-items: center; gap: 4px; padding: 3px 6px 3px 4px;
+      pointer-events: none;
+    }
+    .wm-badge { font-size: 10px; color: rgba(255,255,255,0.85); }
     .popup-inner { padding: 14px 16px 12px; }
     .popup-src {
       font-size: 10px;
@@ -700,8 +706,6 @@
     .dark .chip.road-picker          { background: #431407; }
     .dark .chip.road-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip-count                { background: rgba(255,255,255,0.15); }
-    .dark .chip.sev-picker           { background: #2e1065; }
-    .dark .chip.sev-picker.filt      { background: #422006; border-color: #92400e; color: #fcd34d; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -910,7 +914,8 @@
       <a href="https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen" target="_blank" rel="noopener">Autobahn GmbH</a>,
       <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a>,
       <a href="https://openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a>,
-      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a>
+      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a> ·
+      Photos: <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>
     </p>
     {% if legal_url %}<p class="info-attr" style="margin-top:4px"><a href="{{ legal_url | e }}#impressum">Impressum</a> · <a href="{{ legal_url | e }}#privacy">Privacy policy</a></p>{% endif %}
   </div>
@@ -928,7 +933,8 @@
       <a href="https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen" target="_blank" rel="noopener">Autobahn GmbH</a> (road disruptions) ·
       <a href="https://www.visitfrankfurt.travel/erleben/veranstaltungskalender" target="_blank" rel="noopener">Visit Frankfurt</a> (festivals) ·
       <a href="https://openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a> (Bundesliga) ·
-      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a> (sports events)
+      <a href="https://developer.ticketmaster.com" target="_blank" rel="noopener">Ticketmaster</a> (sports events) ·
+      <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a> (event photos, CC-licensed)
     </p>
     <p>This site is <strong>not affiliated with, endorsed by, or monitored by</strong> any of these organisations. Data may be delayed or incomplete.</p>
     <p><strong>Do not rely on this site in an emergency.</strong> Always contact <strong>112</strong> (emergency) or <strong>110</strong> (police) directly, and refer to official sources for authoritative information.</p>
@@ -1046,10 +1052,9 @@ let pendingHighlight = new Set();
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
-let _sevClosedBy   = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {}, minSev: 1 };
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
 if (!filters.sources.hasOwnProperty('events')) filters.sources.events = true;
 if (!filters.sources.hasOwnProperty('sports')) filters.sources.sports = true;
 if (!filters.roads) filters.roads = {};
@@ -1119,7 +1124,8 @@ function buildPopupHtml(a) {
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
-  return `<div class="popup-inner">
+  const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
+  return `${imgHtml}<div class="popup-inner">
     ${locBadge}
     <div class="popup-src" style="color:${src.hex}">${src.emoji} ${src.label}</div>
     <div class="popup-title">${esc(a.title)}</div>
@@ -1317,7 +1323,6 @@ function visible() {
       }
     }
     if (a.source === 'autobahn' && a.service && filters.roads[a.service] === false) return false;
-    if (a.source === 'dwd' && a.severity != null && a.severity < filters.minSev) return false;
     if (searchTerm) {
       const hay = `${a.title} ${a.body}`.toLowerCase();
       if (!hay.includes(searchTerm)) return false;
@@ -1546,14 +1551,10 @@ function buildFilterBar() {
   const polOn = filters.sources.polizei !== false;
   html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
 
-  // Weather + inline severity picker
+  // Weather
   html += '<div class="filter-sep"></div>';
   const dwdOn = filters.sources.dwd !== false;
   html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}${badge(counts.dwd)}</button>`;
-  if (dwdOn) {
-    const filtered = filters.minSev > 1;
-    html += `<button class="chip sev-picker${filtered ? ' filt' : ''}" onclick="event.stopPropagation(); openSevPopup(this)">Sev ≥ ${SEV_LABEL[filters.minSev]} ▾</button>`;
-  }
 
   // Roads
   html += '<div class="filter-sep"></div>';
@@ -1604,7 +1605,6 @@ function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === fals
 function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleRoad(road) { filters.roads[road] = filters.roads[road] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
-function setSev(v)      { filters.minSev = parseInt(v); saveFilters(); buildFilterBar(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
 
 // ── Lines popup ───────────────────────────────────────────────────────────────
@@ -1743,38 +1743,6 @@ function setAllRoads(val) {
   }
 }
 
-// ── Severity popup ────────────────────────────────────────────────────────────
-function openSevPopup(btn) {
-  if (_sevClosedBy === btn) { _sevClosedBy = null; return; }
-  _sevClosedBy = null;
-  closeSevPopup();
-  const rect  = btn.getBoundingClientRect();
-  const popup = document.createElement('div');
-  popup.className = 'lines-popup';
-  popup.id = 'sev-popup';
-  popup.style.top  = (rect.bottom + 4) + 'px';
-  popup.style.left = rect.left + 'px';
-  popup.innerHTML = `<div class="lines-popup-body">
-    ${[1,2,3,4].map(n => `
-      <label class="lines-popup-item">
-        <input type="radio" name="sev" ${filters.minSev === n ? 'checked' : ''} onchange="setSev(${n}); closeSevPopup()">
-        ${SEV_LABEL[n]}
-      </label>`).join('')}
-  </div>`;
-  document.body.appendChild(popup);
-  setTimeout(() => document.addEventListener('click', _sevOutsideClose, { capture: true }), 0);
-}
-
-function closeSevPopup() {
-  document.removeEventListener('click', _sevOutsideClose, { capture: true });
-  const p = document.getElementById('sev-popup');
-  if (p) p.remove();
-}
-
-function _sevOutsideClose(e) {
-  const p = document.getElementById('sev-popup');
-  if (p && !p.contains(e.target)) { _sevClosedBy = e.target; closeSevPopup(); }
-}
 
 // ── Browser notifications ─────────────────────────────────────────────────────
 async function toggleNotifications() {

@@ -11,6 +11,7 @@
 #   lat/lon : map pin coordinates for the venue (optional)
 #   details : one or two sentences shown in the detail popup (optional)
 #   url     : link shown in the detail popup — use the official event page (optional)
+#   image   : direct upload.wikimedia.org URL for popup photo (optional, CC-licensed)
 
 - name: "Frühjahrs-Dippemess (Spring Folk Fair)"
   start: "2026-03-27"
@@ -20,6 +21,7 @@
   lon: 8.7067
   details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
   url: "https://www.frankfurt.de/dippemess"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Frankfurt_am_Main%2C_Dippemess_%28Fr%C3%BChling_2026%29%2C_main_entrance.jpg/960px-Frankfurt_am_Main%2C_Dippemess_%28Fr%C3%BChling_2026%29%2C_main_entrance.jpg"
 
 - name: "Wäldchestag (Forest Day)"
   start: "2026-05-22"
@@ -28,6 +30,7 @@
   lat: 50.0795
   lon: 8.6524
   details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music."
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Frankfurt_am_Main%2C_W%C3%A4ldchestag%2C_ferris_wheel.jpg/960px-Frankfurt_am_Main%2C_W%C3%A4ldchestag%2C_ferris_wheel.jpg"
 
 - name: "Opernplatzfest (Opera Square Festival)"
   start: "2026-06-17"
@@ -37,6 +40,7 @@
   lon: 8.6709
   details: "Ten days of live music, food, and drinks on the square in front of the Alte Oper."
   url: "https://www.opernplatzfest.eu/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Frankfurt_am_Main%2C_Opernplatzfest_2025_-_4.jpg/960px-Frankfurt_am_Main%2C_Opernplatzfest_2025_-_4.jpg"
 
 - name: "Mainfest (Main River Festival)"
   start: "2026-07-31"
@@ -45,6 +49,7 @@
   lat: 50.1103
   lon: 8.6821
   details: "Annual riverside festival along the Main with fair rides, wine, and a closing fireworks display."
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Frankfurt_Mainfest_2025_-_swing_ride.jpg/960px-Frankfurt_Mainfest_2025_-_swing_ride.jpg"
 
 - name: "Frankfurter Apfelweinfestival (Apple Wine Festival)"
   start: "2026-08-07"
@@ -54,6 +59,7 @@
   lon: 8.6780
   details: "Official city festival celebrating Frankfurt's signature drink — apple wine, live music, and traditional food at the Roßmarkt."
   url: "https://www.visitfrankfurt.travel/en/experience/festival-and-events/frankfurt-apple-wine-festival"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/GraphyArchy_-_Wikipedia_00951.jpg/960px-GraphyArchy_-_Wikipedia_00951.jpg"
 
 - name: "Sachsenhäuser Brunnenfest (Sachsenhausen Fountain Festival)"
   start: "2026-08-14"
@@ -62,6 +68,7 @@
   lat: 50.0990
   lon: 8.6820
   details: "One of Frankfurt's oldest festivals, first recorded in 1490 — traditional processions, the Kerbebaum pole, and neighbourhood celebrations."
+  image: ""
 
 - name: "Museumsuferfest (Museum Embankment Festival)"
   start: "2026-08-28"
@@ -71,6 +78,7 @@
   lon: 8.6720
   details: "One of Europe's largest cultural festivals — open-air concerts and art along both banks of the Main."
   url: "https://www.museumsufer.de"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Frankfurt_Museumsuferfest_2025_-_11.jpg/960px-Frankfurt_Museumsuferfest_2025_-_11.jpg"
 
 - name: "Herbst-Dippemess (Autumn Folk Fair)"
   start: "2026-09-11"
@@ -80,6 +88,7 @@
   lon: 8.7067
   details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
   url: "https://www.frankfurt.de/dippemess"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Frankfurt_am_Main%2C_Dippemess_%28Herbst_2025%29%2C_Plakat.jpg/960px-Frankfurt_am_Main%2C_Dippemess_%28Herbst_2025%29%2C_Plakat.jpg"
 
 - name: "Frankfurter Buchmesse (Frankfurt Book Fair)"
   start: "2026-10-07"
@@ -89,6 +98,7 @@
   lon: 8.6490
   details: "The world's largest trade fair for books — expect heavy road and public transport congestion around Messe."
   url: "https://www.buchmesse.de"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Frankfurter_Buchmesse_2025_-_Forum.jpg/960px-Frankfurter_Buchmesse_2025_-_Forum.jpg"
 
 - name: "Weihnachtsmarkt (Christmas Market)"
   start: "2026-11-23"
@@ -98,3 +108,4 @@
   lon: 8.6821
   details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. Expect heavy crowds in the city centre."
   url: "https://www.frankfurt-tourismus.de/weihnachtsmarkt"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Frankfurt_am_Main_-_Frankfurter_Weihnachtsmarkt_%282025%29_4.jpg/960px-Frankfurt_am_Main_-_Frankfurter_Weihnachtsmarkt_%282025%29_4.jpg"

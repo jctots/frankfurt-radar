@@ -48,3 +48,4 @@ class Alert:
     lat: Optional[float] = None         # map pin latitude
     lon: Optional[float] = None         # map pin longitude
     location_label: Optional[str] = None  # human-readable location hint
+    image: Optional[str] = None         # direct upload.wikimedia.org thumbnail URL

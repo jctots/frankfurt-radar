@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     lat            REAL,
     lon            REAL,
     location_label TEXT,
+    image          TEXT,
     cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -84,6 +85,10 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN valid_from TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN image TEXT")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -166,7 +171,7 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.valid_until, alert.service,
                 json.dumps(alert.lines) if alert.lines else None,
                 alert.published_at, alert.valid_from, alert.severity,
-                alert.lat, alert.lon, alert.location_label,
+                alert.lat, alert.lon, alert.location_label, alert.image,
             ))
 
     # Batch write: insert new + remove alerts no longer in the current fetch
@@ -175,8 +180,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, valid_from, severity, lat, lon, location_label, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    lines, published_at, valid_from, severity, lat, lon, location_label, image, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
             )
@@ -213,6 +218,7 @@ def get_status_json() -> dict:
             "lat":            r["lat"],
             "lon":            r["lon"],
             "location_label": r["location_label"],
+            "image":          r["image"],
         })
 
     source_health_raw = get_meta("source_health")
