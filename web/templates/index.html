@@ -1525,22 +1525,23 @@ function selectAlert(id) {
     } else {
       const marker = markers[id];
       if (marker && clusterGroup) {
-        const targetZoom = Math.max(map.getZoom(), 14);
-        map.setView(marker.getLatLng(), targetZoom, { animate: true });
         const expectedId = id;
-        const tryOpen = () => {
-          if (selectedId !== expectedId) return;
-          const m = markers[id];
-          if (!m) return;
-          const visible = clusterGroup.getVisibleParent(m);
-          if (visible === m) {
-            m.openPopup();
-          } else if (visible && map.getZoom() < map.getMaxZoom()) {
-            map.zoomIn(1, { animate: true });
-            map.once('moveend', tryOpen);
-          }
-        };
-        map.once('moveend', tryOpen);
+        const visible = clusterGroup.getVisibleParent(marker);
+        if (visible === marker && map.getZoom() === 12) {
+          // Marker visible at default zoom — zoom in for context then open
+          map.setView(marker.getLatLng(), 14, { animate: true });
+          map.once('moveend', () => {
+            if (selectedId !== expectedId) return;
+            const m = markers[id];
+            if (m) m.openPopup();
+          });
+        } else {
+          // Clustered or already zoomed — zoom directly to the split level
+          clusterGroup.zoomToShowLayer(marker, () => {
+            const m = markers[id];
+            if (m) m.openPopup();
+          });
+        }
       }
     }
   };
