@@ -1139,7 +1139,7 @@ function expandPoliceMarker(a, coords) {
     fillOpacity: 0.12,
     weight: 2,
     opacity: 0.5,
-  }).bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260 }).addTo(map);
+  }).bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false }).addTo(map);
   circle.openPopup();
   policeCircles[a.id] = circle;
   circle.on('popupclose', () => {
