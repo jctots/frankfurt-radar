@@ -468,10 +468,10 @@
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
-    details.feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-    details.feed-section[open] { flex: 1; overflow: hidden; }
-    .section-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
-    details.feed-section:not([open]) .section-body { display: none; }
+    .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .feed-section.open { flex: 1; }
+    .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    .feed-section:not(.open) .section-body { display: none; }
     .section-summary {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 14px;
@@ -481,13 +481,12 @@
       background: var(--clr-surface);
       border-bottom: 1px solid var(--clr-border);
       border-top: 1px solid var(--clr-border);
-      flex-shrink: 0; list-style: none;
+      flex-shrink: 0;
     }
-    .section-summary::-webkit-details-marker { display: none; }
     .section-summary:hover { background: #f8fafc; }
     .dark .section-summary:hover { background: #1e293b; }
     .section-chevron { margin-left: auto; font-size: 9px; transition: transform 0.15s; }
-    details.feed-section[open] .section-chevron { transform: rotate(90deg); }
+    .feed-section.open .section-chevron { transform: rotate(90deg); }
     .card.card-removed .card-src   { color: var(--clr-muted) !important; }
     .card.card-removed .card-title { color: var(--clr-muted); }
 
@@ -904,28 +903,28 @@
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-sections">
-      <details class="feed-section" id="sec-active" open>
-        <summary class="section-summary">
+      <div class="feed-section open" id="sec-active">
+        <div class="section-summary" onclick="toggleSection('sec-active')">
           Active Alerts <span id="feed-date"></span>
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
-        </summary>
+        </div>
         <div class="section-body">
           <div id="event-banners" style="display:none"></div>
           <div id="sport-banners" style="display:none"></div>
           <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
         </div>
-      </details>
-      <details class="feed-section" id="sec-removed">
-        <summary class="section-summary">
+      </div>
+      <div class="feed-section" id="sec-removed">
+        <div class="section-summary" onclick="toggleSection('sec-removed')">
           Removed Today
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
-        </summary>
+        </div>
         <div class="section-body">
           <div class="feed" id="removed-feed"></div>
         </div>
-      </details>
+      </div>
     </div>
   </div>
   <div id="map"></div>
@@ -1671,6 +1670,12 @@ function selectAlert(id, fromMap = false) {
   else applyMapOp();
 }
 
+function toggleSection(id) {
+  document.querySelectorAll('.feed-section').forEach(s => {
+    s.classList.toggle('open', s.id === id ? !s.classList.contains('open') : false);
+  });
+}
+
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
 function closeInfoModal() { document.getElementById('info-modal').classList.remove('open'); }
 
@@ -1972,12 +1977,6 @@ async function init() {
   initMap();
   maybeShowDisclaimer();
 
-  // Accordion: only one section open at a time
-  document.querySelectorAll('.feed-section').forEach(sec => {
-    sec.addEventListener('toggle', () => {
-      if (sec.open) document.querySelectorAll('.feed-section').forEach(o => { if (o !== sec) o.removeAttribute('open'); });
-    });
-  });
 
   try {
     applyData(await apiGet('/api/status'));
