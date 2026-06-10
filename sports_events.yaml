@@ -1,0 +1,127 @@
+# Frankfurt sports events — update dates each year
+#
+# Sources:
+#   Marathon:  https://www.frankfurt-marathon.com/en/
+#   IRONMAN:   https://www.ironman.com (Frankfurt European Championship)
+#   Cycling:   https://www.eschborn-frankfurt.de/en
+#   Triathlon: https://www.frankfurt-city-triathlon.de/
+#   Galaxy:    https://europeanleague.football/teams/frankfurt-galaxy
+#
+# Fields:
+#   name    : display name (required)
+#   sport   : running | cycling | triathlon | football | american_football | basketball (required)
+#   start   : YYYY-MM-DD (required)
+#   end     : YYYY-MM-DD (required)
+#   location: venue or area shown in the alert (optional)
+#   lat/lon : map pin coordinates (optional)
+#   details : one or two sentences shown in the detail popup (optional)
+#   url     : link shown in the detail popup (optional)
+
+# ── Cycling ───────────────────────────────────────────────────────────────────
+
+- name: "Eschborn-Frankfurt (UCI WorldTour)"
+  sport: cycling
+  start: "2026-05-01"
+  end: "2026-05-01"
+  location: "Römerberg (finish)"
+  lat: 50.1103
+  lon: 8.6821
+  details: "UCI WorldTour one-day classic — start in Eschborn, finish at Römerberg. Road closures along the finish circuit in the city centre from mid-morning."
+  url: "https://www.eschborn-frankfurt.de/en"
+
+# ── Triathlon / IRONMAN ───────────────────────────────────────────────────────
+
+- name: "IRONMAN European Championship Frankfurt"
+  sport: triathlon
+  start: "2026-06-28"
+  end: "2026-06-28"
+  location: "Frankfurt city centre / Deutsche Bank Park"
+  lat: 50.0690
+  lon: 8.6453
+  details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike loop through Frankfurt, marathon finish. Extensive road closures across the city all day."
+  url: "https://www.ironman.com"
+
+- name: "Frankfurt City Triathlon"
+  sport: triathlon
+  start: "2026-08-02"
+  end: "2026-08-02"
+  location: "Hauptwache (finish)"
+  lat: 50.1134
+  lon: 8.6776
+  details: "Multi-distance city triathlon — run finish at Hauptwache with road closures through the city centre."
+  url: "https://www.frankfurt-city-triathlon.de/"
+
+# ── American Football — Frankfurt Galaxy (ELF) ────────────────────────────────
+# Home games at PSD Bank Arena, Bornheimer Hang
+
+- name: "Frankfurt Galaxy vs Prague Lions (ELF Week 6)"
+  sport: american_football
+  start: "2026-06-20"
+  end: "2026-06-21"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "Frankfurt Galaxy home game — European League of Football regular season."
+  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+
+- name: "Frankfurt Galaxy vs Paris Musketeers (ELF Week 8)"
+  sport: american_football
+  start: "2026-07-04"
+  end: "2026-07-05"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "Frankfurt Galaxy home game — European League of Football regular season."
+  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+
+- name: "Frankfurt Galaxy vs Munich Ravens (ELF Week 9)"
+  sport: american_football
+  start: "2026-07-11"
+  end: "2026-07-12"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "Frankfurt Galaxy home game — European League of Football regular season."
+  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+
+- name: "Frankfurt Galaxy vs Raiders Tirol (ELF Week 10)"
+  sport: american_football
+  start: "2026-07-18"
+  end: "2026-07-19"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "Frankfurt Galaxy home game — European League of Football regular season."
+  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+
+- name: "Frankfurt Galaxy vs Nordic Storm (ELF Week 12)"
+  sport: american_football
+  start: "2026-08-01"
+  end: "2026-08-02"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "Frankfurt Galaxy home game — European League of Football regular season."
+  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+
+- name: "ELF Semi-Finals at Frankfurt (BIG4)"
+  sport: american_football
+  start: "2026-08-15"
+  end: "2026-08-16"
+  location: "PSD Bank Arena"
+  lat: 50.1235
+  lon: 8.7207
+  details: "European League of Football semi-finals hosted at PSD Bank Arena. High attendance expected."
+  url: "https://europeanleague.football"
+
+# ── Running ───────────────────────────────────────────────────────────────────
+
+- name: "Mainova Frankfurt Marathon"
+  sport: running
+  start: "2026-10-25"
+  end: "2026-10-25"
+  location: "Frankfurt city centre"
+  lat: 50.1100
+  lon: 8.6820
+  details: "Annual marathon — road closures across city centre, Sachsenhausen, and the Römerberg finish. Expect major disruption to road and public transport all morning."
+  url: "https://www.frankfurt-marathon.com/en/"

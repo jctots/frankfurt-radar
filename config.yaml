@@ -60,3 +60,8 @@ autobahn:
 events:
   enabled: true
   advance_days: 7         # show each event this many days before it starts
+
+# Sports events — static dates in sports_events.yaml (same DATA_DIR)
+sports:
+  enabled: true
+  advance_days: 7         # show each event this many days before it starts

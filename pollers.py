@@ -23,6 +23,10 @@ _RMV_URL          = "https://www.rmv.de/hapi/himSearch"
 _POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
 _DWD_URL          = "https://api.brightsky.dev/alerts"
 _AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
+_TM_DEUTSCHE_BANK_PARK_ID   = "ZFr9jZ766k"
+_DBP_LAT                    = 50.0690   # Deutsche Bank Park
+_DBP_LON                    = 8.6453
+_OPENLIGA_URL               = "https://api.openligadb.de/getmatchdata/bl1"
 
 _AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
@@ -405,6 +409,193 @@ class StaticEventsPoller(BasePoller):
                 location_label=ev.get("location"),
             ))
         log.info("StaticEvents: %d events in window", len(alerts))
+        return alerts
+
+
+def _tm_sport(genre: str, subgenre: str) -> str:
+    """Map Ticketmaster genre/subgenre strings to sports_events.yaml sport values."""
+    combined = f"{genre} {subgenre}".lower()
+    if "soccer" in combined or "fussball" in combined or "football" in combined and "american" not in combined:
+        return "football"
+    if "american football" in combined or "nfl" in combined:
+        return "american_football"
+    if "basketball" in combined:
+        return "basketball"
+    if "marathon" in combined or "running" in combined or "triathlon" in combined:
+        return "running"
+    if "cycling" in combined:
+        return "cycling"
+    return genre or "sports"
+
+
+class TicketmasterPoller(BasePoller):
+    _BASE_URL = "https://app.ticketmaster.com/discovery/v2"
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def fetch(self) -> list[Alert]:
+        try:
+            resp = requests.get(
+                f"{self._BASE_URL}/events.json",
+                params={
+                    "apikey": self.api_key,
+                    "venueId": _TM_DEUTSCHE_BANK_PARK_ID,
+                    "classificationName": "Sports",
+                    "size": 50,
+                    "sort": "date,asc",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("TicketmasterPoller: request failed: %s", e)
+            return []
+
+        events = resp.json().get("_embedded", {}).get("events", [])
+        log.info("Ticketmaster: fetched %d sport events at Deutsche Bank Park", len(events))
+
+        alerts = []
+        for ev in events:
+            alert = self._to_alert(ev)
+            if alert:
+                alerts.append(alert)
+        return alerts
+
+    def _to_alert(self, ev: dict) -> Alert | None:
+        start_info = ev.get("dates", {}).get("start", {})
+        valid_from = start_info.get("dateTime") or start_info.get("localDate")
+        if not valid_from:
+            return None
+        valid_until = ev.get("dates", {}).get("end", {}).get("dateTime") or valid_from
+
+        venues = ev.get("_embedded", {}).get("venues", [])
+        lat = lon = location_label = None
+        if venues:
+            v = venues[0]
+            location_label = v.get("name")
+            try:
+                lat = float(v.get("location", {}).get("latitude") or 0) or None
+                lon = float(v.get("location", {}).get("longitude") or 0) or None
+            except (ValueError, TypeError):
+                pass
+
+        classifications = ev.get("classifications", [])
+        sport = None
+        if classifications:
+            c = classifications[0]
+            sport = _tm_sport(
+                c.get("genre", {}).get("name", ""),
+                c.get("subGenre", {}).get("name", ""),
+            )
+
+        return Alert(
+            id=f"tm-{ev.get('id', '')}",
+            source="sports",
+            title=ev.get("name", ""),
+            body="",
+            url=ev.get("url"),
+            published_at=datetime.now(timezone.utc).isoformat(),
+            valid_from=valid_from,
+            valid_until=valid_until,
+            service=sport,
+            lat=lat,
+            lon=lon,
+            location_label=location_label,
+        )
+
+
+class StaticSportsPoller(BasePoller):
+    def __init__(self, events: list[dict], advance_days: int = 3):
+        self.events = events
+        self.advance_days = advance_days
+
+    def fetch(self) -> list[Alert]:
+        now = datetime.now(timezone.utc)
+        alerts = []
+        for ev in self.events:
+            try:
+                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=timezone.utc)
+                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=timezone.utc)
+            except (KeyError, ValueError):
+                log.warning("StaticSports: skipping malformed entry %r", ev)
+                continue
+            if not (start - timedelta(days=self.advance_days) <= now <= end):
+                continue
+            slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
+            alerts.append(Alert(
+                id=f"sport-event-{slug}",
+                source="sports",
+                title=ev["name"],
+                body=ev.get("details", ""),
+                url=ev.get("url"),
+                published_at=(start - timedelta(days=self.advance_days)).isoformat(),
+                valid_from=start.isoformat(),
+                valid_until=end.isoformat(),
+                service=ev.get("sport"),
+                lat=ev.get("lat"),
+                lon=ev.get("lon"),
+                location_label=ev.get("location"),
+            ))
+        log.info("StaticSports: %d events in window", len(alerts))
+        return alerts
+
+
+class OpenLigaPoller(BasePoller):
+    """Eintracht Frankfurt Bundesliga home games via OpenLigaDB (free, no key)."""
+
+    def __init__(self, advance_days: int = 3):
+        self.advance_days = advance_days
+
+    def _season_year(self) -> int:
+        now = datetime.now(_BERLIN)
+        return now.year if now.month >= 7 else now.year - 1
+
+    def fetch(self) -> list[Alert]:
+        season = self._season_year()
+        try:
+            resp = requests.get(f"{_OPENLIGA_URL}/{season}", timeout=15)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("OpenLigaPoller: request failed: %s", e)
+            return []
+
+        matches = resp.json()
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=self.advance_days)
+
+        alerts = []
+        for m in matches:
+            if "Frankfurt" not in m.get("team1", {}).get("teamName", ""):
+                continue  # away game or not Frankfurt
+            dt_str = m.get("matchDateTime")
+            if not dt_str:
+                continue
+            try:
+                start = datetime.fromisoformat(dt_str).astimezone(timezone.utc)
+            except ValueError:
+                continue
+            if not (now - timedelta(hours=2) <= start <= cutoff):
+                continue
+            end = start + timedelta(hours=2)
+            opponent = m.get("team2", {}).get("teamName", "Unknown")
+            match_id = m.get("matchID", "")
+            alerts.append(Alert(
+                id=f"ol-{match_id}",
+                source="sports",
+                title=f"Eintracht Frankfurt vs {opponent}",
+                body="Bundesliga home game at Deutsche Bank Park.",
+                url="https://www.eintracht.de/tickets/",
+                published_at=now.isoformat(),
+                valid_from=start.isoformat(),
+                valid_until=end.isoformat(),
+                service="football",
+                lat=_DBP_LAT,
+                lon=_DBP_LON,
+                location_label="Deutsche Bank Park",
+            ))
+
+        log.info("OpenLigaPoller: %d Eintracht home games in window (season %d)", len(alerts), season)
         return alerts
 
 
