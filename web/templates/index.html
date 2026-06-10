@@ -1528,21 +1528,19 @@ function selectAlert(id) {
         const targetZoom = Math.max(map.getZoom(), 14);
         map.setView(marker.getLatLng(), targetZoom, { animate: true });
         const expectedId = id;
-        map.once('moveend', () => {
+        const tryOpen = () => {
           if (selectedId !== expectedId) return;
-          // Re-fetch marker — renderMarkers may have replaced the object during animation
           const m = markers[id];
           if (!m) return;
           const visible = clusterGroup.getVisibleParent(m);
           if (visible === m) {
             m.openPopup();
-          } else if (visible) {
-            clusterGroup.zoomToShowLayer(m, () => {
-              const m2 = markers[id];
-              if (m2) m2.openPopup();
-            });
+          } else if (visible && map.getZoom() < map.getMaxZoom()) {
+            map.zoomIn(1, { animate: true });
+            map.once('moveend', tryOpen);
           }
-        });
+        };
+        map.once('moveend', tryOpen);
       }
     }
   };
