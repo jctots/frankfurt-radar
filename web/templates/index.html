@@ -3,7 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Frankfurt Radar</title>
+  <title>Frankfurt Radar — Real-time alerts for Frankfurt in English</title>
+  <meta name="description" content="Real-time Frankfurt alerts in English: RMV transit disruptions, DWD weather warnings, police reports, road closures, and city events. Free and ad-free.">
+  <meta name="robots" content="index, follow">
+  {% if site_url %}
+  <link rel="canonical" href="{{ site_url | e }}">
+  {% endif %}
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website">
+  <meta property="og:site_name"   content="Frankfurt Radar">
+  <meta property="og:title"       content="Frankfurt Radar — Real-time alerts for Frankfurt in English">
+  <meta property="og:description" content="Real-time Frankfurt alerts in English: RMV transit disruptions, DWD weather warnings, police reports, road closures, and city events. Free and ad-free.">
+  {% if site_url %}<meta property="og:url" content="{{ site_url | e }}">{% endif %}
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary">
+  <meta name="twitter:title"       content="Frankfurt Radar — Real-time alerts for Frankfurt in English">
+  <meta name="twitter:description" content="Real-time Frankfurt alerts in English: RMV transit disruptions, DWD weather warnings, police reports, road closures, and city events. Free and ad-free.">
+
+  {% if site_url %}
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Frankfurt Radar",
+    "url": "{{ site_url | e }}",
+    "description": "Real-time Frankfurt alerts in English: RMV transit disruptions, DWD weather warnings, police reports, road closures, and city events.",
+    "inLanguage": "en"
+  }
+  </script>
+  {% endif %}
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">

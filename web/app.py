@@ -5,7 +5,7 @@ from pathlib import Path
 
 import requests as http_requests
 import yaml
-from flask import Flask, jsonify, render_template
+from flask import Flask, Response, jsonify, render_template
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db import get_status_json, init_db
@@ -40,6 +40,7 @@ def index():
         kofi_url=web_cfg.get("kofi_url") or "",
         github_url=web_cfg.get("github_url") or "",
         legal_url=web_cfg.get("legal_url") or "",
+        site_url=(web_cfg.get("site_url") or "").rstrip("/"),
     )
 
 
@@ -56,6 +57,16 @@ def legal():
         contact=web_cfg.get("operator_contact") or "",
         impressum_address=impressum_address,
     )
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    web_cfg = _web_config() or {}
+    site_url = (web_cfg.get("site_url") or "").rstrip("/")
+    lines = ["User-agent: *", "Allow: /"]
+    if site_url:
+        lines.append(f"Sitemap: {site_url}/sitemap.xml")
+    return Response("\n".join(lines) + "\n", mimetype="text/plain")
 
 
 @app.route("/api/status")
