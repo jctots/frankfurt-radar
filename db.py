@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     lat            REAL,
     lon            REAL,
     location_label TEXT,
+    image          TEXT,
     cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -84,6 +85,10 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN valid_from TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN image TEXT")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -152,12 +157,13 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     # Determine which alerts already have a cached translation (read-only, short)
     with _conn() as conn:
-        cached = {r[0] for r in conn.execute(
-            f"SELECT alert_id FROM alert_cache WHERE alert_id IN ({ph})", current_ids
+        cached = {r["alert_id"]: r["image"] for r in conn.execute(
+            f"SELECT alert_id, image FROM alert_cache WHERE alert_id IN ({ph})", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
     to_insert = []
+    to_update_image = []
     for alert in alerts:
         if alert.id not in cached:
             en_title, en_body = translate_alert(alert, config)
@@ -166,26 +172,33 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.valid_until, alert.service,
                 json.dumps(alert.lines) if alert.lines else None,
                 alert.published_at, alert.valid_from, alert.severity,
-                alert.lat, alert.lon, alert.location_label,
+                alert.lat, alert.lon, alert.location_label, alert.image,
             ))
+        elif cached[alert.id] != alert.image:
+            to_update_image.append((alert.image, alert.id))
 
-    # Batch write: insert new + remove alerts no longer in the current fetch
+    # Batch write: insert new + refresh changed images + remove stale alerts
     with _conn() as conn:
         if to_insert:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, valid_from, severity, lat, lon, location_label, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    lines, published_at, valid_from, severity, lat, lon, location_label, image, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
+            )
+        if to_update_image:
+            conn.executemany(
+                "UPDATE alert_cache SET image = ? WHERE alert_id = ?",
+                to_update_image,
             )
         conn.execute(
             f"DELETE FROM alert_cache WHERE alert_id NOT IN ({ph})", current_ids
         )
 
-    log.info("alert_cache: %d total (%d cached, %d translated)",
-             len(alerts), len(cached), len(to_insert))
+    log.info("alert_cache: %d total (%d cached, %d translated, %d image updated)",
+             len(alerts), len(cached), len(to_insert), len(to_update_image))
 
 
 def get_status_json() -> dict:
@@ -213,6 +226,7 @@ def get_status_json() -> dict:
             "lat":            r["lat"],
             "lon":            r["lon"],
             "location_label": r["location_label"],
+            "image":          r["image"],
         })
 
     source_health_raw = get_meta("source_health")

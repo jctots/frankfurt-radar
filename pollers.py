@@ -418,6 +418,7 @@ class StaticEventsPoller(BasePoller):
                 lat=ev.get("lat"),
                 lon=ev.get("lon"),
                 location_label=ev.get("location"),
+                image=ev.get("image") or None,
             ))
         log.info("StaticEvents: %d events in window", len(alerts))
         return alerts
@@ -550,6 +551,7 @@ class StaticSportsPoller(BasePoller):
                 lat=ev.get("lat"),
                 lon=ev.get("lon"),
                 location_label=ev.get("location"),
+                image=ev.get("image") or None,
             ))
         log.info("StaticSports: %d events in window", len(alerts))
         return alerts
