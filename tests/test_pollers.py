@@ -108,6 +108,28 @@ class TestDWDPoller:
         assert "Severe thunderstorms" in alert.body
         assert "Seek shelter" in alert.body
 
+    def test_null_severity_filtered_out(self, mocker):
+        from pollers import DWDPoller
+        fixture = {
+            "warnings": [{
+                "id": "DWD_NO_SEV",
+                "event": "THUNDERSTORM",
+                "headline": "Unwetterwarnung",
+                "description_en": "Severe storms.",
+                "instruction_en": "Seek shelter.",
+                # no "severity" key
+                "onset": "2026-06-11T10:00:00Z",
+                "expires": "2026-06-11T18:00:00Z",
+                "lat": 50.1109,
+                "lon": 8.6821,
+            }]
+        }
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alerts = DWDPoller(min_severity=1).fetch()
+
+        assert all(a.id != "DWD_NO_SEV" for a in alerts)
+
     def test_severity_mapped_to_int(self, mocker):
         from pollers import DWDPoller
         fixture = json.loads((FIXTURES_DIR / "dwd_brightsky_response.json").read_text())
@@ -148,6 +170,30 @@ class TestPolizeiPoller:
         alerts = PolizeiPoller().fetch()
         assert alerts[0].published_at is not None
         assert "2026-06-04" in alerts[0].published_at
+
+    def test_missing_published_parsed_gives_null_published_at(self, mocker):
+        from pollers import PolizeiPoller
+
+        class _Entry:
+            def get(self, k, default=None):
+                return {
+                    "id": "https://presseportal.de/9999",
+                    "title": "POL-F: 2026-001 - Frankfurt-Sachsenhausen: Unfall",
+                    "link": "https://presseportal.de/9999",
+                    "summary": "Ein Unfall.",
+                    "content": None,
+                    "published_parsed": None,
+                }.get(k, default)
+
+        feed = MagicMock()
+        feed.bozo = False
+        feed.entries = [_Entry()]
+        mocker.patch("pollers.feedparser.parse", return_value=feed)
+
+        alerts = PolizeiPoller().fetch()
+
+        assert len(alerts) == 1
+        assert alerts[0].published_at is None
 
     def test_source_is_polizei(self, mocker):
         from pollers import PolizeiPoller
@@ -265,6 +311,29 @@ class TestAutobahnPoller:
         alerts = AutobahnPoller(roads=["A5"], radius_km=50.0).fetch()
         assert len(alerts) == 2
         assert all(a.id != "SEQ_WARN_003" for a in alerts)
+
+    def test_empty_point_gives_null_coordinates(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = {
+            "warning": [{
+                "identifier": "NO_POINT_001",
+                "title": "A5 Baustelle",
+                "description": ["Sperrung"],
+                "point": "",
+                "startTimestamp": "2026-06-10T08:00:00Z",
+                "endTimestamp": "",
+            }]
+        }
+        resp = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp, resp_empty])
+
+        alerts = AutobahnPoller(roads=["A5"]).fetch()
+
+        assert len(alerts) == 1
+        assert alerts[0].lat is None
+        assert alerts[0].lon is None
 
     def test_deduplication_across_roads(self, mocker):
         from pollers import AutobahnPoller

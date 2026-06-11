@@ -99,6 +99,34 @@ class TestAlertCache:
         assert rmv_alert.id not in ids
         assert dwd_alert.id in ids
 
+    def test_sync_updates_image_when_changed(self, rmv_alert, mocker, config):
+        mocker.patch("translation.translate_alert", return_value=("T", "B"))
+        rmv_alert.image = None
+        db.sync_alert_cache([rmv_alert], config)
+
+        rmv_alert.image = "https://example.com/img.jpg"
+        db.sync_alert_cache([rmv_alert], config)
+
+        with db._conn() as conn:
+            row = conn.execute(
+                "SELECT image FROM alert_cache WHERE alert_id = ?", (rmv_alert.id,)
+            ).fetchone()
+        assert row["image"] == "https://example.com/img.jpg"
+
+    def test_sync_clears_image_when_set_to_none(self, rmv_alert, mocker, config):
+        mocker.patch("translation.translate_alert", return_value=("T", "B"))
+        rmv_alert.image = "https://example.com/img.jpg"
+        db.sync_alert_cache([rmv_alert], config)
+
+        rmv_alert.image = None
+        db.sync_alert_cache([rmv_alert], config)
+
+        with db._conn() as conn:
+            row = conn.execute(
+                "SELECT image FROM alert_cache WHERE alert_id = ?", (rmv_alert.id,)
+            ).fetchone()
+        assert row["image"] is None
+
     def test_dwd_alert_not_translated(self, dwd_alert, mocker, config):
         mock_translate = mocker.patch("translation.translate_alert", return_value=("T", "B"))
 
@@ -107,6 +135,52 @@ class TestAlertCache:
         # DWD skips translation in translate_alert — verify it was called (translation.py
         # handles the passthrough; db.sync_alert_cache calls translate_alert for all new alerts)
         mock_translate.assert_called_once()
+
+
+class TestPatchPublishedAt:
+    def _insert_cache_row(self, alert_id, source, valid_from, published_at=None):
+        with db._conn() as conn:
+            conn.execute(
+                """INSERT INTO alert_cache (alert_id, source, title_en, body_en, valid_from, published_at)
+                   VALUES (?, ?, 'T', 'B', ?, ?)""",
+                (alert_id, source, valid_from, published_at),
+            )
+
+    def _get_published_at(self, alert_id):
+        with db._conn() as conn:
+            row = conn.execute(
+                "SELECT published_at FROM alert_cache WHERE alert_id = ?", (alert_id,)
+            ).fetchone()
+        return row["published_at"] if row else None
+
+    def test_autobahn_past_valid_from_gets_valid_from(self):
+        past = "2020-01-01T06:00:00Z"
+        self._insert_cache_row("AUTO_PAST", "autobahn", valid_from=past, published_at=past)
+
+        db.patch_published_at()
+
+        assert self._get_published_at("AUTO_PAST") == past
+
+    def test_autobahn_future_valid_from_gets_frankfurt_midnight(self):
+        from zoneinfo import ZoneInfo
+        future = (datetime.now(timezone.utc) + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self._insert_cache_row("AUTO_FUTURE", "autobahn", valid_from=future, published_at=future)
+
+        db.patch_published_at()
+
+        result = self._get_published_at("AUTO_FUTURE")
+        tz = ZoneInfo("Europe/Berlin")
+        expected_midnight = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        expected_utc = expected_midnight.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert result == expected_utc
+
+    def test_null_published_at_with_past_valid_from_gets_valid_from(self):
+        past = "2020-06-01T10:00:00Z"
+        self._insert_cache_row("NULL_PUB", "rmv", valid_from=past, published_at=None)
+
+        db.patch_published_at()
+
+        assert self._get_published_at("NULL_PUB") == past
 
 
 class TestMeta:
