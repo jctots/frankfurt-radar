@@ -251,6 +251,7 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
       background: rgba(0,0,0,0.12); border-radius: 999px;
@@ -357,7 +358,7 @@
 
     /* ── Feed panel ─────────────────────────────────────── */
     .feed-panel {
-      width: 300px;
+      width: 320px;
       min-width: 260px;
       border-right: 1px solid var(--clr-border);
       display: flex;
@@ -1028,6 +1029,14 @@ const SOURCE = {
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
 };
 
+const SVC_ICON = {
+  'S-Bahn':   '/static/icons/sbahn.svg',
+  'U-Bahn':   '/static/icons/ubahn.svg',
+  'Tram':     '/static/icons/tram.svg',
+  'Bus':      '/static/icons/bus.svg',
+  'Regional': '/static/icons/regional.svg',
+};
+
 // Frankfurt district name → [lat, lon] (approximate centres)
 const DISTRICT_COORDS = {
   'sachsenhausen':        [50.0953, 8.6828],
@@ -1611,7 +1620,7 @@ function selectAlert(id, fromMap = false) {
       else map.panTo(latlng, { animate: true });
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
-        L.popup({ maxWidth: 360, minWidth: 260, autoPan: isMobileView() })
+        L.popup({ maxWidth: 360, minWidth: 260, autoPan: true })
           .setLatLng(latlng).setContent(buildPopupHtml(a)).openOn(map);
       });
     };
@@ -1635,15 +1644,15 @@ function selectAlert(id, fromMap = false) {
       : [];
     siblings.forEach(s => clusterGroup.removeLayer(s));
 
-    // On mobile, re-enable autoPan after our centering so the full popup stays in view
+    // Re-enable autoPan after our centering so the full popup stays in view on any viewport size
     const popup = m.getPopup();
-    if (isMobileView() && popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
+    if (popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
 
     m.openPopup();
 
     m.once('popupclose', () => {
       siblings.forEach(s => clusterGroup.addLayer(s));
-      if (isMobileView() && popup) popup.options.autoPan = false;
+      if (popup) popup.options.autoPan = false;
     });
   };
 
@@ -1744,8 +1753,10 @@ function buildFilterBar() {
       if (lines.length) {
         const active = lines.filter(l => filters.lines[l] !== false).length;
         const partial = active < lines.length;
-        const label = partial ? `${esc(svc)}: ${active}/${lines.length} lines ▾` : `${esc(svc)}: ${lines.length} lines ▾`;
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
+        const iconUrl = SVC_ICON[svc];
+        const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : `${esc(svc)} `;
+        const countLabel = partial ? `${active}/${lines.length} ▾` : `${lines.length} ▾`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${countLabel}</button>`;
       }
     });
   }
