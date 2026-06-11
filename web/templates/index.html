@@ -469,7 +469,7 @@
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
-    .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; min-height: 0; overflow: hidden; }
+    .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; align-content: start; min-height: 0; overflow: hidden; }
     .feed-sections:has(#sec-active.open)   { grid-template-rows: 1fr auto; }
     .feed-sections:has(#sec-removed.open)  { grid-template-rows: auto 1fr; }
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
