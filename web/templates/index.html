@@ -317,7 +317,7 @@
     /* ── Status area ────────────────────────────────────── */
     .status-area {
       display: flex;
-      height: calc(100vh - 52px - 44px);
+      height: calc(100dvh - 52px - 44px);
       min-height: 300px;
       overflow: hidden;
       position: relative;
@@ -363,6 +363,8 @@
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+      min-height: 0;
+      overflow: hidden;
       z-index: 10;
     }
 
@@ -427,10 +429,6 @@
     }
 
     .feed {
-      flex: 1;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #cbd5e1 transparent;
       background: var(--clr-surface);
     }
 
@@ -469,6 +467,31 @@
       overflow: hidden;
     }
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
+
+    /* ── Feed sections (accordion) ──────────────────────────── */
+    .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; align-content: start; min-height: 0; overflow: hidden; }
+    .feed-sections:has(#sec-active.open)   { grid-template-rows: 1fr auto; }
+    .feed-sections:has(#sec-removed.open)  { grid-template-rows: auto 1fr; }
+    .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    .feed-section:not(.open) .section-body { display: none; }
+    .section-summary {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--clr-muted);
+      cursor: pointer; user-select: none;
+      background: var(--clr-surface);
+      border-bottom: 1px solid var(--clr-border);
+      border-top: 1px solid var(--clr-border);
+      flex-shrink: 0;
+    }
+    .section-summary:hover { background: #f8fafc; }
+    .dark .section-summary:hover { background: #1e293b; }
+    .section-chevron { margin-left: auto; font-size: 9px; transition: transform 0.15s; }
+    .feed-section.open .section-chevron { transform: rotate(90deg); }
+    .card.card-removed .card-src   { color: var(--clr-muted) !important; }
+    .card.card-removed .card-title { color: var(--clr-muted); }
 
     .empty-state {
       padding: 48px 16px;
@@ -829,8 +852,8 @@
       .updated-full { display: none; }
       .updated-short { display: inline; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
-      .feed-panel     { width: 100%; height: calc(100vh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
-      .feed           { flex: 1; max-height: none; }
+      .feed-panel     { width: 100%; height: calc(100dvh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
+      .feed           { max-height: none; }
       .filter-bar     { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; position: sticky; top: 52px; }
       .filter-sep     { display: none; }
 
@@ -882,13 +905,29 @@
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
-    <div class="feed-header">
-      Active Alerts - <span id="feed-date"></span> <span class="feed-count" id="feed-count">—</span>
-    </div>
-    <div id="event-banners" style="display:none"></div>
-    <div id="sport-banners" style="display:none"></div>
-    <div class="feed" id="feed">
-      <div class="empty-state">Loading…</div>
+    <div class="feed-sections">
+      <div class="feed-section open" id="sec-active">
+        <div class="section-summary" onclick="toggleSection('sec-active')">
+          Active Alerts <span id="feed-date"></span>
+          <span class="feed-count" id="feed-count">—</span>
+          <span class="section-chevron">▶</span>
+        </div>
+        <div class="section-body">
+          <div id="event-banners" style="display:none"></div>
+          <div id="sport-banners" style="display:none"></div>
+          <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
+        </div>
+      </div>
+      <div class="feed-section" id="sec-removed">
+        <div class="section-summary" onclick="toggleSection('sec-removed')">
+          Removed Today
+          <span class="feed-count" id="removed-count">0</span>
+          <span class="section-chevron">▶</span>
+        </div>
+        <div class="section-body">
+          <div class="feed" id="removed-feed"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="map"></div>
@@ -1065,7 +1104,8 @@ const TILES = {
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
-let alerts       = [];
+let alerts        = [];
+let removedAlerts = [];
 let selectedId   = null;
 let map          = null;
 let clusterGroup = null;
@@ -1271,6 +1311,7 @@ async function withBtn(id, loadingText, fn) {
 // ── Data application ──────────────────────────────────────────────────────────
 function applyData(data) {
   alerts = data.alerts || [];
+  removedAlerts = data.removed_alerts || [];
 
   alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
     seenIds.add(a.id);
@@ -1438,6 +1479,12 @@ function daysUntil(iso) {
   return `In ${diff} days`;
 }
 
+function fmtTime(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+}
+
 // ── Feed rendering ────────────────────────────────────────────────────────────
 function renderFeed() {
   updateTicker();
@@ -1456,25 +1503,44 @@ function renderFeed() {
     feed.innerHTML = '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
     if (clusterGroup) clusterGroup.clearLayers();
     markers = {};
-    return;
-  }
-
-  feed.innerHTML = list.map(a => {
-    const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-    const svc  = a.service ? ` · ${esc(a.service)}` : '';
-    const time = fmtDateTime(a.published_at || a.valid_until);
-    return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  } else {
+    feed.innerHTML = list.map(a => {
+      const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
+      const svc  = a.service ? ` · ${esc(a.service)}` : '';
+      const time = fmtDateTime(a.published_at || a.valid_until);
+      return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src" style="color:${src.hex}">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
   <div class="card-meta">${esc(time)}</div>
 </div>`;
-  }).join('');
+    }).join('');
+    renderMarkers();
+  }
 
-  renderMarkers();
-
-  if (selectedId && list.find(a => a.id === selectedId)) {
+  if (selectedId) {
     document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === selectedId));
   }
+
+  // Removed section
+  const removedFeed = document.getElementById('removed-feed');
+  const sorted = [...removedAlerts].sort((a, b) => {
+    const ta = a.published_at || a.valid_until || '';
+    const tb = b.published_at || b.valid_until || '';
+    return tb > ta ? 1 : tb < ta ? -1 : 0;
+  });
+  document.getElementById('removed-count').textContent = sorted.length || '0';
+  removedFeed.innerHTML = sorted.map(a => {
+    const src = SOURCE[a.source] || { label: a.source, emoji: '' };
+    const svc  = a.service ? ` · ${esc(a.service)}` : '';
+    const time = fmtDateTime(a.published_at || a.valid_until);
+    const removedTime = fmtTime(a.removed_at);
+    const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
+    return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  <div class="card-src">${src.emoji} ${src.label}${svc}</div>
+  <div class="card-title">${esc(a.title)}</div>
+  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} ${esc(removedTime)}` : ''}</div>
+</div>`;
+  }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts removed today.</div>';
 }
 
 // ── Mobile map overlay ────────────────────────────────────────────────────────
@@ -1514,7 +1580,7 @@ function selectAlert(id, fromMap = false) {
     return;
   }
 
-  const a = alerts.find(x => x.id === id);
+  const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
   selectedId = id;
 
@@ -1533,6 +1599,26 @@ function selectAlert(id, fromMap = false) {
   if (card) card.scrollIntoView({ block: 'nearest' });
 
   closeWeatherPanel();
+
+  // Removed alert: show standalone popup at coords (no live marker)
+  if (a.removed_at) {
+    const showRemoved = () => {
+      if (a.source === 'dwd') { map.setView(FRANKFURT, 12, { animate: true }); showWeatherPanel(a); return; }
+      if (a.lat == null || a.lon == null) return;
+      const latlng = [a.lat, a.lon];
+      const expectedId = id;
+      if (map.getZoom() < 14) map.setView(latlng, 14, { animate: true });
+      else map.panTo(latlng, { animate: true });
+      map.once('moveend', () => {
+        if (selectedId !== expectedId) return;
+        L.popup({ maxWidth: 360, minWidth: 260, autoPan: isMobileView() })
+          .setLatLng(latlng).setContent(buildPopupHtml(a)).openOn(map);
+      });
+    };
+    if (isMobileView() && !fromMap) openMobileMap(showRemoved);
+    else showRemoved();
+    return;
+  }
 
   const openPopup = (m) => {
     if (a.source === 'polizei') {
@@ -1586,6 +1672,12 @@ function selectAlert(id, fromMap = false) {
 
   if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
   else applyMapOp();
+}
+
+function toggleSection(id) {
+  document.querySelectorAll('.feed-section').forEach(s => {
+    s.classList.toggle('open', s.id === id ? !s.classList.contains('open') : false);
+  });
 }
 
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
@@ -1888,6 +1980,25 @@ async function init() {
     _now.getFullYear();
   initMap();
   maybeShowDisclaimer();
+
+  // Swipe-left on feed panel opens map on mobile
+  (function () {
+    const panel = document.querySelector('.feed-panel');
+    let x0 = null, y0 = null;
+    panel.addEventListener('touchstart', e => {
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    panel.addEventListener('touchend', e => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      const dy = e.changedTouches[0].clientY - y0;
+      x0 = y0 = null;
+      if (dx < -50 && Math.abs(dy) < 80 && isMobileView() && !document.body.classList.contains('mobile-map-open')) {
+        openMobileMap();
+      }
+    }, { passive: true });
+  })();
 
   try {
     applyData(await apiGet('/api/status'));

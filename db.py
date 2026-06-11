@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from models import Alert
@@ -46,7 +47,8 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     lon            REAL,
     location_label TEXT,
     image          TEXT,
-    cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    removed_at     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -89,6 +91,10 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN image TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN removed_at TEXT")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -149,16 +155,22 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     if not alerts:
         with _conn() as conn:
-            conn.execute("DELETE FROM alert_cache")
+            conn.execute(
+                "UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE removed_at IS NULL"
+            )
+            conn.execute(
+                "DELETE FROM alert_cache WHERE removed_at IS NOT NULL"
+                " AND removed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', 'start of day')"
+            )
         return
 
     current_ids = [a.id for a in alerts]
     ph = ",".join("?" * len(current_ids))
 
-    # Determine which alerts already have a cached translation (read-only, short)
+    # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
         cached = {r["alert_id"]: r["image"] for r in conn.execute(
-            f"SELECT alert_id, image FROM alert_cache WHERE alert_id IN ({ph})", current_ids
+            f"SELECT alert_id, image FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
@@ -193,8 +205,16 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 "UPDATE alert_cache SET image = ? WHERE alert_id = ?",
                 to_update_image,
             )
+        # Mark stale active alerts as removed (keep for rest of day)
         conn.execute(
-            f"DELETE FROM alert_cache WHERE alert_id NOT IN ({ph})", current_ids
+            f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+            f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL",
+            current_ids
+        )
+        # Delete removed alerts from previous days
+        conn.execute(
+            "DELETE FROM alert_cache WHERE removed_at IS NOT NULL"
+            " AND removed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', 'start of day')"
         )
 
     log.info("alert_cache: %d total (%d cached, %d translated, %d image updated)",
@@ -202,16 +222,18 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
 
 def get_status_json() -> dict:
-    """Return {updated_at, alerts: [...]} matching the former status.json schema."""
+    """Return {updated_at, alerts, removed_alerts, source_health}."""
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM alert_cache ORDER BY cached_at DESC"
+        active_rows = conn.execute(
+            "SELECT * FROM alert_cache WHERE removed_at IS NULL ORDER BY cached_at DESC"
+        ).fetchall()
+        removed_rows = conn.execute(
+            "SELECT * FROM alert_cache WHERE removed_at IS NOT NULL ORDER BY published_at DESC"
         ).fetchall()
     updated_at = get_meta("last_polled_at")
-    alerts = []
-    for row in rows:
-        r = dict(row)
-        alerts.append({
+
+    def _to_dict(r, include_removed_at=False):
+        d = {
             "id":             r["alert_id"],
             "source":         r["source"],
             "title":          r["title_en"],
@@ -227,12 +249,46 @@ def get_status_json() -> dict:
             "lon":            r["lon"],
             "location_label": r["location_label"],
             "image":          r["image"],
-        })
+        }
+        if include_removed_at:
+            d["removed_at"] = r["removed_at"]
+        return d
+
+    alerts = [_to_dict(dict(r)) for r in active_rows]
+    removed_alerts = [_to_dict(dict(r), include_removed_at=True) for r in removed_rows]
 
     source_health_raw = get_meta("source_health")
     source_health = json.loads(source_health_raw) if source_health_raw else {}
 
-    return {"updated_at": updated_at, "alerts": alerts, "source_health": source_health}
+    return {"updated_at": updated_at, "alerts": alerts, "removed_alerts": removed_alerts, "source_health": source_health}
+
+
+# ── Cold-start published_at patch ────────────────────────────────────────────
+
+def patch_published_at() -> None:
+    """Fix NULL published_at after a cold start. Called from the burst guard."""
+    tz = ZoneInfo("Europe/Berlin")
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    # Frankfurt midnight today → UTC ISO (handles CET/CEST automatically)
+    frankfurt_today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_today = frankfurt_today.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT alert_id, valid_from FROM alert_cache WHERE published_at IS NULL"
+        ).fetchall()
+        for row in rows:
+            if row["valid_from"] and row["valid_from"] < now_iso:
+                pub = row["valid_from"]
+            else:
+                pub = start_of_today
+            conn.execute(
+                "UPDATE alert_cache SET published_at = ? WHERE alert_id = ?",
+                (pub, row["alert_id"]),
+            )
+    if rows:
+        log.info("patch_published_at: fixed %d rows", len(rows))
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────

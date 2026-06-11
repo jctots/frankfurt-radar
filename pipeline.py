@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from models import Alert
 
-from db import get_unseen_alerts, mark_seen, mark_seen_batch
+from db import get_unseen_alerts, mark_seen, mark_seen_batch, patch_published_at
 from models import SOURCE_EMOJI
 from notifications import notify
 from translation import translate_alert
@@ -39,10 +39,11 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
     burst_threshold = config.get("notifier", {}).get("notify_burst_threshold", 10)
     if len(new_alerts) >= burst_threshold:
         log.warning(
-            "Cold-start guard: %d new alerts exceeds threshold %d — marking seen, skipping notifications",
+            "Cold-start guard: %d new alerts exceeds threshold %d — marking seen, patching published_at, skipping notifications",
             len(new_alerts), burst_threshold,
         )
         mark_seen_batch(new_alerts)
+        patch_published_at()
         return
 
     throttle_every = config.get("notifier", {}).get("notify_throttle_every", 10)
