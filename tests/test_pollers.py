@@ -460,6 +460,163 @@ class TestStaticEventsPoller:
         assert dippemess.id == "city-event-2026-autumn-dippemess"
 
 
+# ── BaustellenPoller ─────────────────────────────────────────────────────────
+
+class TestBaustellenPoller:
+    _NOW = datetime(2026, 6, 11, 12, 0, 0, tzinfo=timezone.utc)
+
+    _ACTIVE = {
+        "baustellennummer": "V-2026-00100",
+        "name": "Battonnstraße",
+        "textlong": "Rohrleitungsarbeiten in der Battonnstraße.",
+        "meldung_en": "roadworks",
+        "startevent": "2026-01-01T00:00:00Z",
+        "endevent": "2027-01-01T00:00:00Z",
+        "sperrung": 1,
+    }
+    _PARTIAL = {
+        "baustellennummer": "V-2026-00200",
+        "name": "Schweizer Straße",
+        "textlong": "Kanalbauarbeiten.",
+        "meldung_en": "roadworks",
+        "startevent": "2026-06-01T00:00:00Z",
+        "endevent": "2026-12-31T00:00:00Z",
+        "sperrung": 0,
+    }
+    _EXPIRED = {
+        "baustellennummer": "V-2025-00001",
+        "name": "Old Street",
+        "textlong": "Abgeschlossene Maßnahme.",
+        "meldung_en": "roadworks",
+        "startevent": "2025-01-01T00:00:00Z",
+        "endevent": "2025-06-01T00:00:00Z",
+        "sperrung": 0,
+    }
+    _MULTIPOLYGON_GEOM = {
+        "type": "MultiPolygon",
+        "coordinates": [[[[8.690, 50.110], [8.695, 50.110], [8.695, 50.115], [8.690, 50.115], [8.690, 50.110]]]],
+    }
+    _LINESTRING_GEOM = {
+        "type": "LineString",
+        "coordinates": [[8.680, 50.100], [8.685, 50.102], [8.690, 50.105]],
+    }
+
+    def _fetch(self, features):
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        payload = {"features": [{"properties": f, "geometry": None} for f in features]}
+        with mock.patch("pollers.requests.get", return_value=_mock_response(payload)):
+            with mock.patch("pollers.datetime") as m:
+                m.now.return_value = self._NOW
+                m.fromisoformat.side_effect = datetime.fromisoformat
+                return BaustellenPoller().fetch()
+
+    def test_active_feature_returned(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert len(alerts) == 1
+        assert alerts[0].source == "baustellen"
+
+    def test_expired_feature_filtered(self):
+        alerts = self._fetch([self._EXPIRED])
+        assert alerts == []
+
+    def test_full_closure_title(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert alerts[0].title == "Full closure of Battonnstraße"
+
+    def test_partial_closure_title(self):
+        alerts = self._fetch([self._PARTIAL])
+        assert alerts[0].title == "Partial closure of Schweizer Straße"
+
+    def test_body_is_textlong(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert alerts[0].body == "Rohrleitungsarbeiten in der Battonnstraße."
+
+    def test_id_uses_baustellennummer(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert alerts[0].id == "baustellen-V-2026-00100"
+
+    def test_valid_from_valid_until_set(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert "2026-01-01" in alerts[0].valid_from
+        assert "2027-01-01" in alerts[0].valid_until
+
+    def test_null_coordinates_when_no_geometry(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert alerts[0].lat is None
+        assert alerts[0].lon is None
+
+    def test_multipolygon_centroid(self):
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        payload = {"features": [{"properties": self._ACTIVE, "geometry": self._MULTIPOLYGON_GEOM}]}
+        with mock.patch("pollers.requests.get", return_value=_mock_response(payload)):
+            with mock.patch("pollers.datetime") as m:
+                m.now.return_value = self._NOW
+                m.fromisoformat.side_effect = datetime.fromisoformat
+                alerts = BaustellenPoller().fetch()
+        assert alerts[0].lat == pytest.approx(50.1125, abs=0.001)
+        assert alerts[0].lon == pytest.approx(8.6925, abs=0.001)
+
+    def test_linestring_midpoint(self):
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        payload = {"features": [{"properties": self._PARTIAL, "geometry": self._LINESTRING_GEOM}]}
+        with mock.patch("pollers.requests.get", return_value=_mock_response(payload)):
+            with mock.patch("pollers.datetime") as m:
+                m.now.return_value = self._NOW
+                m.fromisoformat.side_effect = datetime.fromisoformat
+                alerts = BaustellenPoller().fetch()
+        assert alerts[0].lat == pytest.approx(50.102, abs=0.001)
+        assert alerts[0].lon == pytest.approx(8.685, abs=0.001)
+
+    def test_request_failure_returns_empty(self):
+        import requests as req_lib
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        with mock.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout")):
+            p = BaustellenPoller()
+            alerts = p.fetch()
+        assert alerts == []
+        assert p.ok is False
+
+    def test_published_at_is_poll_time(self):
+        alerts = self._fetch([self._ACTIVE])
+        assert alerts[0].published_at == self._NOW.isoformat()
+
+    def test_multiple_only_active_returned(self):
+        alerts = self._fetch([self._ACTIVE, self._PARTIAL, self._EXPIRED])
+        assert len(alerts) == 2
+        ids = {a.id for a in alerts}
+        assert "baustellen-V-2025-00001" not in ids
+
+    def test_sperrung_filter_full_only(self):
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        payload = {"features": [{"properties": self._ACTIVE, "geometry": None},
+                                 {"properties": self._PARTIAL, "geometry": None}]}
+        with mock.patch("pollers.requests.get", return_value=_mock_response(payload)):
+            with mock.patch("pollers.datetime") as m:
+                m.now.return_value = self._NOW
+                m.fromisoformat.side_effect = datetime.fromisoformat
+                alerts = BaustellenPoller(sperrung_filter={1}).fetch()
+        assert len(alerts) == 1
+        assert alerts[0].title.startswith("Full closure")
+
+    def test_sperrung_filter_partial_only(self):
+        import unittest.mock as mock
+        from pollers import BaustellenPoller
+        payload = {"features": [{"properties": self._ACTIVE, "geometry": None},
+                                 {"properties": self._PARTIAL, "geometry": None}]}
+        with mock.patch("pollers.requests.get", return_value=_mock_response(payload)):
+            with mock.patch("pollers.datetime") as m:
+                m.now.return_value = self._NOW
+                m.fromisoformat.side_effect = datetime.fromisoformat
+                alerts = BaustellenPoller(sperrung_filter={0}).fetch()
+        assert len(alerts) == 1
+        assert alerts[0].title.startswith("Partial closure")
+
+
 # ── ok flag ───────────────────────────────────────────────────────────────────
 
 class TestPollerOkFlag:

@@ -242,7 +242,8 @@
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.src-dwd.on      { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
     .chip.src-polizei.on  { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
-    .chip.src-autobahn.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.src-autobahn.on   { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.src-baustellen.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #fff7ed; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -453,7 +454,8 @@
     .card.sel { background: #eff6ff; border-left-color: var(--clr-transport); }
     .card.sel.src-dwd      { background: #f5f3ff; border-left-color: var(--clr-weather); }
     .card.sel.src-polizei  { background: #fef2f2; border-left-color: var(--clr-police); }
-    .card.sel.src-autobahn { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.sel.src-autobahn   { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.sel.src-baustellen { background: #fffbeb; border-left-color: var(--clr-roads); }
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
 
@@ -749,6 +751,7 @@
     .dark .card.sel.src-dwd          { background: #2e1065; }
     .dark .card.sel.src-polizei      { background: #450a0a; }
     .dark .card.sel.src-autobahn     { background: #431407; }
+    .dark .card.sel.src-baustellen   { background: #431407; }
     .dark .card.sel.src-events       { background: #022c22; }
     .dark .card.sel.src-sports       { background: #431a06; }
 
@@ -759,6 +762,7 @@
     .dark .chip.src-dwd.on           { background: #2e1065; }
     .dark .chip.src-polizei.on       { background: #450a0a; }
     .dark .chip.src-autobahn.on      { background: #431407; }
+    .dark .chip.src-baustellen.on    { background: #431407; }
     .dark .chip.src-events.on        { background: #022c22; }
     .dark .chip.svc.on,
     .dark .chip.line.on,
@@ -1036,7 +1040,8 @@ const SOURCE = {
   rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
-  autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
+  autobahn:   { label: 'Roads',      emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
+  baustellen: { label: 'City Roads', emoji: '🏗️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: null },
   events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
 };
@@ -1142,6 +1147,7 @@ let filters       = (() => {
 })() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {} };
 if (!filters.sources.hasOwnProperty('events')) filters.sources.events = true;
 if (!filters.sources.hasOwnProperty('sports')) filters.sources.sports = true;
+if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = true;
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1402,6 +1408,7 @@ function visible() {
   return alerts.filter(a => {
     if (a.source === 'events') return false;
     if (a.source === 'sports') return false;
+    if (a.source === 'baustellen' && filters.sources.autobahn === false) return false;
     if (filters.sources[a.source] === false) return false;
     if (a.source === 'rmv') {
       if (a.lines && a.lines.length) {
@@ -1737,6 +1744,7 @@ function buildFilterBar() {
   ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
     counts[src] = alerts.filter(a => a.source === src).length;
   });
+  counts.autobahn += alerts.filter(a => a.source === 'baustellen').length;
 
   // Weather
   const dwdOn = filters.sources.dwd !== false;

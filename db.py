@@ -283,7 +283,7 @@ def patch_published_at() -> None:
         rows = conn.execute(
             """SELECT alert_id, valid_from FROM alert_cache
                WHERE published_at IS NULL
-                  OR (source = 'autobahn' AND valid_from IS NOT NULL)"""
+                  OR (source IN ('autobahn', 'baustellen') AND valid_from IS NOT NULL)"""
         ).fetchall()
         for row in rows:
             if row["valid_from"] and row["valid_from"] < now_iso:

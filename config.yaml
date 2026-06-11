@@ -1,5 +1,6 @@
 transport:
   enabled: true
+  max_age_days: 30          # drop RMV disruptions first seen more than N days ago
   # Optional service filter — omit or leave empty to receive all services and lines.
   # Examples:
   #   services:             ← all services, all lines (default)
@@ -33,15 +34,14 @@ police:
   enabled: true
   max_age_hours: 48                # drop police alerts older than this many hours; 0 = no limit
 
-
-# Phase 2b — weather warnings (DWD)
 weather:
   enabled: true
   min_severity: 1         # 1=minor, 2=moderate, 3=severe, 4=extreme
 
-# Phase 2a v0.2.0 — Autobahn road incidents (no API key required)
+# Highway road incidents — Autobahn GmbH API (no key required)
 autobahn:
   enabled: true
+  max_age_days: 30          # drop autobahn constructions first seen more than N days ago
   kinds:
     - closure       # planned roadworks and closures (days/weeks)
     # - warning     # real-time incidents (jams, accidents) — noisy during rush hour
@@ -55,6 +55,14 @@ autobahn:
     - A480
     - A648
     - A661
+
+# Frankfurt city road disruptions — geowebdienste.frankfurt.de WFS (public, no auth)
+baustellen:
+  enabled: true
+  max_age_days: 30          # drop city disruptions first seen more than N days ago
+  closures:
+    - full                  # sperrung=1: road completely blocked
+    # - partial               # sperrung=0: lane restriction / partial closure
 
 # City events — dates and details are in city_events.yaml (same DATA_DIR)
 events:

@@ -109,7 +109,7 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
         sections.append("🚨 Police — last 24h\n" + "\n".join(lines))
         to_mark.extend(unseen_police)
 
-    road = [a for a in alerts if a.source == "autobahn"]
+    road = [a for a in alerts if a.source in ("autobahn", "baustellen")]
     if road:
         rows = [f"• {translate_alert(a, config)[0]}" for a in road]
         sections.append("🚧 Roads\n" + "\n".join(rows))
