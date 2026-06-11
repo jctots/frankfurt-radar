@@ -254,11 +254,19 @@
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
-      background: rgba(0,0,0,0.12); border-radius: 999px;
+      background: #e8eaed; color: var(--clr-transport); border-radius: 999px;
       min-width: 16px; height: 16px; padding: 0 4px; flex-shrink: 0;
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
       margin-left: 4px;
     }
+    .weather-status {
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; cursor: default;
+    }
+    .ws-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
+    .ws-text { display: flex; flex-direction: column; }
+    .ws-temp { font-size: 13px; font-weight: 600; color: var(--clr-text); line-height: 1.3; }
+    .ws-desc { font-size: 11px; color: var(--clr-muted); line-height: 1.3; }
 
     .lines-popup {
       position: fixed;
@@ -755,7 +763,7 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
-    .dark .chip-count                { background: rgba(255,255,255,0.15); }
+    .dark .chip-count                { background: rgba(255,255,255,0.15); color: #93c5fd; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -844,12 +852,15 @@
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
+      .ws-icon { font-size: 16px; }
+      .ws-desc { display: none; }
+      .ws-temp { font-size: 13px; }
       .btn-label { display: none; }
       .brand { font-size: 20px; }
       header { padding: 0 8px; }
       .ticker-wrap  { display: none; }
       .updated-full { display: none; }
-      .updated-short { display: inline; }
+      .updated-short { display: none; }
       .status-area    { height: auto; flex-direction: column; overflow: visible; }
       .feed-panel     { width: 100%; height: calc(100dvh - 52px - 44px); max-height: none; border-right: none; border-bottom: none; }
       .feed           { max-height: none; }
@@ -881,6 +892,7 @@
 
 <header>
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
+  <div class="weather-status" id="weather-status"></div>
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
@@ -1706,6 +1718,8 @@ function badge(n) {
   return n ? ` <span class="chip-count">${n}</span>` : '';
 }
 
+const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
+
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
@@ -1715,37 +1729,18 @@ function buildFilterBar() {
     counts[src] = alerts.filter(a => a.source === src).length;
   });
 
-  // Police
-  const polOn = filters.sources.polizei !== false;
-  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
-
   // Weather
-  html += '<div class="filter-sep"></div>';
   const dwdOn = filters.sources.dwd !== false;
   html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}${badge(counts.dwd)}</button>`;
-
-  // Roads
-  html += '<div class="filter-sep"></div>';
-  const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
-
-  // Events
-  html += '<div class="filter-sep"></div>';
-  const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}${badge(counts.events)}</button>`;
-
-  // Sports
-  html += '<div class="filter-sep"></div>';
-  const spOn = filters.sources.sports !== false;
-  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}${badge(counts.sports)}</button>`;
 
   // Transport + lines
   html += '<div class="filter-sep"></div>';
   const rmvOn = filters.sources.rmv !== false;
   html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
   if (rmvOn) {
-    const rmv  = alerts.filter(a => a.source === 'rmv');
-    const svcs = [...new Set(rmv.filter(a => a.service).map(a => a.service))].sort();
+    const rmv     = alerts.filter(a => a.source === 'rmv');
+    const rawSvcs = new Set(rmv.filter(a => a.service).map(a => a.service));
+    const svcs    = SVC_ORDER.filter(s => rawSvcs.has(s)).concat([...rawSvcs].filter(s => !SVC_ORDER.includes(s)));
     svcs.forEach(svc => {
       const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
       if (lines.length) {
@@ -1758,6 +1753,26 @@ function buildFilterBar() {
       }
     });
   }
+
+  // Police
+  html += '<div class="filter-sep"></div>';
+  const polOn = filters.sources.polizei !== false;
+  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
+
+  // Roads
+  html += '<div class="filter-sep"></div>';
+  const abOn = filters.sources.autobahn !== false;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+
+  // Festivals
+  html += '<div class="filter-sep"></div>';
+  const evOn = filters.sources.events !== false;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}${badge(counts.events)}</button>`;
+
+  // Sports
+  html += '<div class="filter-sep"></div>';
+  const spOn = filters.sources.sports !== false;
+  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}${badge(counts.sports)}</button>`;
 
   bar.innerHTML = html;
 }
@@ -2026,9 +2041,47 @@ async function init() {
 
   setInterval(updateRelativeTime, 30_000);
 
+  fetchCurrentWeather();
+  setInterval(fetchCurrentWeather, 15 * 60 * 1000);
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') flushHighlights();
   });
+}
+
+// ── Current weather ───────────────────────────────────────────────────────────
+const WEATHER_EMOJI = {
+  'clear-day': '☀️', 'clear-night': '🌙',
+  'partly-cloudy-day': '⛅', 'partly-cloudy-night': '🌤️',
+  'cloudy': '☁️', 'overcast': '☁️', 'fog': '🌫️',
+  'wind': '💨', 'rain': '🌧️', 'drizzle': '🌦️',
+  'sleet': '🌨️', 'snow': '❄️', 'hail': '🌨️',
+  'thunderstorm': '⛈️', 'thunder-rain': '⛈️',
+  'thunder-showers-day': '⛈️', 'thunder-showers-night': '⛈️',
+};
+const WEATHER_DESC = {
+  'clear-day': 'Clear sky', 'clear-night': 'Clear sky',
+  'partly-cloudy-day': 'Partly cloudy', 'partly-cloudy-night': 'Partly cloudy',
+  'cloudy': 'Cloudy', 'overcast': 'Overcast', 'fog': 'Foggy',
+  'wind': 'Windy', 'rain': 'Rain', 'drizzle': 'Light rain',
+  'sleet': 'Sleet', 'snow': 'Snow', 'hail': 'Hail',
+  'thunderstorm': 'Thunderstorm', 'thunder-rain': 'Thunderstorm',
+  'thunder-showers-day': 'Thunderstorm', 'thunder-showers-night': 'Thunderstorm',
+};
+
+async function fetchCurrentWeather() {
+  try {
+    const r = await fetch('https://api.brightsky.dev/current_weather?lat=50.1109&lon=8.6821');
+    const data = await r.json();
+    const w = data.weather;
+    const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
+    const desc  = WEATHER_DESC[w.icon]  || '';
+    const temp  = Math.round(w.temperature);
+    const el = document.getElementById('weather-status');
+    if (el) el.innerHTML =
+      `<span class="ws-icon">${emoji}</span>` +
+      `<div class="ws-text"><span class="ws-temp">${temp}°C</span><span class="ws-desc">${desc}</span></div>`;
+  } catch (e) { /* non-critical */ }
 }
 
 init();
