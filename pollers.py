@@ -367,13 +367,13 @@ class AutobahnPoller(BasePoller):
                 desc = [str(desc)] if desc else []
             body = "\n".join(desc)
 
-            published_at = datetime.now(timezone.utc).isoformat()
             valid_from   = _parse_autobahn_beginn(desc)
             valid_until  = _parse_autobahn_ende(desc)
             if not valid_until:
                 bis_from, valid_until = _parse_autobahn_bis_zum(desc)
                 if not valid_from:
                     valid_from = bis_from
+            published_at = valid_from or datetime.now(timezone.utc).isoformat()
 
             alerts.append(Alert(
                 id=alert_id,
@@ -673,9 +673,11 @@ class BaustellenPoller(BasePoller):
         sperrung = props.get("sperrung")
         if self.sperrung_filter is not None and sperrung not in self.sperrung_filter:
             return None
-        closure  = "Full closure" if sperrung == 1 else "Partial closure"
+        full     = sperrung == 1
+        closure  = "Full closure" if full else "Partial closure"
         name     = (props.get("name") or "").strip()
         title    = f"{closure} of {name}" if name else closure
+        service_label = "City (Full)" if full else "City (Partial)"
 
         return Alert(
             id=f"baustellen-{props.get('baustellennummer', '')}",
@@ -686,7 +688,7 @@ class BaustellenPoller(BasePoller):
             published_at=start.isoformat(),
             valid_from=start.isoformat(),
             valid_until=end.isoformat(),
-            service="City",
+            service=service_label,
             lat=lat,
             lon=lon,
         )

@@ -1159,14 +1159,20 @@ let markers      = {}; // id → L.Marker
 let policeCircles = {}; // id → L.Circle, shown when police marker is expanded
 let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
 let pendingHighlight = new Set();
+let _initialLoad     = true;
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
+let _roadsClosedBy = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {} };
-if (!filters.sources.hasOwnProperty('events')) filters.sources.events = true;
-if (!filters.sources.hasOwnProperty('sports')) filters.sources.sports = true;
+})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
+if (!filters.sources.hasOwnProperty('events'))    filters.sources.events = true;
+if (!filters.sources.hasOwnProperty('sports'))    filters.sources.sports = true;
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = true;
+if (!filters.roads) filters.roads = {};
+if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
+if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
+if (!filters.roads.hasOwnProperty('city_full'))   filters.roads.city_full   = true;
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1270,13 +1276,15 @@ function renderMarkers() {
   if (!map || !clusterGroup) return;
   const activeOpen      = searchTerm || openSection === 'active';
   const longRunOpen     = searchTerm || openSection === 'longrunning';
+  const clearedOpen     = openSection === 'removed';
   const feedItems       = [
     ...(activeOpen  ? visible()            : []),
     ...(longRunOpen ? visibleLongRunning() : []),
+    ...(clearedOpen ? removedAlerts.filter(a => a.lat != null && a.lon != null && filters.sources[a.source] !== false) : []),
   ];
   const list   = feedItems;
-  const events = filters.sources.events !== false ? alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null) : [];
-  const sports = filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null) : [];
+  const events = activeOpen && filters.sources.events !== false ? alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null) : [];
+  const sports = activeOpen && filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null) : [];
   const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id), ...sports.map(a => a.id)]);
 
   // Remove markers (and any active circles) for alerts no longer visible
@@ -1367,9 +1375,12 @@ function applyData(data) {
 
   alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
     seenIds.add(a.id);
-    fireNotification(a);
-    pendingHighlight.add(a.id);
+    if (!_initialLoad && !a.stale) {
+      fireNotification(a);
+      pendingHighlight.add(a.id);
+    }
   });
+  _initialLoad = false;
   const trimmed = [...seenIds].slice(-SEEN_MAX);
   seenIds = new Set(trimmed);
   localStorage.setItem('fr_seen', JSON.stringify(trimmed));
@@ -1436,7 +1447,10 @@ function clearSearch() {
 function passesFilters(a) {
   if (a.source === 'events') return false;
   if (a.source === 'sports') return false;
-  if (a.source === 'baustellen' && filters.sources.autobahn === false) return false;
+  if (a.source === 'autobahn'   && filters.roads.highways    === false) return false;
+  if (a.source === 'baustellen' && filters.sources.autobahn  === false) return false;
+  if (a.source === 'baustellen' && a.service === 'City (Partial)' && filters.roads.city_partial === false) return false;
+  if (a.source === 'baustellen' && a.service === 'City (Full)'    && filters.roads.city_full    === false) return false;
   if (filters.sources[a.source] === false) return false;
   if (a.source === 'rmv') {
     if (a.lines && a.lines.length) {
@@ -1766,6 +1780,8 @@ function toggleSection(id) {
   _applyAccordionState();
   renderFeed();
   buildFilterBar();
+  selectedId = null;
+  if (map) map.setView(FRANKFURT, 12, { animate: true });
 }
 
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
@@ -1826,9 +1842,9 @@ function buildFilterBar() {
         const active = lines.filter(l => filters.lines[l] !== false).length;
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
-        const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : `${esc(svc)} `;
+        const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : '';
         const countLabel = partial ? `${active}/${lines.length} ▾` : `${lines.length} ▾`;
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${countLabel}</button>`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} ${countLabel}</button>`;
       }
     });
   }
@@ -1842,6 +1858,12 @@ function buildFilterBar() {
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
   html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+  if (abOn) {
+    const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
+    const roadPartial = enabledRoadTypes < 3;
+    const roadCount = roadPartial ? `${enabledRoadTypes}/3` : `3`;
+    html += `<button class="chip line-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type ${roadCount} ▾</button>`;
+  }
 
   // Festivals
   html += '<div class="filter-sep"></div>';
@@ -1934,6 +1956,85 @@ function setAllLines(svc, val) {
 
 
 
+
+// ── Roads popup ───────────────────────────────────────────────────────────────
+const ROAD_TYPES = [
+  { key: 'highways',     label: 'Highways' },
+  { key: 'city_partial', label: 'City Road (Partial)' },
+  { key: 'city_full',    label: 'City Road (Full)' },
+];
+
+function openRoadsPopup(btn) {
+  if (_roadsClosedBy === btn) { _roadsClosedBy = null; return; }
+  _roadsClosedBy = null;
+  closeRoadsPopup(false);
+  closeLinesPopup(false);
+
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'roads-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+
+  popup.innerHTML = `
+    <div class="lines-popup-actions">
+      <button onclick="setAllRoads(true)">All</button>
+      <button onclick="setAllRoads(false)">None</button>
+    </div>
+    <div class="lines-popup-body">
+      ${ROAD_TYPES.map(t => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.roads[t.key] !== false ? 'checked' : ''} onchange="toggleRoad('${t.key}')">
+          ${t.label}
+        </label>`).join('')}
+    </div>`;
+
+  document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
+  setTimeout(() => document.addEventListener('click', _outsideCloseRoads, { capture: true }), 0);
+}
+
+function _outsideCloseRoads(e) {
+  const popup = document.getElementById('roads-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    _roadsClosedBy = e.target;
+    closeRoadsPopup(false);
+    setTimeout(() => buildFilterBar(), 0);
+  } else {
+    document.addEventListener('click', _outsideCloseRoads, { capture: true, once: true });
+  }
+}
+
+function closeRoadsPopup(rebuild = true) {
+  document.removeEventListener('click', _outsideCloseRoads, { capture: true });
+  const popup = document.getElementById('roads-popup');
+  if (popup) popup.remove();
+  if (rebuild) buildFilterBar();
+}
+
+function toggleRoad(key) {
+  filters.roads[key] = filters.roads[key] !== false ? false : true;
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('roads-popup');
+  if (popup) {
+    const inputs = popup.querySelectorAll('input[type=checkbox]');
+    ROAD_TYPES.forEach((t, i) => { inputs[i].checked = filters.roads[t.key] !== false; });
+  }
+}
+
+function setAllRoads(val) {
+  ROAD_TYPES.forEach(t => { filters.roads[t.key] = val; });
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('roads-popup');
+  if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
+}
 
 // ── Browser notifications ─────────────────────────────────────────────────────
 async function toggleNotifications() {
