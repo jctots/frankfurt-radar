@@ -572,8 +572,8 @@
       align-items: center;
       margin-top: 10px;
       padding: 5px 10px;
-      background: #1e293b;
-      color: white;
+      background: var(--clr-border);
+      color: var(--clr-text);
       border-radius: 5px;
       text-decoration: none;
       font-size: 11px;
@@ -971,12 +971,12 @@
     {% if kofi_url or github_url %}
     <h2>🤝 Get Involved</h2>
     <p>Free, ad-free, and open source. If it saves you a missed train or a soaked commute — buy us a coffee, or just tell us what to fix.</p>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-      {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener">☕ Buy a coffee</a>{% endif %}
+    <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px">
+      {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener" style="justify-content:center">☕ Buy the radar operator a coffee</a>{% endif %}
       {% if github_url %}
       <div style="display:flex;gap:8px">
-        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">🐛 Report a bug</a>
-        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=enhancement&template=feature_request.md" target="_blank" rel="noopener">💡 Request a feature</a>
+        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener" style="flex:1;justify-content:center">🐛 Report a bug</a>
+        <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=enhancement&template=feature_request.md" target="_blank" rel="noopener" style="flex:1;justify-content:center">💡 Request a feature</a>
       </div>
       {% endif %}
     </div>
@@ -1545,8 +1545,8 @@ function renderFeed() {
   // Removed section
   const removedFeed = document.getElementById('removed-feed');
   const sorted = [...removedAlerts].sort((a, b) => {
-    const ta = a.published_at || a.valid_until || '';
-    const tb = b.published_at || b.valid_until || '';
+    const ta = a.removed_at || '';
+    const tb = b.removed_at || '';
     return tb > ta ? 1 : tb < ta ? -1 : 0;
   });
   document.getElementById('removed-count').textContent = sorted.length || '0';
@@ -1661,7 +1661,13 @@ function selectAlert(id, fromMap = false) {
     if (popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
 
     m.openPopup();
-    requestAnimationFrame(() => { const p = m.getPopup(); if (p) p.update(); });
+    const img = m.getPopup()?.getElement()?.querySelector('img');
+    if (img && !img.complete) {
+      img.addEventListener('load',  () => { const p = m.getPopup(); if (p) p.update(); }, { once: true });
+      img.addEventListener('error', () => { const p = m.getPopup(); if (p) p.update(); }, { once: true });
+    } else {
+      requestAnimationFrame(() => { const p = m.getPopup(); if (p) p.update(); });
+    }
 
     m.once('popupclose', () => {
       siblings.forEach(s => clusterGroup.addLayer(s));
