@@ -50,3 +50,4 @@ class Alert:
     lon: Optional[float] = None         # map pin longitude
     location_label: Optional[str] = None  # human-readable location hint
     image: Optional[str] = None         # direct upload.wikimedia.org thumbnail URL
+    stale: bool = False                  # older than stale_after_days — shown in accordion 2

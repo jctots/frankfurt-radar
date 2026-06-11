@@ -580,9 +580,9 @@ class TestBaustellenPoller:
         assert alerts == []
         assert p.ok is False
 
-    def test_published_at_is_poll_time(self):
+    def test_published_at_is_start_time(self):
         alerts = self._fetch([self._ACTIVE])
-        assert alerts[0].published_at == self._NOW.isoformat()
+        assert "2026-01-01" in alerts[0].published_at
 
     def test_multiple_only_active_returned(self):
         alerts = self._fetch([self._ACTIVE, self._PARTIAL, self._EXPIRED])

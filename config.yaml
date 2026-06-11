@@ -1,6 +1,7 @@
+stale_after_days: 30        # RMV/autobahn/baustellen alerts older than this move to "Long-running Disruptions"
+
 transport:
   enabled: true
-  max_age_days: 30          # drop RMV disruptions first seen more than N days ago
   # Optional service filter — omit or leave empty to receive all services and lines.
   # Examples:
   #   services:             ← all services, all lines (default)
@@ -41,7 +42,6 @@ weather:
 # Highway road incidents — Autobahn GmbH API (no key required)
 autobahn:
   enabled: true
-  max_age_days: 30          # drop autobahn constructions first seen more than N days ago
   kinds:
     - closure       # planned roadworks and closures (days/weeks)
     # - warning     # real-time incidents (jams, accidents) — noisy during rush hour
@@ -59,7 +59,6 @@ autobahn:
 # Frankfurt city road disruptions — geowebdienste.frankfurt.de WFS (public, no auth)
 baustellen:
   enabled: true
-  max_age_days: 30          # drop city disruptions first seen more than N days ago
   closures:
     - full                  # sperrung=1: road completely blocked
     # - partial               # sperrung=0: lane restriction / partial closure

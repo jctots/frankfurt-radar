@@ -683,10 +683,10 @@ class BaustellenPoller(BasePoller):
             title=title,
             body=props.get("textlong", "").strip(),
             url=None,
-            published_at=now.isoformat(),
+            published_at=start.isoformat(),
             valid_from=start.isoformat(),
             valid_until=end.isoformat(),
-            service=None,
+            service="City",
             lat=lat,
             lon=lon,
         )

@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     location_label TEXT,
     image          TEXT,
     cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    removed_at     TEXT
+    removed_at     TEXT,
+    stale          INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -95,6 +96,10 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN removed_at TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN stale INTEGER NOT NULL DEFAULT 0")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -169,14 +174,16 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
-        cached = {r["alert_id"]: r["image"] for r in conn.execute(
-            f"SELECT alert_id, image FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+        cached = {r["alert_id"]: (r["image"], r["stale"]) for r in conn.execute(
+            f"SELECT alert_id, image, stale FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
     to_insert = []
     to_update_image = []
+    to_update_stale = []
     for alert in alerts:
+        stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
             en_title, en_body = translate_alert(alert, config)
             to_insert.append((
@@ -184,19 +191,23 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.valid_until, alert.service,
                 json.dumps(alert.lines) if alert.lines else None,
                 alert.published_at, alert.valid_from, alert.severity,
-                alert.lat, alert.lon, alert.location_label, alert.image,
+                alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
             ))
-        elif cached[alert.id] != alert.image:
-            to_update_image.append((alert.image, alert.id))
+        else:
+            cached_image, cached_stale = cached[alert.id]
+            if cached_image != alert.image:
+                to_update_image.append((alert.image, alert.id))
+            if cached_stale != stale_int:
+                to_update_stale.append((stale_int, alert.id))
 
-    # Batch write: insert new + refresh changed images + remove stale alerts
+    # Batch write: insert new + refresh changed images/stale + remove gone alerts
     with _conn() as conn:
         if to_insert:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, valid_from, severity, lat, lon, location_label, image, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
             )
@@ -204,6 +215,11 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.executemany(
                 "UPDATE alert_cache SET image = ? WHERE alert_id = ?",
                 to_update_image,
+            )
+        if to_update_stale:
+            conn.executemany(
+                "UPDATE alert_cache SET stale = ? WHERE alert_id = ?",
+                to_update_stale,
             )
         # Mark stale active alerts as removed (keep for rest of day)
         conn.execute(
@@ -217,8 +233,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             " AND removed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', 'start of day')"
         )
 
-    log.info("alert_cache: %d total (%d cached, %d translated, %d image updated)",
-             len(alerts), len(cached), len(to_insert), len(to_update_image))
+    log.info("alert_cache: %d total (%d cached, %d translated, %d image updated, %d stale updated)",
+             len(alerts), len(cached), len(to_insert), len(to_update_image), len(to_update_stale))
 
 
 def get_status_json() -> dict:
@@ -249,6 +265,7 @@ def get_status_json() -> dict:
             "lon":            r["lon"],
             "location_label": r["location_label"],
             "image":          r["image"],
+            "stale":          bool(r["stale"]),
         }
         if include_removed_at:
             d["removed_at"] = r["removed_at"]

@@ -46,8 +46,14 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
         patch_published_at()
         return
 
+    stale_new   = [a for a in new_alerts if a.stale]
+    notify_alerts = [a for a in new_alerts if not a.stale]
+
+    if stale_new:
+        mark_seen_batch(stale_new)
+
     throttle_every = config.get("notifier", {}).get("notify_throttle_every", 10)
-    for i, alert in enumerate(new_alerts):
+    for i, alert in enumerate(notify_alerts):
         en_title, en_body = translate_alert(alert, config)
         emoji = SOURCE_EMOJI.get(alert.source, "")
         if alert.source in ("events", "sports"):

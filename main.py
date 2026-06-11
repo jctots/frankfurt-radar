@@ -140,14 +140,12 @@ def main() -> None:
             if not (a.source == "polizei" and a.published_at and a.published_at < cutoff)
         ]
 
-    for source, cfg_key in (("rmv", "transport"), ("autobahn", "autobahn"), ("baustellen", "baustellen")):
-        max_age_days = config.get(cfg_key, {}).get("max_age_days")
-        if max_age_days:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
-            all_alerts = [
-                a for a in all_alerts
-                if not (a.source == source and a.published_at and a.published_at < cutoff)
-            ]
+    stale_after_days = config.get("stale_after_days")
+    if stale_after_days:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()
+        for a in all_alerts:
+            if a.source in ("rmv", "autobahn", "baustellen") and a.published_at and a.published_at < cutoff:
+                a.stale = True
 
     sync_alert_cache(all_alerts, config)
     expire_processed_alerts()
