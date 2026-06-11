@@ -1534,10 +1534,11 @@ function renderFeed() {
     const svc  = a.service ? ` · ${esc(a.service)}` : '';
     const time = fmtDateTime(a.published_at || a.valid_until);
     const removedTime = fmtTime(a.removed_at);
+    const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
     return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ Removed ${esc(removedTime)}` : ''}</div>
+  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} ${esc(removedTime)}` : ''}</div>
 </div>`;
   }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts removed today.</div>';
 }
