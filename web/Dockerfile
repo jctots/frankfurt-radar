@@ -11,6 +11,7 @@ COPY *.py .
 COPY config.yaml .
 COPY web/app.py .
 COPY web/templates/ templates/
+COPY web/static/ static/
 
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=${BUILD_VERSION}
