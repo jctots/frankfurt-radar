@@ -358,22 +358,13 @@ class AutobahnPoller(BasePoller):
                 desc = [str(desc)] if desc else []
             body = "\n".join(desc)
 
+            published_at = datetime.now(timezone.utc).isoformat()
             valid_from   = _parse_autobahn_beginn(desc)
             valid_until  = _parse_autobahn_ende(desc)
             if not valid_until:
                 bis_from, valid_until = _parse_autobahn_bis_zum(desc)
                 if not valid_from:
                     valid_from = bis_from
-
-            now_utc = datetime.now(timezone.utc)
-            now_iso = now_utc.isoformat()
-            if valid_from and valid_from < now_iso:
-                published_at = valid_from
-            elif valid_from:
-                midnight = datetime.now(_BERLIN).replace(hour=0, minute=0, second=0, microsecond=0)
-                published_at = midnight.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            else:
-                published_at = now_iso
 
             alerts.append(Alert(
                 id=alert_id,
