@@ -251,6 +251,7 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
       background: rgba(0,0,0,0.12); border-radius: 999px;
@@ -357,7 +358,7 @@
 
     /* ── Feed panel ─────────────────────────────────────── */
     .feed-panel {
-      width: 300px;
+      width: 320px;
       min-width: 260px;
       border-right: 1px solid var(--clr-border);
       display: flex;
@@ -840,8 +841,6 @@
 
 /* ── Mobile map overlay ─────────────────────────────────── */
     .mobile-map-open .feed-panel  { display: none; }
-    .mobile-map-open .filter-bar  { display: none; }
-    .mobile-map-open header       { display: none; }
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
@@ -857,14 +856,14 @@
       .filter-bar     { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; position: sticky; top: 52px; }
       .filter-sep     { display: none; }
 
-      /* Map: fixed full-screen, off to the right until opened */
+      /* Map: fixed below header+filter, off to the right until opened */
       #map {
         position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100dvh;
+        top: calc(52px + 44px); left: 0;
+        width: 100%; height: calc(100dvh - 52px - 44px);
         transform: translateX(100%);
         transition: transform 0.22s ease;
-        z-index: 500;
+        z-index: 350;
       }
       .mobile-map-open #map { transform: translateX(0); }
 
@@ -1026,6 +1025,14 @@ const SOURCE = {
   autobahn: { label: 'Roads',     emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
+};
+
+const SVC_ICON = {
+  'S-Bahn':   '/static/icons/sbahn.svg',
+  'U-Bahn':   '/static/icons/ubahn.svg',
+  'Tram':     '/static/icons/tram.svg',
+  'Bus':      '/static/icons/bus.svg',
+  'Regional': '/static/icons/regional.svg',
 };
 
 // Frankfurt district name → [lat, lon] (approximate centres)
@@ -1611,7 +1618,7 @@ function selectAlert(id, fromMap = false) {
       else map.panTo(latlng, { animate: true });
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
-        L.popup({ maxWidth: 360, minWidth: 260, autoPan: isMobileView() })
+        L.popup({ maxWidth: 360, minWidth: 260, autoPan: true })
           .setLatLng(latlng).setContent(buildPopupHtml(a)).openOn(map);
       });
     };
@@ -1635,15 +1642,15 @@ function selectAlert(id, fromMap = false) {
       : [];
     siblings.forEach(s => clusterGroup.removeLayer(s));
 
-    // On mobile, re-enable autoPan after our centering so the full popup stays in view
+    // Re-enable autoPan after our centering so the full popup stays in view on any viewport size
     const popup = m.getPopup();
-    if (isMobileView() && popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
+    if (popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
 
     m.openPopup();
 
     m.once('popupclose', () => {
       siblings.forEach(s => clusterGroup.addLayer(s));
-      if (isMobileView() && popup) popup.options.autoPan = false;
+      if (popup) popup.options.autoPan = false;
     });
   };
 
@@ -1744,8 +1751,10 @@ function buildFilterBar() {
       if (lines.length) {
         const active = lines.filter(l => filters.lines[l] !== false).length;
         const partial = active < lines.length;
-        const label = partial ? `${esc(svc)}: ${active}/${lines.length} lines ▾` : `${esc(svc)}: ${lines.length} lines ▾`;
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${label}</button>`;
+        const iconUrl = SVC_ICON[svc];
+        const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : `${esc(svc)} `;
+        const countLabel = partial ? `${active}/${lines.length} ▾` : `${lines.length} ▾`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${countLabel}</button>`;
       }
     });
   }
@@ -1776,8 +1785,8 @@ function openLinesPopup(svc, btn) {
 
   popup.innerHTML = `
     <div class="lines-popup-actions">
-      <button onclick="setAllLines('${esc(svc)}', true)">Select all</button>
-      <button onclick="setAllLines('${esc(svc)}', false)">Select none</button>
+      <button onclick="setAllLines('${esc(svc)}', true)">All</button>
+      <button onclick="setAllLines('${esc(svc)}', false)">None</button>
     </div>
     <div class="lines-popup-body">
       ${lines.map(l => `
@@ -1788,6 +1797,8 @@ function openLinesPopup(svc, btn) {
     </div>`;
 
   document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
   setTimeout(() => document.addEventListener('click', _outsideClose, { capture: true }), 0);
 }
 

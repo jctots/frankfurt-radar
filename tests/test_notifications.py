@@ -152,9 +152,27 @@ class TestNtfy:
 
 
 class TestNotifyRouting:
+    def test_ntfy_backend_routes_to_ntfy_url(self, mocker):
+        mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())
+        config = {"notifier": {"backend": "ntfy", "ntfy_url": "http://ntfy:80", "ntfy_topic": "t"}}
+
+        notifications.notify(title="T", body="B", url=None, config=config)
+
+        mock_post.assert_called_once()
+        assert "ntfy" in mock_post.call_args.args[0]
+
+    def test_telegram_backend_routes_to_telegram_api(self, mocker, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:token")
+        mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())
+        config = {"notifier": {"backend": "telegram", "telegram_channel": "@Ch"}}
+
+        notifications.notify(title="T", body="B", url=None, config=config)
+
+        mock_post.assert_called_once()
+        assert "telegram.org" in mock_post.call_args.args[0]
+
     def test_unknown_backend_does_not_raise(self, mocker):
         mock_post = mocker.patch("notifications.requests.post", return_value=_mock_ok())
         config = {"notifier": {"backend": "unknown_backend"}}
-        # Should log warning but not raise
         notifications.notify(title="T", body="B", url=None, config=config)
         mock_post.assert_not_called()
