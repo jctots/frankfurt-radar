@@ -1981,6 +1981,24 @@ async function init() {
   initMap();
   maybeShowDisclaimer();
 
+  // Swipe-left on feed panel opens map on mobile
+  (function () {
+    const panel = document.querySelector('.feed-panel');
+    let x0 = null, y0 = null;
+    panel.addEventListener('touchstart', e => {
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    panel.addEventListener('touchend', e => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      const dy = e.changedTouches[0].clientY - y0;
+      x0 = y0 = null;
+      if (dx < -50 && Math.abs(dy) < 80 && isMobileView() && !document.body.classList.contains('mobile-map-open')) {
+        openMobileMap();
+      }
+    }, { passive: true });
+  })();
 
   try {
     applyData(await apiGet('/api/status'));
