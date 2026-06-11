@@ -841,8 +841,6 @@
 
 /* ── Mobile map overlay ─────────────────────────────────── */
     .mobile-map-open .feed-panel  { display: none; }
-    .mobile-map-open .filter-bar  { display: none; }
-    .mobile-map-open header       { display: none; }
 
     @media (max-width: 767px) {
       /* List view: full-height alert list, no map */
@@ -858,14 +856,14 @@
       .filter-bar     { overflow-x: auto; flex-wrap: nowrap; padding: 8px 12px; position: sticky; top: 52px; }
       .filter-sep     { display: none; }
 
-      /* Map: fixed full-screen, off to the right until opened */
+      /* Map: fixed below header+filter, off to the right until opened */
       #map {
         position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100dvh;
+        top: calc(52px + 44px); left: 0;
+        width: 100%; height: calc(100dvh - 52px - 44px);
         transform: translateX(100%);
         transition: transform 0.22s ease;
-        z-index: 500;
+        z-index: 350;
       }
       .mobile-map-open #map { transform: translateX(0); }
 
