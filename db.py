@@ -266,17 +266,24 @@ def get_status_json() -> dict:
 # ── Cold-start published_at patch ────────────────────────────────────────────
 
 def patch_published_at() -> None:
-    """Fix NULL published_at after a cold start. Called from the burst guard."""
+    """Fix published_at after a cold start. Called from the burst guard.
+
+    Covers two cases:
+    - NULL published_at (sources that never provide one)
+    - Autobahn rows: poller always sets published_at = now(), but the API
+      provides no real publication date; valid_from is a better value.
+    """
     tz = ZoneInfo("Europe/Berlin")
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
-    # Frankfurt midnight today → UTC ISO (handles CET/CEST automatically)
     frankfurt_today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     start_of_today = frankfurt_today.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT alert_id, valid_from FROM alert_cache WHERE published_at IS NULL"
+            """SELECT alert_id, valid_from FROM alert_cache
+               WHERE published_at IS NULL
+                  OR (source = 'autobahn' AND valid_from IS NOT NULL)"""
         ).fetchall()
         for row in rows:
             if row["valid_from"] and row["valid_from"] < now_iso:
