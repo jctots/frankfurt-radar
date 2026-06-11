@@ -254,19 +254,20 @@
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
-      background: #e8eaed; color: var(--clr-transport); border-radius: 999px;
+      background: rgba(0,0,0,0.12); border-radius: 999px;
       min-width: 16px; height: 16px; padding: 0 4px; flex-shrink: 0;
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
       margin-left: 4px;
     }
+    .chip.line-picker .chip-count { background: #e8eaed; color: var(--clr-transport); }
     .weather-status {
       display: flex; align-items: center; gap: 6px;
       white-space: nowrap; cursor: default;
     }
     .ws-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
     .ws-text { display: flex; flex-direction: column; }
-    .ws-temp { font-size: 13px; font-weight: 600; color: var(--clr-text); line-height: 1.3; }
-    .ws-desc { font-size: 11px; color: var(--clr-muted); line-height: 1.3; }
+    .ws-temp { font-size: 13px; font-weight: 600; color: white; line-height: 1.3; }
+    .ws-desc { font-size: 11px; color: rgba(255,255,255,0.65); line-height: 1.3; }
 
     .lines-popup {
       position: fixed;
@@ -763,7 +764,8 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
-    .dark .chip-count                { background: rgba(255,255,255,0.15); color: #93c5fd; }
+    .dark .chip-count                { background: rgba(255,255,255,0.15); }
+    .dark .chip.line-picker .chip-count { background: rgba(255,255,255,0.15); color: #93c5fd; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -855,6 +857,7 @@
       .ws-icon { font-size: 16px; }
       .ws-desc { display: none; }
       .ws-temp { font-size: 13px; }
+      #btn-poll { display: none !important; }
       .btn-label { display: none; }
       .brand { font-size: 20px; }
       header { padding: 0 8px; }
@@ -1748,7 +1751,8 @@ function buildFilterBar() {
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
         const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : `${esc(svc)} `;
-        const countLabel = partial ? `${active}/${lines.length} ▾` : `${lines.length} ▾`;
+        const countNum   = partial ? `${active}/${lines.length}` : `${lines.length}`;
+        const countLabel = `<span class="chip-count">${countNum}</span> ▾`;
         html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${countLabel}</button>`;
       }
     });
