@@ -114,6 +114,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: center;
       opacity: 0;
       transform: translateY(6px);
     }
@@ -259,7 +260,6 @@
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
       margin-left: 4px;
     }
-    .chip.line-picker .chip-count { background: #e8eaed; color: var(--clr-transport); }
     .weather-status {
       display: flex; align-items: center; gap: 6px;
       white-space: nowrap; cursor: default;
@@ -765,7 +765,6 @@
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip-count                { background: rgba(255,255,255,0.15); }
-    .dark .chip.line-picker .chip-count { background: rgba(255,255,255,0.15); color: #93c5fd; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -1662,6 +1661,7 @@ function selectAlert(id, fromMap = false) {
     if (popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
 
     m.openPopup();
+    requestAnimationFrame(() => { const p = m.getPopup(); if (p) p.update(); });
 
     m.once('popupclose', () => {
       siblings.forEach(s => clusterGroup.addLayer(s));
@@ -1751,8 +1751,7 @@ function buildFilterBar() {
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
         const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : `${esc(svc)} `;
-        const countNum   = partial ? `${active}/${lines.length}` : `${lines.length}`;
-        const countLabel = `<span class="chip-count">${countNum}</span> ▾`;
+        const countLabel = partial ? `${active}/${lines.length} ▾` : `${lines.length} ▾`;
         html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${countLabel}</button>`;
       }
     });
