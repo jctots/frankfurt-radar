@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from models import Alert
@@ -260,6 +261,34 @@ def get_status_json() -> dict:
     source_health = json.loads(source_health_raw) if source_health_raw else {}
 
     return {"updated_at": updated_at, "alerts": alerts, "removed_alerts": removed_alerts, "source_health": source_health}
+
+
+# ── Cold-start published_at patch ────────────────────────────────────────────
+
+def patch_published_at() -> None:
+    """Fix NULL published_at after a cold start. Called from the burst guard."""
+    tz = ZoneInfo("Europe/Berlin")
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    # Frankfurt midnight today → UTC ISO (handles CET/CEST automatically)
+    frankfurt_today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_today = frankfurt_today.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT alert_id, valid_from FROM alert_cache WHERE published_at IS NULL"
+        ).fetchall()
+        for row in rows:
+            if row["valid_from"] and row["valid_from"] < now_iso:
+                pub = row["valid_from"]
+            else:
+                pub = start_of_today
+            conn.execute(
+                "UPDATE alert_cache SET published_at = ? WHERE alert_id = ?",
+                (pub, row["alert_id"]),
+            )
+    if rows:
+        log.info("patch_published_at: fixed %d rows", len(rows))
 
 
 # ── meta ─────────────────────────────────────────────────────────────────────
