@@ -494,13 +494,19 @@
       font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
       color: var(--clr-muted);
       cursor: pointer; user-select: none;
-      background: var(--clr-surface);
+      background: #f1f5f9;
       border-bottom: 1px solid var(--clr-border);
       border-top: 1px solid var(--clr-border);
+      border-left: 3px solid transparent;
       flex-shrink: 0;
     }
-    .section-summary:hover { background: #f8fafc; }
+    .section-summary:hover { background: #e9eef5; }
+    .dark .section-summary { background: #1a2235; }
     .dark .section-summary:hover { background: #1e293b; }
+    .feed-section.open .section-summary { border-left-color: #1a73e8; padding-left: 11px; color: #1a73e8; background: #eff6ff; }
+    .feed-section.open .section-summary .feed-count { background: #dbeafe; color: #1d4ed8; }
+    .dark .feed-section.open .section-summary { background: #1e3a5f; color: #60a5fa; }
+    .dark .feed-section.open .section-summary .feed-count { background: #172f50; color: #93c5fd; }
     .section-chevron { margin-left: auto; font-size: 9px; transition: transform 0.15s; }
     .feed-section.open .section-chevron { transform: rotate(90deg); }
     .card.card-removed .card-src   { color: var(--clr-muted) !important; }
@@ -926,7 +932,7 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          Active Alerts <span id="feed-date"></span>
+          🔔 Active Alerts <span id="feed-date"></span>
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -938,7 +944,7 @@
       </div>
       <div class="feed-section" id="sec-longrunning">
         <div class="section-summary" onclick="toggleSection('sec-longrunning')">
-          Long-running Disruptions
+          ⏳ Long-running Disruptions
           <span class="feed-count" id="longrunning-count">0</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -948,7 +954,7 @@
       </div>
       <div class="feed-section" id="sec-removed">
         <div class="section-summary" onclick="toggleSection('sec-removed')">
-          Cleared
+          ✅ Cleared
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1409,11 +1415,13 @@ function flushHighlights() {
 // ── Search ────────────────────────────────────────────────────────────────────
 let searchTerm = '';
 
+let _searchDebounce = null;
 function onSearchInput(val) {
   searchTerm = val.trim().toLowerCase();
   document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
   _applyAccordionState();
-  renderFeed();
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); }, 200);
 }
 
 function clearSearch() {
@@ -1743,10 +1751,10 @@ function selectAlert(id, fromMap = false) {
   else applyMapOp();
 }
 
-let openSection = 'active'; // 'active' | 'longrunning' | 'cleared' | null
+let openSection = 'active'; // 'active' | 'longrunning' | 'removed' | null
 
 function _applyAccordionState() {
-  ['active', 'longrunning', 'cleared'].forEach(s => {
+  ['active', 'longrunning', 'removed'].forEach(s => {
     const el = document.getElementById('sec-' + s);
     el.classList.toggle('open', searchTerm ? true : s === openSection);
   });
@@ -1757,6 +1765,7 @@ function toggleSection(id) {
   openSection = (openSection === key && !searchTerm) ? null : key;
   _applyAccordionState();
   renderFeed();
+  buildFilterBar();
 }
 
 function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
@@ -1780,15 +1789,24 @@ function badge(n) {
 
 const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
+function _alertsForSection() {
+  if (searchTerm) return alerts;
+  if (openSection === 'active')      return alerts.filter(a => !a.stale);
+  if (openSection === 'longrunning') return alerts.filter(a =>  a.stale);
+  if (openSection === 'removed')     return removedAlerts;
+  return [];
+}
+
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
 
+  const sectionAlerts = _alertsForSection();
   const counts = {};
   ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
-    counts[src] = alerts.filter(a => a.source === src).length;
+    counts[src] = sectionAlerts.filter(a => a.source === src).length;
   });
-  counts.autobahn += alerts.filter(a => a.source === 'baustellen').length;
+  counts.autobahn += sectionAlerts.filter(a => a.source === 'baustellen').length;
 
   // Weather
   const dwdOn = filters.sources.dwd !== false;
@@ -1799,7 +1817,7 @@ function buildFilterBar() {
   const rmvOn = filters.sources.rmv !== false;
   html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
   if (rmvOn) {
-    const rmv     = alerts.filter(a => a.source === 'rmv');
+    const rmv     = sectionAlerts.filter(a => a.source === 'rmv');
     const rawSvcs = new Set(rmv.filter(a => a.service).map(a => a.service));
     const svcs    = SVC_ORDER.filter(s => rawSvcs.has(s)).concat([...rawSvcs].filter(s => !SVC_ORDER.includes(s)));
     svcs.forEach(svc => {
