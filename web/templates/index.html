@@ -933,7 +933,7 @@
       </div>
       <div class="feed-section" id="sec-removed">
         <div class="section-summary" onclick="toggleSection('sec-removed')">
-          Removed Today
+          Cleared Alerts
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1204,7 +1204,7 @@ function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
-  const useDateOnly = a.source === 'events' || a.source === 'sports';
+  const useDateOnly = a.source === 'events';
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
   if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
@@ -1561,7 +1561,7 @@ function renderFeed() {
   <div class="card-title">${esc(a.title)}</div>
   <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} ${esc(removedTime)}` : ''}</div>
 </div>`;
-  }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts removed today.</div>';
+  }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts cleared today.</div>';
 }
 
 // ── Mobile map overlay ────────────────────────────────────────────────────────
@@ -1936,7 +1936,7 @@ function updateTicker() {
   wrap.innerHTML = '';
   tickerItems = [];
   tickerCurrent = 0;
-  const src = alerts.filter(a => a.source !== 'dwd' && a.source !== 'events');
+  const src = alerts.filter(a => a.source !== 'events' && a.source !== 'sports');
   const pool = src.length ? src : alerts;
   pool.slice(0, 10).forEach(a => {
     const el = document.createElement('div');
@@ -2100,6 +2100,28 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     if (isMobileView()) { map && map.closePopup(); closeMobileMap(); }
     else { map && map.setView(FRANKFURT, 12, { animate: true }); }
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (isMobileView()) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (document.querySelector('.modal-overlay.open')) return;
+
+  if (e.key === 'Escape') {
+    resetState();
+    return;
+  }
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const cards = [...document.querySelectorAll('#feed .card')];
+    if (!cards.length) return;
+    const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
+    const nextIndex = e.key === 'ArrowDown'
+      ? (currentIndex < cards.length - 1 ? currentIndex + 1 : 0)
+      : (currentIndex > 0 ? currentIndex - 1 : cards.length - 1);
+    selectAlert(cards[nextIndex].dataset.id);
   }
 });
 </script>
