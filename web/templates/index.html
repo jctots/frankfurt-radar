@@ -1785,8 +1785,8 @@ function openLinesPopup(svc, btn) {
 
   popup.innerHTML = `
     <div class="lines-popup-actions">
-      <button onclick="setAllLines('${esc(svc)}', true)">Select all</button>
-      <button onclick="setAllLines('${esc(svc)}', false)">Select none</button>
+      <button onclick="setAllLines('${esc(svc)}', true)">All</button>
+      <button onclick="setAllLines('${esc(svc)}', false)">None</button>
     </div>
     <div class="lines-popup-body">
       ${lines.map(l => `
@@ -1797,6 +1797,8 @@ function openLinesPopup(svc, btn) {
     </div>`;
 
   document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
   setTimeout(() => document.addEventListener('click', _outsideClose, { capture: true }), 0);
 }
 
