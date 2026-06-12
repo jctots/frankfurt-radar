@@ -220,6 +220,7 @@
       height: 20px;
       background: var(--clr-border);
       flex-shrink: 0;
+      margin: 0 4px;
     }
 
     .chip {
@@ -471,7 +472,7 @@
     .card.new-alert-flash { animation: new-alert-flash 2s ease-out forwards; }
 
     .card-src {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -499,7 +500,7 @@
     .section-summary {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 14px;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
       color: var(--clr-muted);
       cursor: pointer; user-select: none;
       background: #f1f5f9;
@@ -588,7 +589,7 @@
     .wm-badge { font-size: 10px; color: rgba(255,255,255,0.85); }
     .popup-inner { padding: 14px 16px 12px; }
     .popup-src {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -941,7 +942,7 @@
 
 <header>
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
-  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd" target="_blank" rel="noopener" title="DWD weather warnings"></a>
+  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/wetterundklima_vorort/hessen/frankfurt/_node.html" target="_blank" rel="noopener" title="DWD weather warnings"></a>
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
@@ -960,7 +961,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
+    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1635,12 +1636,7 @@ function resetState() {
 }
 
 function selectAlert(id, fromMap = false) {
-  if (id === selectedId) {
-    resetState();
-    if (isMobileView()) closeMobileMap();
-    else map.setView(FRANKFURT, 12, { animate: true });
-    return;
-  }
+  if (id === selectedId) return;
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
