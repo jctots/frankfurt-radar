@@ -437,11 +437,12 @@
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
 
-    @keyframes new-alert-flash {
-      0%, 20% { box-shadow: inset 0 0 0 2px #fbbf24, 0 2px 8px rgba(251,191,36,0.35); }
-      100%    { box-shadow: none; }
+    @keyframes alert-blink {
+      0%, 100%      { box-shadow: none; }
+      15%, 48%, 81% { box-shadow: inset 0 0 0 2px #fbbf24, 0 2px 8px rgba(251,191,36,0.35); }
+      32%, 65%      { box-shadow: none; }
     }
-    .card.new-alert-flash { animation: new-alert-flash 2s ease-out forwards; }
+    .card.alert-blink { animation: alert-blink 1.4s ease-in-out forwards; }
 
     .card-src {
       font-size: 11px;
@@ -712,6 +713,20 @@
       font-weight: 500;
     }
     .btn-kofi-lg:hover { opacity: 0.9; }
+
+    .btn-sponsor {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      background: #bf4080;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .btn-sponsor:hover { opacity: 0.9; }
 
     .btn-gh {
       display: inline-flex;
@@ -987,11 +1002,16 @@
     <hr>
     {% endif %}
 
-    {% if kofi_url or github_url %}
+    {% if kofi_url or sponsor_url or github_url %}
     <h2>🤝 Get Involved</h2>
     <p>Free, ad-free, and open source. If it saves you a missed train or a soaked commute — buy us a coffee, or just tell us what to fix.</p>
     <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px">
-      {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener" style="justify-content:center">☕ Buy the radar operator a coffee</a>{% endif %}
+      {% if kofi_url or sponsor_url %}
+      <div style="display:flex;gap:8px">
+        {% if kofi_url %}<a class="btn-kofi-lg" href="{{ kofi_url | e }}" target="_blank" rel="noopener" style="flex:1;justify-content:center">☕ Buy a coffee</a>{% endif %}
+        {% if sponsor_url %}<a class="btn-sponsor" href="{{ sponsor_url | e }}" target="_blank" rel="noopener" style="flex:1;justify-content:center">❤️ Become a sponsor</a>{% endif %}
+      </div>
+      {% endif %}
       {% if github_url %}
       <div style="display:flex;gap:8px">
         <a class="btn-gh" href="{{ github_url | e }}/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener" style="flex:1;justify-content:center">🐛 Report a bug</a>
@@ -1360,8 +1380,19 @@ async function withBtn(id, loadingText, fn) {
   finally { btn.disabled = false; btn.textContent = orig; }
 }
 
+// ── Alert blink helper (sec-active only) ──────────────────────────────────────
+function blinkAlertCards(ids) {
+  const sec = document.getElementById('sec-active');
+  if (!sec) return;
+  ids.forEach(id => {
+    const card = sec.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (card) { card.classList.remove('alert-blink'); void card.offsetWidth; card.classList.add('alert-blink'); }
+  });
+}
+
 // ── Data application ──────────────────────────────────────────────────────────
 function applyData(data) {
+  const prevIds = new Set(alerts.map(a => a.id));
   alerts = data.alerts || [];
   removedAlerts = data.removed_alerts || [];
 
@@ -1396,8 +1427,13 @@ function applyData(data) {
     }
   }
 
+  const inFocusNew = !_initialLoad && !document.hidden
+    ? alerts.filter(a => !a.stale && !prevIds.has(a.id)).map(a => a.id)
+    : [];
+
   buildFilterBar();
   renderFeed();
+  if (inFocusNew.length) setTimeout(() => blinkAlertCards(inFocusNew), 50);
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -2131,6 +2167,13 @@ function runGestureHints() {
     mapEl.style.transform = 'translateX(70%)';
     setTimeout(() => { mapEl.style.transform = ''; }, 300);
   }, 900);
+
+  // 4. Blink first alert card to hint it's tappable
+  setTimeout(() => {
+    const sec = document.getElementById('sec-active');
+    const card = sec && sec.querySelector('.card');
+    if (card) { card.classList.remove('alert-blink'); void card.offsetWidth; card.classList.add('alert-blink'); }
+  }, 1400);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -2193,10 +2236,7 @@ async function init() {
       const sec = document.getElementById('sec-active');
       if (_hiddenAlertIds && sec && sec.classList.contains('open')) {
         const newIds = visible().filter(a => !_hiddenAlertIds.has(a.id)).map(a => a.id);
-        newIds.forEach(id => {
-          const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
-          if (card) { card.classList.remove('new-alert-flash'); void card.offsetWidth; card.classList.add('new-alert-flash'); }
-        });
+        if (newIds.length) setTimeout(() => blinkAlertCards(newIds), 50);
       }
       _hiddenAlertIds = null;
     }
