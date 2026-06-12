@@ -2155,6 +2155,38 @@ function toggleDark() {
   if (map) setTileLayer(on ? 'dark' : 'light');
 }
 
+// ── Gesture hints (first-visit mobile affordance) ─────────────────────────────
+function runGestureHints() {
+  if (!isMobileView() || localStorage.getItem('fr_hints_shown')) return;
+  localStorage.setItem('fr_hints_shown', '1');
+
+  setTimeout(() => {
+    // 1. Feed scroll jog
+    const sectionBody = document.querySelector('.feed-section.open .section-body');
+    if (sectionBody && sectionBody.scrollHeight > sectionBody.clientHeight) {
+      sectionBody.scrollTo({ top: 80, behavior: 'smooth' });
+      setTimeout(() => sectionBody.scrollTo({ top: 0, behavior: 'smooth' }), 500);
+    }
+
+    // 2. Filter bar scroll jog
+    setTimeout(() => {
+      const bar = document.getElementById('filter-bar');
+      if (bar && bar.scrollWidth > bar.clientWidth) {
+        bar.scrollTo({ left: 80, behavior: 'smooth' });
+        setTimeout(() => bar.scrollTo({ left: 0, behavior: 'smooth' }), 500);
+      }
+    }, 900);
+
+    // 3. Map peek from right
+    setTimeout(() => {
+      const mapEl = document.getElementById('map');
+      if (!mapEl || document.body.classList.contains('mobile-map-open')) return;
+      mapEl.style.transform = 'translateX(70%)';
+      setTimeout(() => { mapEl.style.transform = ''; }, 600);
+    }, 1800);
+  }, 1500);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   if (ALLOW_POLL) document.getElementById('btn-poll').style.display = '';
@@ -2191,6 +2223,7 @@ async function init() {
 
   try {
     applyData(await apiGet('/api/status'));
+    runGestureHints();
   } catch (e) {
     document.getElementById('feed').innerHTML =
       '<div class="empty-state">Failed to load alerts — retrying in 60s.</div>';
