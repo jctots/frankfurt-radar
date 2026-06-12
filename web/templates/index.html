@@ -1754,6 +1754,7 @@ function closeInfoModal() { document.getElementById('info-modal').classList.remo
 function dismissDisclaimer() {
   localStorage.setItem('fr_disclaimer_seen', '1');
   document.getElementById('disclaimer-modal').classList.remove('open');
+  runGestureHints();
 }
 
 function maybeShowDisclaimer() {
@@ -2160,31 +2161,29 @@ function runGestureHints() {
   if (!isMobileView() || localStorage.getItem('fr_hints_shown')) return;
   localStorage.setItem('fr_hints_shown', '1');
 
+  // 1. Feed scroll jog
+  const sectionBody = document.querySelector('.feed-section.open .section-body');
+  if (sectionBody && sectionBody.scrollHeight > sectionBody.clientHeight) {
+    sectionBody.scrollTo({ top: 80, behavior: 'smooth' });
+    setTimeout(() => sectionBody.scrollTo({ top: 0, behavior: 'smooth' }), 250);
+  }
+
+  // 2. Filter bar scroll jog
   setTimeout(() => {
-    // 1. Feed scroll jog
-    const sectionBody = document.querySelector('.feed-section.open .section-body');
-    if (sectionBody && sectionBody.scrollHeight > sectionBody.clientHeight) {
-      sectionBody.scrollTo({ top: 80, behavior: 'smooth' });
-      setTimeout(() => sectionBody.scrollTo({ top: 0, behavior: 'smooth' }), 500);
+    const bar = document.getElementById('filter-bar');
+    if (bar && bar.scrollWidth > bar.clientWidth) {
+      bar.scrollTo({ left: 80, behavior: 'smooth' });
+      setTimeout(() => bar.scrollTo({ left: 0, behavior: 'smooth' }), 250);
     }
+  }, 450);
 
-    // 2. Filter bar scroll jog
-    setTimeout(() => {
-      const bar = document.getElementById('filter-bar');
-      if (bar && bar.scrollWidth > bar.clientWidth) {
-        bar.scrollTo({ left: 80, behavior: 'smooth' });
-        setTimeout(() => bar.scrollTo({ left: 0, behavior: 'smooth' }), 500);
-      }
-    }, 900);
-
-    // 3. Map peek from right
-    setTimeout(() => {
-      const mapEl = document.getElementById('map');
-      if (!mapEl || document.body.classList.contains('mobile-map-open')) return;
-      mapEl.style.transform = 'translateX(70%)';
-      setTimeout(() => { mapEl.style.transform = ''; }, 600);
-    }, 1800);
-  }, 1500);
+  // 3. Map peek from right
+  setTimeout(() => {
+    const mapEl = document.getElementById('map');
+    if (!mapEl || document.body.classList.contains('mobile-map-open')) return;
+    mapEl.style.transform = 'translateX(70%)';
+    setTimeout(() => { mapEl.style.transform = ''; }, 300);
+  }, 900);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -2223,7 +2222,7 @@ async function init() {
 
   try {
     applyData(await apiGet('/api/status'));
-    runGestureHints();
+    if (localStorage.getItem('fr_disclaimer_seen')) runGestureHints();
   } catch (e) {
     document.getElementById('feed').innerHTML =
       '<div class="empty-state">Failed to load alerts — retrying in 60s.</div>';
