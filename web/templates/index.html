@@ -236,7 +236,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker { border-radius: 2px; padding-right: 4px; }
+    .chip.line-picker, .chip.roads-picker { border-radius: 4px; padding-right: 4px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -1425,7 +1425,7 @@ function onSearchInput(val) {
   document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
   _applyAccordionState();
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); }, 200);
+  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); renderEventBanners(); renderSportsBanners(); }, 200);
 }
 
 function clearSearch() {
@@ -1434,6 +1434,9 @@ function clearSearch() {
   document.getElementById('search-clear').classList.remove('visible');
   _applyAccordionState();
   renderFeed();
+  buildFilterBar();
+  renderEventBanners();
+  renderSportsBanners();
 }
 
 // ── Filtering ─────────────────────────────────────────────────────────────────
@@ -1465,7 +1468,8 @@ function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilt
 function renderEventBanners() {
   const container = document.getElementById('event-banners');
   if (filters.sources.events === false) { container.style.display = 'none'; return; }
-  const events = alerts.filter(a => a.source === 'events');
+  const events = alerts.filter(a => a.source === 'events' &&
+    (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm)));
   if (!events.length) { container.style.display = 'none'; return; }
   container.style.display = '';
   const now = new Date();
@@ -1498,7 +1502,8 @@ const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', footb
 function renderSportsBanners() {
   const container = document.getElementById('sport-banners');
   if (filters.sources.sports === false) { container.style.display = 'none'; return; }
-  const sports = alerts.filter(a => a.source === 'sports');
+  const sports = alerts.filter(a => a.source === 'sports' &&
+    (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm)));
   if (!sports.length) { container.style.display = 'none'; return; }
   container.style.display = '';
   const now = new Date();
@@ -1811,7 +1816,9 @@ function badge(n) {
 const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
 function _alertsForSection() {
-  if (searchTerm) return alerts;
+  if (searchTerm) {
+    return alerts.filter(a => `${a.title} ${a.body}`.toLowerCase().includes(searchTerm));
+  }
   if (openSection === 'active')      return alerts.filter(a => !a.stale);
   if (openSection === 'longrunning') return alerts.filter(a =>  a.stale);
   if (openSection === 'removed')     return removedAlerts;
