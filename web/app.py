@@ -5,7 +5,7 @@ from pathlib import Path
 
 import requests as http_requests
 import yaml
-from flask import Flask, Response, jsonify, render_template
+from flask import Flask, Response, abort, jsonify, render_template, request
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db import get_status_json, init_db
@@ -16,6 +16,7 @@ CONFIG_FILE          = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
 BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
+UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
 
 init_db()
 
@@ -41,6 +42,7 @@ def index():
         github_url=web_cfg.get("github_url") or "",
         legal_url=web_cfg.get("legal_url") or "",
         site_url=(web_cfg.get("site_url") or "").rstrip("/"),
+        umami_website_id=web_cfg.get("umami_website_id") or "",
     )
 
 
@@ -49,7 +51,6 @@ def legal():
     web_cfg = _web_config() or {}
     impressum_address = web_cfg.get("impressum_address") or ""
     if not impressum_address:
-        from flask import abort
         abort(404)
     return render_template(
         "legal.html",
@@ -57,6 +58,32 @@ def legal():
         contact=web_cfg.get("operator_contact") or "",
         impressum_address=impressum_address,
     )
+
+
+@app.route("/um/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+@app.route("/um/<path:path>",             methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+def umami_proxy(path):
+    if not UMAMI_INTERNAL_URL:
+        abort(404)
+    url = f"{UMAMI_INTERNAL_URL}/{path}"
+    if request.query_string:
+        url += f"?{request.query_string.decode()}"
+    skip_req = {"host", "content-length", "transfer-encoding", "connection"}
+    fwd_headers = {k: v for k, v in request.headers if k.lower() not in skip_req}
+    try:
+        r = http_requests.request(
+            method=request.method,
+            url=url,
+            headers=fwd_headers,
+            data=request.get_data(),
+            allow_redirects=False,
+            timeout=10,
+        )
+    except http_requests.RequestException:
+        abort(502)
+    skip_resp = {"content-encoding", "content-length", "transfer-encoding", "connection"}
+    resp_headers = {k: v for k, v in r.headers.items() if k.lower() not in skip_resp}
+    return Response(r.content, status=r.status_code, headers=resp_headers)
 
 
 @app.route("/robots.txt")
