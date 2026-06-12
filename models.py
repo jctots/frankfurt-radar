@@ -21,7 +21,7 @@ CLS_LABEL: dict[int, str] = {
 CLS_PRIORITY = [8, 16, 32, 64, 4]  # sbahn > ubahn > tram > bus > regional
 
 SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "baustellen": "City Roads", "events": "Events", "sports": "Sports"}
-SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "🚧", "baustellen": "🏗️", "events": "🎉", "sports": "⚽"}
+SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "🚧", "baustellen": "🚧", "events": "🎉", "sports": "⚽"}
 SOURCE_URL: dict[str, Optional[str]] = {
     "rmv":        "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
     "dwd":        "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",

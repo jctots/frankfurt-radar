@@ -144,7 +144,12 @@ def main() -> None:
     if stale_after_days:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()
         for a in all_alerts:
-            if a.source in ("rmv", "autobahn", "baustellen") and a.published_at and a.published_at < cutoff:
+            if a.source not in ("rmv", "autobahn", "baustellen"):
+                continue
+            # autobahn/baustellen set published_at=now() for feed ordering; use valid_from
+            # as the true event age for stale classification
+            age_ref = (a.valid_from if a.source in ("autobahn", "baustellen") and a.valid_from else a.published_at)
+            if age_ref and age_ref < cutoff:
                 a.stale = True
 
     sync_alert_cache(all_alerts, config)

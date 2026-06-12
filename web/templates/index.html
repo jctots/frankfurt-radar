@@ -530,6 +530,35 @@
       z-index: 1;
     }
 
+    .map-controls-row {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 500;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .map-reset-btn, .map-close-btn {
+      background: white;
+      border: none;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .map-reset-btn:hover, .map-close-btn:hover { background: #f1f5f9; }
+    .dark .map-reset-btn, .dark .map-close-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    .dark .map-reset-btn:hover, .dark .map-close-btn:hover { background: #273344; }
+    .map-close-btn { display: none; }
+    @media (max-width: 767px) { .map-close-btn { display: inline-block; } }
+
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
       border-radius: 10px;
@@ -790,7 +819,6 @@
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
 
     /* ── Event banners ──────────────────────────────────────── */
-    #event-banners, #sport-banners { flex-shrink: 0; }
     .event-banner {
       padding: 10px 14px;
       border-bottom: 1px solid var(--clr-border);
@@ -929,7 +957,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:10px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
+    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -938,13 +966,11 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          🔔 Most Recent
+          🔔 Recent Announcements
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
         <div class="section-body">
-          <div id="event-banners" style="display:none"></div>
-          <div id="sport-banners" style="display:none"></div>
           <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
         </div>
       </div>
@@ -1193,18 +1219,28 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  map.on('click', () => {
+  const controlsRow = L.DomUtil.create('div', 'map-controls-row');
+  const resetBtn = L.DomUtil.create('button', 'map-reset-btn', controlsRow);
+  resetBtn.textContent = '⌂ Reset view';
+  resetBtn.title = 'Reset map to Frankfurt';
+  L.DomEvent.on(resetBtn, 'click', (e) => {
+    L.DomEvent.stopPropagation(e);
     resetState();
-    if (isMobileView()) closeMobileMap();
-    else map.setView(FRANKFURT, 12, { animate: true });
+    map.setView(FRANKFURT, 12, { animate: true });
   });
+  const closeBtn = L.DomUtil.create('button', 'map-close-btn', controlsRow);
+  closeBtn.textContent = '✕ Close map';
+  closeBtn.title = 'Close map';
+  L.DomEvent.on(closeBtn, 'click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    closeMobileMap();
+  });
+  map.getContainer().appendChild(controlsRow);
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
     if (btn) L.DomEvent.on(btn, 'click', (ev) => {
       L.DomEvent.preventDefault(ev);
       resetState();
-      if (isMobileView()) closeMobileMap();
-      else map.setView(FRANKFURT, 12, { animate: true });
     });
   });
 }
@@ -1288,10 +1324,8 @@ function renderMarkers() {
     ...(longRunOpen ? visibleLongRunning() : []),
     ...(clearedOpen ? removedAlerts.filter(a => passesFilters(a))                                                      : []),
   ];
-  const list   = feedItems;
-  const events = activeOpen && filters.sources.events !== false ? alerts.filter(a => a.source === 'events' && a.lat != null && a.lon != null && (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm))) : [];
-  const sports = activeOpen && filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports' && a.lat != null && a.lon != null && (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm))) : [];
-  const visibleIds = new Set([...list.map(a => a.id), ...events.map(a => a.id), ...sports.map(a => a.id)]);
+  const list = feedItems;
+  const visibleIds = new Set(list.map(a => a.id));
 
   // Remove markers (and any active circles) for alerts no longer visible
   Object.keys(markers).forEach(id => {
@@ -1302,9 +1336,10 @@ function renderMarkers() {
     }
   });
 
-  // Add markers for newly visible alerts (DWD is city-wide — no pin)
+  // Add markers for newly visible alerts (DWD is city-wide — no pin; events/sports need coords)
   list.forEach(a => {
     if (a.source === 'dwd') return;
+    if ((a.source === 'events' || a.source === 'sports') && (a.lat == null || a.lon == null)) return;
     if (markers[a.id]) return;
     if (policeCircles[a.id]) return; // circle is showing — marker was temporarily removed
     const { coords } = alertCoords(a);
@@ -1320,25 +1355,6 @@ function renderMarkers() {
     markers[a.id] = m;
   });
 
-  // Add markers for events with coordinates
-  events.forEach(a => {
-    if (markers[a.id]) return;
-    const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
-      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
-    m.on('click', () => selectAlert(a.id, true));
-    clusterGroup.addLayer(m);
-    markers[a.id] = m;
-  });
-
-  // Add markers for sports events with coordinates
-  sports.forEach(a => {
-    if (markers[a.id]) return;
-    const m = L.marker([a.lat, a.lon], { icon: sourceIcon(a.source) })
-      .bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
-    m.on('click', () => selectAlert(a.id, true));
-    clusterGroup.addLayer(m);
-    markers[a.id] = m;
-  });
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -1411,8 +1427,6 @@ function applyData(data) {
   }
 
   buildFilterBar();
-  renderEventBanners();
-  renderSportsBanners();
   renderFeed();
 }
 
@@ -1425,7 +1439,7 @@ function onSearchInput(val) {
   document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
   _applyAccordionState();
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); renderEventBanners(); renderSportsBanners(); }, 200);
+  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); }, 200);
 }
 
 function clearSearch() {
@@ -1435,14 +1449,10 @@ function clearSearch() {
   _applyAccordionState();
   renderFeed();
   buildFilterBar();
-  renderEventBanners();
-  renderSportsBanners();
 }
 
 // ── Filtering ─────────────────────────────────────────────────────────────────
 function passesFilters(a) {
-  if (a.source === 'events') return false;
-  if (a.source === 'sports') return false;
   if (a.source === 'autobahn'   && filters.roads.highways    === false) return false;
   if (a.source === 'baustellen' && filters.sources.autobahn  === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Partial)' && filters.roads.city_partial === false) return false;
@@ -1464,72 +1474,29 @@ function passesFilters(a) {
 function visible()            { return alerts.filter(a => !a.stale && passesFilters(a)); }
 function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilters(a)); }
 
-// ── Event banners ─────────────────────────────────────────────────────────────
-function renderEventBanners() {
-  const container = document.getElementById('event-banners');
-  if (filters.sources.events === false) { container.style.display = 'none'; return; }
-  const events = alerts.filter(a => a.source === 'events' &&
-    (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm)));
-  if (!events.length) { container.style.display = 'none'; return; }
-  container.style.display = '';
-  const now = new Date();
-  const active   = events.filter(a => !a.valid_from || new Date(a.valid_from) <= now);
-  const upcoming = events.filter(a =>  a.valid_from && new Date(a.valid_from) >  now);
-  function renderBanner(a, status) {
-    const meta = [];
-    if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
-    else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-    return `<div class="event-banner" onclick="selectAlert('${esc(a.id)}')">
-  <div class="event-banner-inner">
-    <span class="event-banner-icon">🎉</span>
-    <div class="event-banner-content">
-      <div class="event-banner-status">${status}</div>
-      <div class="event-banner-title">${esc(a.title)}</div>
-      <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
-    </div>
-    <span class="event-banner-chevron">›</span>
-  </div>
-</div>`;
-  }
-  let html = '';
-  if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
-  if (upcoming.length) html += upcoming.map(a => renderBanner(a, daysUntil(a.valid_from))).join('');
-  container.innerHTML = html;
-}
-
 const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', football: '⚽', american_football: '🏈', basketball: '🏀' };
 
-function renderSportsBanners() {
-  const container = document.getElementById('sport-banners');
-  if (filters.sources.sports === false) { container.style.display = 'none'; return; }
-  const sports = alerts.filter(a => a.source === 'sports' &&
-    (!searchTerm || `${a.title} ${a.body}`.toLowerCase().includes(searchTerm)));
-  if (!sports.length) { container.style.display = 'none'; return; }
-  container.style.display = '';
+function _renderPinnedBanner(a) {
   const now = new Date();
-  const active   = sports.filter(a => !a.valid_from || new Date(a.valid_from) <= now);
-  const upcoming = sports.filter(a =>  a.valid_from && new Date(a.valid_from) >  now);
-  function renderBanner(a, status) {
-    const meta = [];
-    if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
-    else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-    const icon = SPORT_EMOJI[a.service] || '🏟️';
-    return `<div class="sport-banner" onclick="selectAlert('${esc(a.id)}')">
+  const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
+  const meta = [];
+  if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
+  else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
+  const isSport = a.source === 'sports';
+  const cls       = isSport ? 'sport-banner' : 'event-banner';
+  const statusCls = isSport ? 'sport-banner-status' : 'event-banner-status';
+  const icon      = isSport ? (SPORT_EMOJI[a.service] || '🏟️') : '🎉';
+  return `<div class="${cls}" onclick="selectAlert('${esc(a.id)}')">
   <div class="event-banner-inner">
     <span class="event-banner-icon">${icon}</span>
     <div class="event-banner-content">
-      <div class="sport-banner-status">${status}</div>
+      <div class="${statusCls}">${status}</div>
       <div class="event-banner-title">${esc(a.title)}</div>
       <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
     </div>
     <span class="event-banner-chevron">›</span>
   </div>
 </div>`;
-  }
-  let html = '';
-  if (active.length)   html += active.map(a => renderBanner(a, 'Ongoing')).join('');
-  if (upcoming.length) html += upcoming.map(a => renderBanner(a, daysUntil(a.valid_from))).join('');
-  container.innerHTML = html;
 }
 
 function fmtDate(iso) {
@@ -1596,17 +1563,16 @@ function renderFeed() {
   updateTicker();
 
   // ── Active Alerts ──────────────────────────────────────────────────────────
-  const activeList = _sortByDate(visible(), 'published_at');
-  const eventCount = (filters.sources.events !== false ? alerts.filter(a => a.source === 'events').length : 0)
-                   + (filters.sources.sports !== false ? alerts.filter(a => a.source === 'sports').length : 0);
-  document.getElementById('feed-count').textContent = (activeList.length + eventCount) || '0';
+  const allVisible  = _sortByDate(visible(), 'published_at');
+  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports');
+  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports');
+  document.getElementById('feed-count').textContent = allVisible.length || '0';
 
   const activeFeed = document.getElementById('feed');
-  if (!activeList.length) {
-    activeFeed.innerHTML = '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
-  } else {
-    activeFeed.innerHTML = activeList.map(_renderCard).join('');
-  }
+  const pinnedHtml  = pinned.map(_renderPinnedBanner).join('');
+  const regularHtml = regular.map(_renderCard).join('');
+  activeFeed.innerHTML = pinnedHtml + regularHtml
+    || '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
 
   // ── Long-running Disruptions ───────────────────────────────────────────────
   const longList = _sortByDate(visibleLongRunning(), 'published_at');
@@ -1621,14 +1587,14 @@ function renderFeed() {
     const src = SOURCE[a.source] || { label: a.source, emoji: '' };
     const svc  = _renderRoadSvc(a);
     const time = fmtDateTime(a.published_at || a.valid_until);
-    const removedTime = fmtTime(a.removed_at);
+    const removedTime = fmtDateTimeShort(a.removed_at);
     const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
     return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
   <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
 </div>`;
-  }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts cleared today.</div>';
+  }).join('') || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
 
   renderMarkers();
 
@@ -1891,7 +1857,7 @@ function buildFilterBar() {
   bar.innerHTML = html;
 }
 
-function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); renderEventBanners(); renderSportsBanners(); }
+function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
@@ -2167,6 +2133,18 @@ function fmt(iso, withSeconds = false) {
 
 function fmtDateTime(iso) { return fmt(iso); }
 
+function fmtDateTimeShort(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const dd  = String(d.getDate()).padStart(2, '0');
+    const mon = d.toLocaleDateString('en-GB', { month: 'short' });
+    const hh  = String(d.getHours()).padStart(2, '0');
+    const mm  = String(d.getMinutes()).padStart(2, '0');
+    return `${dd} ${mon} ${hh}:${mm}`;
+  } catch { return ''; }
+}
+
 // ── Weather panel ─────────────────────────────────────────────────────────────
 function showWeatherPanel(a) {
   const panel = document.getElementById('weather-panel');
@@ -2200,7 +2178,7 @@ async function init() {
   updateNotifyBtn();
   const _today = new Date();
   document.getElementById('feed-date-header').textContent =
-    'Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    'Active Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   initMap();
   maybeShowDisclaimer();
 
@@ -2299,8 +2277,7 @@ init();
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('leaflet-popup-close-button')) {
     e.preventDefault();
-    if (isMobileView()) { map && map.closePopup(); closeMobileMap(); }
-    else { map && map.setView(FRANKFURT, 12, { animate: true }); }
+    resetState();
   }
 });
 
