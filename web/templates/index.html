@@ -958,7 +958,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:10px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
+    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -2251,7 +2251,7 @@ async function init() {
   updateNotifyBtn();
   const _today = new Date();
   document.getElementById('feed-date-header').textContent =
-    'Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    'Active Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   initMap();
   maybeShowDisclaimer();
 
