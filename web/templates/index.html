@@ -1489,7 +1489,7 @@ function _renderPinnedBanner(a) {
   const cls       = isSport ? 'sport-banner' : 'event-banner';
   const statusCls = isSport ? 'sport-banner-status' : 'event-banner-status';
   const icon      = isSport ? (SPORT_EMOJI[a.service] || '🏟️') : '🎉';
-  return `<div class="${cls}" onclick="selectAlert('${esc(a.id)}')">
+  return `<div class="${cls}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="event-banner-inner">
     <span class="event-banner-icon">${icon}</span>
     <div class="event-banner-content">
@@ -1722,10 +1722,20 @@ function selectAlert(id, fromMap = false) {
 let openSection = 'active'; // 'active' | 'longrunning' | 'removed' | null
 
 function _applyAccordionState() {
-  ['active', 'longrunning', 'removed'].forEach(s => {
-    const el = document.getElementById('sec-' + s);
-    el.classList.toggle('open', searchTerm ? true : s === openSection);
-  });
+  if (searchTerm) {
+    const counts = {
+      active:      visible().length,
+      longrunning: visibleLongRunning().length,
+      removed:     removedAlerts.filter(a => passesFilters(a)).length,
+    };
+    ['active', 'longrunning', 'removed'].forEach(s => {
+      document.getElementById('sec-' + s).classList.toggle('open', counts[s] > 0);
+    });
+  } else {
+    ['active', 'longrunning', 'removed'].forEach(s => {
+      document.getElementById('sec-' + s).classList.toggle('open', s === openSection);
+    });
+  }
 }
 
 function toggleSection(id) {
@@ -2271,7 +2281,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    const cards = [...document.querySelectorAll('.feed-section.open .card')];
+    const cards = [...document.querySelectorAll('.feed-section.open .card, .feed-section.open .event-banner, .feed-section.open .sport-banner')];
     if (!cards.length) return;
     const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
     const nextIndex = e.key === 'ArrowDown'
