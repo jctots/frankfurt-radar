@@ -530,12 +530,17 @@
       z-index: 1;
     }
 
-    .map-reset-btn {
+    .map-controls-row {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 500;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .map-reset-btn, .map-close-btn {
       background: white;
       border: none;
       border-radius: 20px;
@@ -546,12 +551,13 @@
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.22);
       white-space: nowrap;
-      pointer-events: auto;
       letter-spacing: 0.02em;
     }
-    .map-reset-btn:hover { background: #f1f5f9; }
-    .dark .map-reset-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-    .dark .map-reset-btn:hover { background: #273344; }
+    .map-reset-btn:hover, .map-close-btn:hover { background: #f1f5f9; }
+    .dark .map-reset-btn, .dark .map-close-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    .dark .map-reset-btn:hover, .dark .map-close-btn:hover { background: #273344; }
+    .map-close-btn { display: none; }
+    @media (max-width: 767px) { .map-close-btn { display: inline-block; } }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -1216,16 +1222,23 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  const resetBtn = L.DomUtil.create('button', 'map-reset-btn');
+  const controlsRow = L.DomUtil.create('div', 'map-controls-row');
+  const resetBtn = L.DomUtil.create('button', 'map-reset-btn', controlsRow);
   resetBtn.textContent = '⌂ Reset view';
   resetBtn.title = 'Reset map to Frankfurt';
   L.DomEvent.on(resetBtn, 'click', (e) => {
     L.DomEvent.stopPropagation(e);
     resetState();
-    if (isMobileView()) closeMobileMap();
-    else map.setView(FRANKFURT, 12, { animate: true });
+    map.setView(FRANKFURT, 12, { animate: true });
   });
-  map.getContainer().appendChild(resetBtn);
+  const closeBtn = L.DomUtil.create('button', 'map-close-btn', controlsRow);
+  closeBtn.textContent = '✕ Close map';
+  closeBtn.title = 'Close map';
+  L.DomEvent.on(closeBtn, 'click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    closeMobileMap();
+  });
+  map.getContainer().appendChild(controlsRow);
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
     if (btn) L.DomEvent.on(btn, 'click', (ev) => {
