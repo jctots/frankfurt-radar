@@ -236,7 +236,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker { border-radius: 2px; }
+    .chip.line-picker, .chip.roads-picker { border-radius: 2px; padding-right: 4px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -1569,9 +1569,15 @@ function fmtAge(iso) {
   return years === 1 ? 'published a year ago' : `published ${years} years ago`;
 }
 
+function _renderRoadSvc(a) {
+  if (a.source === 'autobahn') return ' · Autobahn';
+  if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}`;
+  return '';
+}
+
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc  = a.service ? ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}` : '';
+  const svc  = _renderRoadSvc(a);
   const time = fmtDateTime(a.published_at || a.valid_until);
   const ageMeta = opts.showAge && a.published_at ? ' · ' + fmtAge(a.published_at) : '';
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
@@ -1608,7 +1614,7 @@ function renderFeed() {
   document.getElementById('removed-count').textContent = clearedList.length || '0';
   document.getElementById('removed-feed').innerHTML = clearedList.map(a => {
     const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-    const svc  = a.service ? ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}` : '';
+    const svc  = _renderRoadSvc(a);
     const time = fmtDateTime(a.published_at || a.valid_until);
     const removedTime = fmtTime(a.removed_at);
     const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
@@ -1842,7 +1848,7 @@ function buildFilterBar() {
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
         const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : '';
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span style="font-size:30px;line-height:0.8;margin-left:4px">▾</span></button>`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
       }
     });
   }
@@ -1861,7 +1867,7 @@ function buildFilterBar() {
     if (roadAlerts.length) {
       const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
       const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type <span style="font-size:30px;line-height:0.8;margin-left:4px">▾</span></button>`;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
