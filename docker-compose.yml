@@ -2,6 +2,7 @@ services:
   poller:
     image: ghcr.io/jctots/frankfurt-radar-poller:${RADAR_TAG:-latest}
     container_name: frankfurt-radar-poller
+    init: true
     environment:
       - TZ=Europe/Berlin
       - RMV_API_KEY=${RMV_API_KEY}
@@ -22,6 +23,7 @@ services:
   web:
     image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
     container_name: frankfurt-radar-web
+    init: true
     environment:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
@@ -38,12 +40,62 @@ services:
 
   ntfy:
     image: binwiederhier/ntfy:latest
+    init: true
     ports:
       - "80:80"
     volumes:
       - ntfy_data:/var/lib/ntfy
     restart: unless-stopped
 
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    profiles: [analytics]
+    container_name: umami
+    init: true
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD:-unused}@umami-db:5432/umami
+      - APP_SECRET=${UMAMI_APP_SECRET:-unused}
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  umami-db:
+    image: postgres:15-alpine
+    profiles: [analytics]
+    container_name: umami-db
+    init: true
+    environment:
+      - POSTGRES_DB=umami
+      - POSTGRES_USER=umami
+      - POSTGRES_PASSWORD=${UMAMI_DB_PASSWORD:-unused}
+    volumes:
+      - umami_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
 volumes:
   radar_data:   # shared SQLite DB (radar.db) between poller and web containers
   ntfy_data:
+  umami_data:
