@@ -36,6 +36,9 @@
   </script>
   {% endif %}
 
+  {% if umami_website_id and site_url %}
+  <script async src="/um/script.js" data-website-id="{{ umami_website_id | e }}" data-host-url="{{ site_url | e }}/um"></script>
+  {% endif %}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -341,37 +344,6 @@
     }
 
     /* ── Weather floating panel ─────────────────────────────── */
-    .weather-panel {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 300px;
-      max-height: calc(100% - 24px);
-      background: var(--clr-surface);
-      border: 1px solid var(--clr-border);
-      border-radius: 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
-      z-index: 200;
-      overflow-y: auto;
-    }
-    .weather-panel-close {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      border: none;
-      background: var(--clr-bg);
-      cursor: pointer;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--clr-muted);
-    }
-    .weather-panel-close:hover { background: var(--clr-border); }
-
     /* ── Feed panel ─────────────────────────────────────── */
     .feed-panel {
       width: 320px;
@@ -886,8 +858,6 @@
     .dark .popup-body                { color: #cbd5e1; border-color: #334155; }
     .dark .popup-loc-badge           { background: #334155; color: #94a3b8; }
     .dark .popup-link                { background: #334155; color: #e2e8f0; }
-    .dark .weather-panel             { background: #1e293b; border-color: #334155; }
-    .dark .weather-panel-close       { background: #334155; color: #94a3b8; }
     .dark .info-section code         { background: #334155; color: #e2e8f0; }
     .dark footer                     { border-color: #334155; }
     .dark footer a                   { color: #94a3b8; }
@@ -928,13 +898,6 @@
       }
       .mobile-map-open #map { transform: translateX(0); }
 
-      /* Weather panel: fixed so it overlays the map */
-      .weather-panel {
-        position: fixed;
-        top: 12px; right: 12px;
-        width: calc(100% - 24px);
-        z-index: 610;
-      }
     }
   </style>
 </head>
@@ -1001,7 +964,6 @@
     </div>
   </div>
   <div id="map"></div>
-  <div id="weather-panel" class="weather-panel" style="display:none"></div>
 </div>
 
 <!-- Info modal -->
@@ -1085,6 +1047,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
+// ── Analytics ────────────────────────────────────────────────────────────────
+function _track(event, data) {
+  if (typeof window.umami !== 'undefined') window.umami.track(event, data || {});
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 const REFRESH_INTERVAL = 60_000;
 const SEEN_MAX         = 300;
@@ -1237,6 +1204,7 @@ function initMap() {
   closeBtn.title = 'Close map';
   L.DomEvent.on(closeBtn, 'click', (e) => {
     L.DomEvent.stopPropagation(e);
+    resetState();
     closeMobileMap();
   });
   map.getContainer().appendChild(controlsRow);
@@ -1339,9 +1307,8 @@ function renderMarkers() {
     }
   });
 
-  // Add markers for newly visible alerts (DWD is city-wide — no pin; events/sports need coords)
+  // Add markers for newly visible alerts (events/sports need coords)
   list.forEach(a => {
-    if (a.source === 'dwd') return;
     if ((a.source === 'events' || a.source === 'sports') && (a.lat == null || a.lon == null)) return;
     if (markers[a.id]) return;
     if (policeCircles[a.id]) return; // circle is showing — marker was temporarily removed
@@ -1442,7 +1409,7 @@ function onSearchInput(val) {
   document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
   _applyAccordionState();
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => { renderFeed(); buildFilterBar(); }, 200);
+  _searchDebounce = setTimeout(() => { if (searchTerm) _track('search'); renderFeed(); buildFilterBar(); }, 200);
 }
 
 function clearSearch() {
@@ -1613,12 +1580,12 @@ function isMobileView() {
 
 function openMobileMap(cb) {
   document.body.classList.add('mobile-map-open');
+  _track('map_open');
   setTimeout(() => { map && map.invalidateSize(); if (cb) cb(); }, 250);
 }
 
 function closeMobileMap() {
   document.body.classList.remove('mobile-map-open');
-  closeWeatherPanel();
   if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
@@ -1631,7 +1598,6 @@ function resetState() {
     delete policeCircles[cid];
   });
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
-  closeWeatherPanel();
   selectedId = null;
 }
 
@@ -1641,6 +1607,7 @@ function selectAlert(id, fromMap = false) {
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
   selectedId = id;
+  _track('alert_select', { source: a.source });
 
   // Close any open police circle for a different alert
   Object.keys(policeCircles).forEach(cid => {
@@ -1655,8 +1622,6 @@ function selectAlert(id, fromMap = false) {
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === id));
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
-
-  closeWeatherPanel();
 
   const openPopup = (m) => {
     if (a.source === 'polizei') {
@@ -1693,12 +1658,6 @@ function selectAlert(id, fromMap = false) {
   };
 
   const applyMapOp = () => {
-    if (a.source === 'dwd') {
-      map.setView(FRANKFURT, 12, { animate: true });
-      showWeatherPanel(a);
-      return;
-    }
-
     const marker = markers[id];
     if (!marker || !clusterGroup) return;
     const expectedId = id;
@@ -1846,7 +1805,7 @@ function buildFilterBar() {
   bar.innerHTML = html;
 }
 
-function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; saveFilters(); buildFilterBar(); renderFeed(); }
+function toggleSrc(src)   { filters.sources[src] = filters.sources[src] === false; _track('filter_toggle', { source: src, enabled: filters.sources[src] !== false }); saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleSvc(svc)   { filters.services[svc] = filters.services[svc] === false; saveFilters(); buildFilterBar(); renderFeed(); }
 function toggleLine(l)    { filters.lines[l] = filters.lines[l] === false; saveFilters(); renderFeed(); }
 function saveFilters()  { localStorage.setItem('fr_filters', JSON.stringify(filters)); }
@@ -2134,22 +2093,10 @@ function fmtDateTimeShort(iso) {
   } catch { return ''; }
 }
 
-// ── Weather panel ─────────────────────────────────────────────────────────────
-function showWeatherPanel(a) {
-  const panel = document.getElementById('weather-panel');
-  const closeAction = isMobileView() ? 'closeMobileMap()' : 'closeWeatherPanel()';
-  panel.innerHTML = buildPopupHtml(a) +
-    `<button class="weather-panel-close" onclick="${closeAction}">✕</button>`;
-  panel.style.display = '';
-}
-
-function closeWeatherPanel() {
-  document.getElementById('weather-panel').style.display = 'none';
-}
-
 // ── Dark mode ─────────────────────────────────────────────────────────────────
 function toggleDark() {
   const on = document.body.classList.toggle('dark');
+  _track('dark_mode', { mode: on ? 'dark' : 'light' });
   localStorage.setItem('fr_dark', on ? '1' : '0');
   document.getElementById('btn-dark-icon').textContent = on ? '☀️' : '🌙';
   document.getElementById('btn-dark-label').textContent = on ? ' Light mode' : ' Dark mode';

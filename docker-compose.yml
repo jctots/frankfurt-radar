@@ -27,6 +27,7 @@ services:
     environment:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
+      - UMAMI_INTERNAL_URL=http://umami:3000
     volumes:
       - radar_data:/app/data
     ports:
@@ -57,6 +58,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD:-unused}@umami-db:5432/umami
       - APP_SECRET=${UMAMI_APP_SECRET:-unused}
+      - BASE_PATH=/um
     depends_on:
       umami-db:
         condition: service_healthy

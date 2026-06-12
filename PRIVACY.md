@@ -1,6 +1,6 @@
 # Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-12
 
 ## Who we are
 
@@ -11,7 +11,11 @@ For operator details, see the [Impressum](/legal#impressum) on the deployed inst
 
 ### Status page (frankfurt-radar.com)
 
-No personal data is collected. No cookies, no analytics, no tracking pixels.
+No personal data is collected. No cookies are set.
+
+Anonymous, cookie-free usage analytics are collected via a self-hosted [Umami](https://umami.is/) instance running on the same EU server (Hetzner Frankfurt, Germany). Umami does not use cookies, does not store IP addresses, and cannot identify individual visitors. Anonymised interaction events (e.g. filter use, alert selection) are tracked to understand how the service is used. No analytics data is shared with third parties.
+
+**Legal basis:** legitimate interest (improving the service) — no personal data is processed.
 
 Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.
 

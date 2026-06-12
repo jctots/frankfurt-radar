@@ -47,7 +47,7 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 
 ## Data Handling
 
-The public status page is read-only and stores no personal data.
+The public status page is read-only and stores no personal data. Anonymous, cookie-free usage analytics are collected via a self-hosted Umami instance (no cookies, no IP storage, no cross-site tracking) — see [PRIVACY.md](PRIVACY.md) for details.
 
 If Telegram bot features are enabled (per-user alerts — not yet publicly launched): only Telegram `chat_id` is stored. No name, email, or other personal data is collected. A `/deletedata` command will be available before public launch.
 
