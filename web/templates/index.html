@@ -253,6 +253,8 @@
 
     .chip.line-picker       { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.roads-picker      { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
+    .chip.roads-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
@@ -775,6 +777,8 @@
     .dark .chip.line.on,
     .dark .chip.line-picker          { background: #172554; }
     .dark .chip.line-picker.part     { background: #422006; border-color: #92400e; color: #fcd34d; }
+    .dark .chip.roads-picker         { background: #431407; }
+    .dark .chip.roads-picker.part    { background: #422006; border-color: #92400e; color: #fcd34d; }
     .dark .chip-count                { background: rgba(255,255,255,0.15); }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
@@ -932,7 +936,7 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          🔔 Active Alerts <span id="feed-date"></span>
+          🔔 Most Recent
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1418,7 +1422,7 @@ function flushHighlights() {
   if (!pendingHighlight.size || document.visibilityState !== 'visible') return;
   pendingHighlight.forEach(id => {
     const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
-    if (card) card.classList.add('card-new');
+    if (card && card.offsetParent !== null) card.classList.add('card-new');
   });
   pendingHighlight.clear();
 }
@@ -1862,7 +1866,7 @@ function buildFilterBar() {
     const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
     const roadPartial = enabledRoadTypes < 3;
     const roadCount = roadPartial ? `${enabledRoadTypes}/3` : `3`;
-    html += `<button class="chip line-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type ${roadCount} ▾</button>`;
+    html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type ${roadCount} ▾</button>`;
   }
 
   // Festivals
