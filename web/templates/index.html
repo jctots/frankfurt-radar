@@ -1621,14 +1621,14 @@ function renderFeed() {
     const src = SOURCE[a.source] || { label: a.source, emoji: '' };
     const svc  = _renderRoadSvc(a);
     const time = fmtDateTime(a.published_at || a.valid_until);
-    const removedTime = fmtTime(a.removed_at);
+    const removedTime = fmtDateTimeShort(a.removed_at);
     const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
     return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
   <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
 </div>`;
-  }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts cleared today.</div>';
+  }).join('') || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
 
   renderMarkers();
 
@@ -2166,6 +2166,18 @@ function fmt(iso, withSeconds = false) {
 }
 
 function fmtDateTime(iso) { return fmt(iso); }
+
+function fmtDateTimeShort(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const dd  = String(d.getDate()).padStart(2, '0');
+    const mon = d.toLocaleDateString('en-GB', { month: 'short' });
+    const hh  = String(d.getHours()).padStart(2, '0');
+    const mm  = String(d.getMinutes()).padStart(2, '0');
+    return `${dd} ${mon} ${hh}:${mm}`;
+  } catch { return ''; }
+}
 
 // ── Weather panel ─────────────────────────────────────────────────────────────
 function showWeatherPanel(a) {

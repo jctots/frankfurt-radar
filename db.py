@@ -158,14 +158,16 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
     """Translate new alerts and sync the cache to match the current fetch result."""
     from translation import translate_alert
 
+    retention_days = config.get('cleared_retention_days', 1)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+
     if not alerts:
         with _conn() as conn:
             conn.execute(
                 "UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE removed_at IS NULL"
             )
             conn.execute(
-                "DELETE FROM alert_cache WHERE removed_at IS NOT NULL"
-                " AND removed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', 'start of day')"
+                "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
             )
         return
 
@@ -227,10 +229,9 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL",
             current_ids
         )
-        # Delete removed alerts from previous days
+        # Delete removed alerts older than cleared_retention_days
         conn.execute(
-            "DELETE FROM alert_cache WHERE removed_at IS NOT NULL"
-            " AND removed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', 'start of day')"
+            "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
 
     log.info("alert_cache: %d total (%d cached, %d translated, %d image updated, %d stale updated)",
