@@ -1316,13 +1316,12 @@ function expandPoliceMarker(a, coords) {
 
 function renderMarkers() {
   if (!map || !clusterGroup) return;
-  const activeOpen      = searchTerm || openSection === 'active';
-  const longRunOpen     = searchTerm || openSection === 'longrunning';
-  const clearedOpen     = openSection === 'removed';
-  const feedItems       = [
+  const activeOpen  = searchTerm || openSection === 'active';
+  const longRunOpen = searchTerm || openSection === 'longrunning';
+  const feedItems   = [
     ...(activeOpen  ? visible()            : []),
     ...(longRunOpen ? visibleLongRunning() : []),
-    ...(clearedOpen ? removedAlerts.filter(a => passesFilters(a))                                                      : []),
+    ...removedAlerts.filter(a => passesFilters(a)),
   ];
   const list = feedItems;
   const visibleIds = new Set(list.map(a => a.id));
@@ -1659,26 +1658,6 @@ function selectAlert(id, fromMap = false) {
   if (card) card.scrollIntoView({ block: 'nearest' });
 
   closeWeatherPanel();
-
-  // Removed alert: show standalone popup at coords (no live marker)
-  if (a.removed_at) {
-    const showRemoved = () => {
-      if (a.source === 'dwd') { map.setView(FRANKFURT, 12, { animate: true }); showWeatherPanel(a); return; }
-      if (a.lat == null || a.lon == null) return;
-      const latlng = [a.lat, a.lon];
-      const expectedId = id;
-      if (map.getZoom() < 14) map.setView(latlng, 14, { animate: true });
-      else map.panTo(latlng, { animate: true });
-      map.once('moveend', () => {
-        if (selectedId !== expectedId) return;
-        L.popup({ maxWidth: 360, minWidth: 260, autoPan: true })
-          .setLatLng(latlng).setContent(buildPopupHtml(a)).openOn(map);
-      });
-    };
-    if (isMobileView() && !fromMap) openMobileMap(showRemoved);
-    else showRemoved();
-    return;
-  }
 
   const openPopup = (m) => {
     if (a.source === 'polizei') {
