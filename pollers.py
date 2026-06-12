@@ -373,7 +373,7 @@ class AutobahnPoller(BasePoller):
                 bis_from, valid_until = _parse_autobahn_bis_zum(desc)
                 if not valid_from:
                     valid_from = bis_from
-            published_at = valid_from or datetime.now(timezone.utc).isoformat()
+            published_at = datetime.now(timezone.utc).isoformat()
 
             alerts.append(Alert(
                 id=alert_id,

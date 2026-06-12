@@ -236,7 +236,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker { border-radius: 0; }
+    .chip.line-picker, .chip.roads-picker { border-radius: 2px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -461,6 +461,11 @@
     .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
 
+    @keyframes new-alert-flash {
+      0%, 20% { box-shadow: inset 0 0 0 2px #fbbf24, 0 2px 8px rgba(251,191,36,0.35); }
+      100%    { box-shadow: none; }
+    }
+    .card.new-alert-flash { animation: new-alert-flash 2s ease-out forwards; }
 
     .card-src {
       font-size: 10px;
@@ -924,7 +929,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:10px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500"></div>
+    <div id="feed-date-header" style="padding:10px 16px 4px;font-size:13px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1163,6 +1168,7 @@ let _initialLoad   = true;
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
+let _hiddenAlertIds = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
@@ -1553,14 +1559,25 @@ function _sortByDate(arr, key) {
   });
 }
 
-function _renderCard(a) {
+function fmtAge(iso) {
+  if (!iso) return '';
+  const months = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24 * 30.44));
+  if (months < 1) return 'published this month';
+  if (months === 1) return 'published a month ago';
+  if (months < 12) return `published ${months} months ago`;
+  const years = Math.floor(months / 12);
+  return years === 1 ? 'published a year ago' : `published ${years} years ago`;
+}
+
+function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc  = a.service ? ` · ${esc(a.service)}` : '';
+  const svc  = a.service ? ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}` : '';
   const time = fmtDateTime(a.published_at || a.valid_until);
+  const ageMeta = opts.showAge && a.published_at ? ' · ' + fmtAge(a.published_at) : '';
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src" style="color:${src.hex}">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}</div>
+  <div class="card-meta">${esc(time)}${ageMeta}</div>
 </div>`;
 }
 
@@ -1583,7 +1600,7 @@ function renderFeed() {
   // ── Long-running Disruptions ───────────────────────────────────────────────
   const longList = _sortByDate(visibleLongRunning(), 'published_at');
   document.getElementById('longrunning-count').textContent = longList.length || '0';
-  document.getElementById('longrunning-feed').innerHTML = longList.map(_renderCard).join('')
+  document.getElementById('longrunning-feed').innerHTML = longList.map(a => _renderCard(a, { showAge: true })).join('')
     || '<div class="empty-state" style="padding:24px 16px">No long-running disruptions.</div>';
 
   // ── Cleared ────────────────────────────────────────────────────────────────
@@ -1591,14 +1608,14 @@ function renderFeed() {
   document.getElementById('removed-count').textContent = clearedList.length || '0';
   document.getElementById('removed-feed').innerHTML = clearedList.map(a => {
     const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-    const svc  = a.service ? ` · ${esc(a.service)}` : '';
+    const svc  = a.service ? ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}` : '';
     const time = fmtDateTime(a.published_at || a.valid_until);
     const removedTime = fmtTime(a.removed_at);
     const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
     return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-src">${src.emoji} ${src.label}${svc}</div>
   <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} ${esc(removedTime)}` : ''}</div>
+  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
 </div>`;
   }).join('') || '<div class="empty-state" style="padding:24px 16px">No alerts cleared today.</div>';
 
@@ -1825,7 +1842,7 @@ function buildFilterBar() {
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
         const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : '';
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span style="font-size:15px;line-height:1">▾</span></button>`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span style="font-size:30px;line-height:0.8;margin-left:4px">▾</span></button>`;
       }
     });
   }
@@ -1844,7 +1861,7 @@ function buildFilterBar() {
     if (roadAlerts.length) {
       const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
       const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type <span style="font-size:15px;line-height:1">▾</span></button>`;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type <span style="font-size:30px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
@@ -1946,6 +1963,10 @@ const ROAD_TYPES = [
   { key: 'city_partial', label: 'City - Partial Closure' },
   { key: 'city_full',    label: 'City - Full Closure' },
 ];
+const ROAD_SERVICE_LABEL = {
+  'City (Partial)': 'City - Partial Closure',
+  'City (Full)':    'City - Full Closure',
+};
 
 function openRoadsPopup(btn) {
   if (_roadsClosedBy === btn) { _roadsClosedBy = null; return; }
@@ -2206,6 +2227,22 @@ async function init() {
 
   fetchCurrentWeather();
   setInterval(fetchCurrentWeather, 15 * 60 * 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      _hiddenAlertIds = new Set(visible().map(a => a.id));
+    } else {
+      const sec = document.getElementById('sec-active');
+      if (_hiddenAlertIds && sec && sec.classList.contains('open')) {
+        const newIds = visible().filter(a => !_hiddenAlertIds.has(a.id)).map(a => a.id);
+        newIds.forEach(id => {
+          const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+          if (card) { card.classList.remove('new-alert-flash'); void card.offsetWidth; card.classList.add('new-alert-flash'); }
+        });
+      }
+      _hiddenAlertIds = null;
+    }
+  });
 
 }
 

@@ -283,12 +283,17 @@ def get_status_json() -> dict:
 # ── Cold-start published_at patch ────────────────────────────────────────────
 
 def patch_published_at() -> None:
-    """Fix published_at after a cold start. Called from the burst guard.
+    """Correct published_at after a cold start.
 
-    Covers two cases:
-    - NULL published_at (sources that never provide one)
-    - Autobahn rows: poller always sets published_at = now(), but the API
-      provides no real publication date; valid_from is a better value.
+    During warm operation the poller sets published_at = now() so the Most Recent
+    feed is ordered by when we first saw each alert.  On cold start all alerts in
+    the first poll get now(), which loses the real event ordering.  This function
+    back-fills a better value for autobahn/baustellen (where valid_from is the
+    actual event start) and fixes any NULL rows from sources that never supply one.
+
+    Rules (applied to autobahn, baustellen, and NULL rows):
+    - valid_from in the past  → use valid_from
+    - valid_from in the future or absent → use today at 00:00 Frankfurt time
     """
     tz = ZoneInfo("Europe/Berlin")
     now = datetime.now(timezone.utc)
