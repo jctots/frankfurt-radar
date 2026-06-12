@@ -927,7 +927,7 @@
     <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
-      <input type="text" id="search-input" placeholder="Search alerts…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="e.g. tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-sections">
@@ -1436,7 +1436,7 @@ function passesFilters(a) {
   }
   if (searchTerm) {
     const hay = `${a.title} ${a.body}`.toLowerCase();
-    if (!hay.includes(searchTerm)) return false;
+    if (!searchTerm.split(/\s+/).every(t => hay.includes(t))) return false;
   }
   return true;
 }
@@ -1731,7 +1731,7 @@ const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
 function _alertsForSection() {
   if (searchTerm) {
-    return alerts.filter(a => `${a.title} ${a.body}`.toLowerCase().includes(searchTerm));
+    return alerts.filter(a => { const h = `${a.title} ${a.body}`.toLowerCase(); return searchTerm.split(/\s+/).every(t => h.includes(t)); });
   }
   if (openSection === 'active')      return alerts.filter(a => !a.stale);
   if (openSection === 'longrunning') return alerts.filter(a =>  a.stale);
