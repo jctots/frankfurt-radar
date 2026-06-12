@@ -473,7 +473,7 @@
     .section-summary {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 14px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+      font-size: 12px; font-weight: 700;
       color: var(--clr-muted);
       cursor: pointer; user-select: none;
       background: #f1f5f9;
@@ -1387,7 +1387,12 @@ function blinkAlertCards(ids) {
   if (!sec) return;
   ids.forEach(id => {
     const card = sec.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
-    if (card) { card.classList.remove('alert-blink'); void card.offsetWidth; card.classList.add('alert-blink'); }
+    if (card) {
+      card.classList.remove('alert-blink');
+      void card.offsetWidth;
+      card.classList.add('alert-blink');
+      card.addEventListener('animationend', () => card.classList.remove('alert-blink'), { once: true });
+    }
   });
 }
 
@@ -2174,7 +2179,12 @@ function runGestureHints() {
   setTimeout(() => {
     const sec = document.getElementById('sec-active');
     const card = sec && sec.querySelector('.card');
-    if (card) { card.classList.remove('alert-blink'); void card.offsetWidth; card.classList.add('alert-blink'); }
+    if (card) {
+      card.classList.remove('alert-blink');
+      void card.offsetWidth;
+      card.classList.add('alert-blink');
+      card.addEventListener('animationend', () => card.classList.remove('alert-blink'), { once: true });
+    }
   }, 1400);
 }
 
