@@ -64,6 +64,7 @@
       color: var(--clr-text);
       font-size: 14px;
       line-height: 1.5;
+      overflow: hidden;
     }
 
     /* ── Header ─────────────────────────────────────────── */
@@ -265,8 +266,10 @@
     }
     .weather-status {
       display: flex; align-items: center; gap: 6px;
-      white-space: nowrap; cursor: default;
+      white-space: nowrap; cursor: pointer;
+      text-decoration: none; color: inherit;
     }
+    .weather-status:hover { opacity: 0.82; }
     .ws-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
     .ws-text { display: flex; flex-direction: column; }
     .ws-temp { font-size: 13px; font-weight: 600; color: white; line-height: 1.3; }
@@ -938,7 +941,7 @@
 
 <header>
   <div class="brand" onclick="refreshStatus()" title="Refresh">📡 Frankfurt Radar</div>
-  <div class="weather-status" id="weather-status"></div>
+  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd" target="_blank" rel="noopener" title="DWD weather warnings"></a>
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
