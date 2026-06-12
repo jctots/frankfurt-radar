@@ -44,6 +44,42 @@ services:
       - ntfy_data:/var/lib/ntfy
     restart: unless-stopped
 
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    profiles: [analytics]
+    container_name: umami
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      - APP_SECRET=${UMAMI_APP_SECRET}
+    depends_on:
+      - umami-db
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  umami-db:
+    image: postgres:15-alpine
+    profiles: [analytics]
+    container_name: umami-db
+    environment:
+      - POSTGRES_DB=umami
+      - POSTGRES_USER=umami
+      - POSTGRES_PASSWORD=${UMAMI_DB_PASSWORD}
+    volumes:
+      - umami_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
 volumes:
   radar_data:   # shared SQLite DB (radar.db) between poller and web containers
   ntfy_data:
+  umami_data:
