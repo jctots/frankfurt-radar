@@ -530,6 +530,29 @@
       z-index: 1;
     }
 
+    .map-reset-btn {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 500;
+      background: white;
+      border: none;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      white-space: nowrap;
+      pointer-events: auto;
+      letter-spacing: 0.02em;
+    }
+    .map-reset-btn:hover { background: #f1f5f9; }
+    .dark .map-reset-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    .dark .map-reset-btn:hover { background: #273344; }
+
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
       border-radius: 10px;
@@ -938,7 +961,7 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          🔔 Most Recent
+          🔔 Recent Announcements
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1193,18 +1216,21 @@ function initMap() {
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
   map.addLayer(clusterGroup);
-  map.on('click', () => {
+  const resetBtn = L.DomUtil.create('button', 'map-reset-btn');
+  resetBtn.textContent = '⌂ Reset view';
+  resetBtn.title = 'Reset map to Frankfurt';
+  L.DomEvent.on(resetBtn, 'click', (e) => {
+    L.DomEvent.stopPropagation(e);
     resetState();
     if (isMobileView()) closeMobileMap();
     else map.setView(FRANKFURT, 12, { animate: true });
   });
+  map.getContainer().appendChild(resetBtn);
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
     if (btn) L.DomEvent.on(btn, 'click', (ev) => {
       L.DomEvent.preventDefault(ev);
       resetState();
-      if (isMobileView()) closeMobileMap();
-      else map.setView(FRANKFURT, 12, { animate: true });
     });
   });
 }
@@ -2311,8 +2337,7 @@ init();
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('leaflet-popup-close-button')) {
     e.preventDefault();
-    if (isMobileView()) { map && map.closePopup(); closeMobileMap(); }
-    else { map && map.setView(FRANKFURT, 12, { animate: true }); }
+    resetState();
   }
 });
 
