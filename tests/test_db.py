@@ -153,18 +153,20 @@ class TestPatchPublishedAt:
             ).fetchone()
         return row["published_at"] if row else None
 
-    def test_autobahn_past_valid_from_gets_valid_from(self):
+    def test_autobahn_past_valid_from_corrected_to_valid_from(self):
         past = "2020-01-01T06:00:00Z"
-        self._insert_cache_row("AUTO_PAST", "autobahn", valid_from=past, published_at=past)
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self._insert_cache_row("AUTO_PAST", "autobahn", valid_from=past, published_at=now)
 
         db.patch_published_at()
 
         assert self._get_published_at("AUTO_PAST") == past
 
-    def test_autobahn_future_valid_from_gets_frankfurt_midnight(self):
+    def test_autobahn_future_valid_from_corrected_to_frankfurt_midnight(self):
         from zoneinfo import ZoneInfo
         future = (datetime.now(timezone.utc) + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self._insert_cache_row("AUTO_FUTURE", "autobahn", valid_from=future, published_at=future)
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self._insert_cache_row("AUTO_FUTURE", "autobahn", valid_from=future, published_at=now)
 
         db.patch_published_at()
 

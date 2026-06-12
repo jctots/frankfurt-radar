@@ -23,6 +23,15 @@ _RMV_URL          = "https://www.rmv.de/hapi/himSearch"
 _POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
 _DWD_URL          = "https://api.brightsky.dev/alerts"
 _AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
+_BAUSTELLEN_URL   = "https://geowebdienste.frankfurt.de/Baustellen"
+_BAUSTELLEN_PARAMS = {
+    "request": "GetFeature",
+    "service": "WFS",
+    "version": "1.1.0",
+    "typeName": "opendata_verkehr:Baustellen",
+    "outputFormat": "application/json",
+    "srsName": "EPSG:4326",
+}
 _TM_DEUTSCHE_BANK_PARK_ID   = "ZFr9jZ766k"
 _DBP_LAT                    = 50.0690   # Deutsche Bank Park
 _DBP_LON                    = 8.6453
@@ -358,13 +367,13 @@ class AutobahnPoller(BasePoller):
                 desc = [str(desc)] if desc else []
             body = "\n".join(desc)
 
-            published_at = datetime.now(timezone.utc).isoformat()
             valid_from   = _parse_autobahn_beginn(desc)
             valid_until  = _parse_autobahn_ende(desc)
             if not valid_until:
                 bis_from, valid_until = _parse_autobahn_bis_zum(desc)
                 if not valid_from:
                     valid_from = bis_from
+            published_at = datetime.now(timezone.utc).isoformat()
 
             alerts.append(Alert(
                 id=alert_id,
@@ -617,9 +626,103 @@ class OpenLigaPoller(BasePoller):
         return alerts
 
 
+class BaustellenPoller(BasePoller):
+    def __init__(self, sperrung_filter: set[int] | None = None):
+        super().__init__()
+        self.sperrung_filter = sperrung_filter  # None = all; {0} = partial; {1} = full; {0,1} = both
+
+    def fetch(self) -> list[Alert]:
+        try:
+            resp = requests.get(_BAUSTELLEN_URL, params=_BAUSTELLEN_PARAMS, timeout=20)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("BaustellenPoller: request failed: %s", e)
+            self.ok = False
+            return []
+
+        features = resp.json().get("features", [])
+        log.info("Baustellen: %d features from WFS", len(features))
+
+        now = datetime.now(timezone.utc)
+        alerts = []
+        for feat in features:
+            alert = self._to_alert(feat.get("properties", {}), feat.get("geometry"), now)
+            if alert:
+                alerts.append(alert)
+
+        log.info("Baustellen: %d active road disruptions", len(alerts))
+        return alerts
+
+    def _to_alert(self, props: dict, geometry: dict | None, now: datetime) -> "Alert | None":
+        start_raw = props.get("startevent")
+        end_raw   = props.get("endevent")
+        if not start_raw or not end_raw:
+            return None
+        try:
+            start = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
+            end   = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
+        except ValueError:
+            return None
+        if not (start <= now <= end):
+            return None
+
+        lat = lon = None
+        if geometry:
+            lat, lon = _poly_centroid(geometry)
+
+        sperrung = props.get("sperrung")
+        if self.sperrung_filter is not None and sperrung not in self.sperrung_filter:
+            return None
+        full     = sperrung == 1
+        closure  = "Full closure" if full else "Partial closure"
+        name     = (props.get("name") or "").strip()
+        title    = f"{closure} of {name}" if name else closure
+        service_label = "City (Full)" if full else "City (Partial)"
+
+        return Alert(
+            id=f"baustellen-{props.get('baustellennummer', '')}",
+            source="baustellen",
+            title=title,
+            body=props.get("textlong", "").strip(),
+            url=None,
+            published_at=start.isoformat(),
+            valid_from=start.isoformat(),
+            valid_until=end.isoformat(),
+            service=service_label,
+            lat=lat,
+            lon=lon,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _poly_centroid(geometry: dict) -> tuple[float | None, float | None]:
+    """Return (lat, lon) centroid of a GeoJSON geometry (WGS84, lon/lat order)."""
+    geo_type = geometry.get("type", "")
+    coords   = geometry.get("coordinates")
+    if not coords:
+        return None, None
+    try:
+        if geo_type == "Point":
+            return coords[1], coords[0]
+        if geo_type == "LineString":
+            mid = coords[len(coords) // 2]
+            return mid[1], mid[0]
+        if geo_type == "MultiLineString":
+            ring = coords[0]
+            mid  = ring[len(ring) // 2]
+            return mid[1], mid[0]
+        if geo_type in ("Polygon", "MultiPolygon"):
+            ring = coords[0][0] if geo_type == "MultiPolygon" else coords[0]
+            lons = [p[0] for p in ring]
+            lats = [p[1] for p in ring]
+            return sum(lats) / len(lats), sum(lons) / len(lons)
+    except (IndexError, TypeError, ZeroDivisionError):
+        pass
+    return None, None
+
 
 def _strip_html(text: str) -> str:
     text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)

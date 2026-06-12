@@ -20,15 +20,16 @@ CLS_LABEL: dict[int, str] = {
 # Priority order for picking the primary service when a message affects multiple types
 CLS_PRIORITY = [8, 16, 32, 64, 4]  # sbahn > ubahn > tram > bus > regional
 
-SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "events": "Events", "sports": "Sports"}
-SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "🚧", "events": "🎉", "sports": "⚽"}
+SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "baustellen": "City Roads", "events": "Events", "sports": "Sports"}
+SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "🚧", "baustellen": "🏗️", "events": "🎉", "sports": "⚽"}
 SOURCE_URL: dict[str, Optional[str]] = {
-    "rmv":      "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
-    "dwd":      "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
-    "polizei":  "https://www.presseportal.de/blaulicht/nr/4970",
-    "autobahn": "https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen",
-    "events":   "https://www.visitfrankfurt.travel/erleben/veranstaltungskalender",
-    "sports":   None,
+    "rmv":        "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
+    "dwd":        "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
+    "polizei":    "https://www.presseportal.de/blaulicht/nr/4970",
+    "autobahn":   "https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen",
+    "baustellen": None,
+    "events":     "https://www.visitfrankfurt.travel/erleben/veranstaltungskalender",
+    "sports":     None,
 }
 
 
@@ -49,3 +50,4 @@ class Alert:
     lon: Optional[float] = None         # map pin longitude
     location_label: Optional[str] = None  # human-readable location hint
     image: Optional[str] = None         # direct upload.wikimedia.org thumbnail URL
+    stale: bool = False                  # older than stale_after_days — shown in accordion 2

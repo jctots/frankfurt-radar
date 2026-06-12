@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import AutobahnPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
+from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -83,6 +83,15 @@ def main() -> None:
             radius_km=radius_km,
             kinds=autobahn_cfg.get("kinds") or None,
         ))
+    baustellen_cfg = config.get("baustellen", {})
+    if baustellen_cfg.get("enabled", False):
+        closures_cfg = baustellen_cfg.get("closures", ["full", "partial"])
+        sperrung_filter: set[int] = set()
+        if "full" in closures_cfg:
+            sperrung_filter.add(1)
+        if "partial" in closures_cfg:
+            sperrung_filter.add(0)
+        pollers.append(BaustellenPoller(sperrung_filter=sperrung_filter or None))
     events_cfg = config.get("events", {})
     if events_cfg.get("enabled", False):
         pollers.append(StaticEventsPoller(
@@ -130,6 +139,13 @@ def main() -> None:
             a for a in all_alerts
             if not (a.source == "polizei" and a.published_at and a.published_at < cutoff)
         ]
+
+    stale_after_days = config.get("stale_after_days")
+    if stale_after_days:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()
+        for a in all_alerts:
+            if a.source in ("rmv", "autobahn", "baustellen") and a.published_at and a.published_at < cutoff:
+                a.stale = True
 
     sync_alert_cache(all_alerts, config)
     expire_processed_alerts()

@@ -108,19 +108,27 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def _handle_poll(self):
         log.info("Admin API: manual poll triggered")
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, str(MAIN_PY), "--mode", "poll"],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=90,
                 cwd=str(MAIN_PY.parent),
             )
+            output_lines = []
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    log.info("[poll] %s", line)
+                    output_lines.append(line)
+            proc.wait(timeout=90)
         except subprocess.TimeoutExpired:
+            proc.kill()
             self._json(504, {"error": "poll timed out"})
             return
-        if result.returncode != 0:
-            log.error("Poll failed (exit %d): %s", result.returncode, result.stderr[-200:])
-            self._json(500, {"error": result.stderr[-500:]})
+        if proc.returncode != 0:
+            log.error("Poll failed (exit %d)", proc.returncode)
+            self._json(500, {"error": "\n".join(output_lines[-20:])})
         else:
             self._json(200, {"status": "ok"})
 
