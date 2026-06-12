@@ -473,7 +473,7 @@
     .section-summary {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 14px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
       color: var(--clr-muted);
       cursor: pointer; user-select: none;
       background: #f1f5f9;
@@ -939,7 +939,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center"></div>
+    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center;text-transform:uppercase;letter-spacing:0.05em"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1186,6 +1186,7 @@ let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
 let _hiddenAlertIds = null;
+let _hiddenTimeout  = null;
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
@@ -2232,9 +2233,13 @@ async function init() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      if (document.body.classList.contains('mobile-map-open')) return;
-      _hiddenAlertIds = new Set(visible().map(a => a.id));
+      clearTimeout(_hiddenTimeout);
+      _hiddenTimeout = setTimeout(() => {
+        if (document.hidden) _hiddenAlertIds = new Set(visible().map(a => a.id));
+      }, 1000);
     } else {
+      clearTimeout(_hiddenTimeout);
+      _hiddenTimeout = null;
       const sec = document.getElementById('sec-active');
       if (_hiddenAlertIds && sec && sec.classList.contains('open')) {
         const newIds = visible().filter(a => !_hiddenAlertIds.has(a.id)).map(a => a.id);
