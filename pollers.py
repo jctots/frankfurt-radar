@@ -291,7 +291,7 @@ class DWDPoller(BasePoller):
                 title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
                 body=body,
                 url=None,
-                published_at=w.get("published"),
+                published_at=w.get("published") or datetime.now(timezone.utc).isoformat(),
                 valid_from=w.get("onset"),
                 valid_until=w.get("expires"),
                 service=None,
