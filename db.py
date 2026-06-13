@@ -292,7 +292,7 @@ def patch_published_at() -> None:
     back-fills a better value for autobahn/baustellen (where valid_from is the
     actual event start) and fixes any NULL rows from sources that never supply one.
 
-    Rules (applied to autobahn, baustellen, and NULL rows):
+    Rules (applied to autobahn, baustellen, dwd, and NULL rows):
     - valid_from in the past  → use valid_from
     - valid_from in the future or absent → use today at 00:00 Frankfurt time
     """
@@ -306,7 +306,7 @@ def patch_published_at() -> None:
         rows = conn.execute(
             """SELECT alert_id, valid_from FROM alert_cache
                WHERE published_at IS NULL
-                  OR (source IN ('autobahn', 'baustellen') AND valid_from IS NOT NULL)"""
+                  OR (source IN ('autobahn', 'baustellen', 'dwd') AND valid_from IS NOT NULL)"""
         ).fetchall()
         for row in rows:
             if row["valid_from"] and row["valid_from"] < now_iso:
