@@ -1921,8 +1921,10 @@ function selectAlert(id, fromMap = false) {
           if (latest) openPopup(latest);
         });
       };
-      // Coming from a non-DWD popup: reset to zoom 12 first so cluster restores cleanly
-      if (!wasInRadarView && prevSelectedId !== null) {
+      // Reset to zoom 12 first when zoomed in past default (>12) or coming from a non-DWD
+      // popup — prevents MarkerCluster synthetic moveend from consuming the listener
+      // mid-animation during a large zoom-out to RADAR_ZOOM
+      if (map.getZoom() > 12 || (!wasInRadarView && prevSelectedId !== null)) {
         map.setView(FRANKFURT, 12, { animate: true });
         map.once('moveend', () => {
           if (selectedId !== expectedId) return;
