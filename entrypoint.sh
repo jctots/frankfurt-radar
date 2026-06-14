@@ -28,6 +28,7 @@ env_block = "\n".join([
 job_block = "\n".join([
     f"# Poll every {interval_min} min, 24/7",
     f"{poll_minutes} * * * * root cd /app && python main.py --mode poll >> /proc/1/fd/1 2>&1",
+    f"{poll_minutes} * * * * root cd /app && python radar.py >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 

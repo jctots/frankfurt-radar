@@ -5,14 +5,16 @@ from pathlib import Path
 
 import requests as http_requests
 import yaml
-from flask import Flask, Response, abort, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db import get_status_json, init_db
 
 app = Flask(__name__)
 
-CONFIG_FILE          = Path(os.getenv("DATA_DIR", "/app/data")) / "config.yaml"
+DATA_DIR             = Path(os.getenv("DATA_DIR", "/app/data"))
+CONFIG_FILE          = DATA_DIR / "config.yaml"
+RADAR_DIR            = DATA_DIR / "radar"
 BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
@@ -127,6 +129,36 @@ def api_poll():
         if result.returncode != 0:
             return jsonify({"error": result.stderr[-500:]}), 500
     return jsonify(get_status_json())
+
+
+@app.route("/radar-test")
+def radar_test():
+    return render_template("radar_test.html")
+
+
+@app.route("/api/radar/frames")
+def api_radar_frames():
+    obs_dir      = RADAR_DIR / "obs"
+    forecast_dir = RADAR_DIR / "forecast"
+    obs      = sorted(f.stem for f in obs_dir.glob("*.png"))      if obs_dir.exists()      else []
+    forecast = sorted(f.stem for f in forecast_dir.glob("*.png")) if forecast_dir.exists() else []
+    return jsonify({"obs": obs, "forecast": forecast})
+
+
+@app.route("/api/radar/obs/<filename>")
+def api_radar_obs(filename):
+    path = RADAR_DIR / "obs" / filename
+    if not path.exists() or path.suffix != ".png":
+        abort(404)
+    return send_file(path, mimetype="image/png")
+
+
+@app.route("/api/radar/forecast/<filename>")
+def api_radar_forecast(filename):
+    path = RADAR_DIR / "forecast" / filename
+    if not path.exists() or path.suffix != ".png":
+        abort(404)
+    return send_file(path, mimetype="image/png")
 
 
 def _web_config() -> dict | None:

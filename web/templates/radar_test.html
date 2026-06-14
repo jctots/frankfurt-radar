@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radar Test — Frankfurt Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clr-weather:  #7c3aed;
+      --clr-bg:       #f0f2f5;
+      --clr-surface:  #ffffff;
+      --clr-border:   #e2e8f0;
+      --clr-text:     #1e293b;
+      --clr-muted:    #64748b;
+      --clr-header:   #0f172a;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--clr-header);
+      color: white;
+      padding: 0 16px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 500;
+    }
+    .brand { font-size: 20px; font-weight: 700; white-space: nowrap; }
+    .test-badge {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+      background: #fbbf24; color: #1e293b;
+      border-radius: 4px; padding: 2px 7px;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      background: var(--clr-surface);
+      border-bottom: 1px solid var(--clr-border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-height: 44px;
+      position: sticky;
+      top: 52px;
+      z-index: 400;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--clr-border);
+      background: var(--clr-bg);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--clr-muted);
+      user-select: none;
+    }
+    .chip.on { color: var(--clr-weather); border-color: var(--clr-weather); background: #f5f3ff; }
+    .filter-sep { width: 1px; height: 20px; background: var(--clr-border); flex-shrink: 0; margin: 0 4px; }
+
+    /* ── Layout ── */
+    .status-area {
+      display: flex;
+      height: calc(100dvh - 52px - 44px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Feed panel ── */
+    .feed-panel {
+      width: 320px;
+      min-width: 260px;
+      border-right: 1px solid var(--clr-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      z-index: 10;
+    }
+    .feed-header {
+      background: var(--clr-surface);
+      padding: 10px 14px 9px;
+      border-bottom: 1px solid var(--clr-border);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--clr-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .feed-count {
+      background: var(--clr-bg);
+      border: 1px solid var(--clr-border);
+      border-radius: 999px;
+      padding: 0 7px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--clr-text);
+    }
+    .card {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      background: var(--clr-surface);
+    }
+    .card.sel.src-dwd { background: #f5f3ff; border-left-color: var(--clr-weather); }
+    .card-src {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 3px;
+      color: var(--clr-weather);
+    }
+    .card-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+    .card-meta  { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
+
+    /* ── Map ── */
+    #map { flex: 1; }
+
+    /* ── Leaflet popup ── */
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      padding: 0; overflow: hidden;
+    }
+    .leaflet-popup-content {
+      margin: 0; min-width: 260px; max-width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    .leaflet-popup-tip-container { margin-top: -1px; }
+    .popup-inner { padding: 14px 16px 12px; }
+    .popup-src {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 4px;
+      color: var(--clr-weather);
+    }
+    .popup-title { font-size: 14px; font-weight: 600; line-height: 1.4; color: #1e293b; margin-bottom: 4px; }
+    .popup-meta  { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+    .popup-body  {
+      font-size: 12px; line-height: 1.6; color: #334155;
+      white-space: pre-wrap; max-height: 120px; overflow-y: auto;
+      border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 4px;
+    }
+
+    /* ── Radar HUD ── */
+    #radar-hud {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: rgba(15,23,42,0.92); color: #e2e8f0;
+      border-radius: 10px; padding: 10px 16px; min-width: 320px; max-width: 80%;
+      border: 1px solid #334155;
+    }
+    #hud-section-labels { display: flex; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    #lbl-obs { flex: 18; text-align: center; border-right: 1px solid #334155; padding-right: 4px; }
+    #lbl-fc  { flex: 12; text-align: center; padding-left: 4px; }
+    .dots { display: flex; gap: 2px; align-items: center; justify-content: center; flex-wrap: nowrap; margin-bottom: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 2px; background: #334155; cursor: pointer; }
+    .dot:hover { background: #64748b; }
+    .dot.on        { background: #38bdf8; }
+    .dot.future    { background: #1e3a5f; }
+    .dot.future.on { background: #818cf8; }
+    .dot.now-frame    { background: #f59e0b; }
+    .dot.now-frame.on { background: #fbbf24; }
+    #hud-range { display: flex; font-size: 10px; color: #64748b; }
+    #hud-t0   { flex: 18; text-align: left; }
+    #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
+    #hud-tend { flex: 12; text-align: right; }
+    #hud-legend { margin-top: 8px; padding-top: 7px; border-top: 1px solid #334155; }
+    #hud-legend-label { font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    #hud-legend-bar {
+      height: 8px; border-radius: 3px; width: 100%;
+      background: linear-gradient(to right,
+        #29b6f6 0%, #66bb6a 25%, #ffee58 45%, #ffa726 62%, #e53935 78%, #8e24aa 100%
+      );
+    }
+    #hud-legend-ticks { display: flex; justify-content: space-between; font-size: 9px; color: #64748b; margin-top: 2px; }
+
+    /* ── Status badge ── */
+    #radar-status {
+      position: absolute; top: 10px; right: 10px; z-index: 1000;
+      background: rgba(15,23,42,0.85); border-radius: 6px; padding: 5px 10px;
+      font-size: 11px; border: 1px solid #334155; color: #94a3b8;
+    }
+    #radar-status.local   { color: #4ade80; border-color: #166534; }
+    #radar-status.dwd     { color: #fbbf24; border-color: #92400e; }
+    #radar-status.loading { color: #7dd3fc; border-color: #1e4d6b; }
+    #radar-status.error   { color: #f87171; border-color: #7f1d1d; }
+
+    /* ── Reset view button — matches index.html exactly ── */
+    .map-controls-row {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      z-index: 500; display: flex; gap: 8px; pointer-events: auto;
+    }
+    .map-reset-btn {
+      background: white; border: none; border-radius: 20px;
+      padding: 5px 14px; font-size: 12px; font-weight: 600;
+      color: #374151; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      white-space: nowrap; letter-spacing: 0.02em;
+    }
+    .map-reset-btn:hover { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">📡 Frankfurt Radar</div>
+  <span class="test-badge">RADAR TEST</span>
+</header>
+
+<div class="filter-bar">
+  <span class="chip">🚇 Transport</span>
+  <span class="chip on">🌩️ Weather</span>
+  <div class="filter-sep"></div>
+  <span class="chip">🚔 Police</span>
+  <span class="chip">🛣️ Roads</span>
+  <span class="chip">📅 Events</span>
+</div>
+
+<div class="status-area">
+  <div class="feed-panel">
+    <div class="feed-header">
+      🔔 Recent Announcements
+      <span class="feed-count">1</span>
+    </div>
+    <div class="feed">
+      <div class="card sel src-dwd">
+        <div class="card-src">🌩️ Weather</div>
+        <div class="card-title">Heavy rain warning for Frankfurt am Main</div>
+        <div class="card-meta">just now · Level 2</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="map">
+    <div id="radar-status" class="loading">Loading…</div>
+    <div id="radar-hud">
+      <div id="hud-section-labels">
+        <span id="lbl-obs">Observation</span>
+        <span id="lbl-fc">Forecast</span>
+      </div>
+      <div class="dots" id="dots"></div>
+      <div id="hud-range">
+        <span id="hud-t0">—</span>
+        <span id="hud-tnow">▼</span>
+        <span id="hud-tend">—</span>
+      </div>
+      <div id="hud-legend">
+        <div id="hud-legend-label">Precipitation intensity</div>
+        <div id="hud-legend-bar"></div>
+        <div id="hud-legend-ticks">
+          <span>Light</span><span>Moderate</span><span>Heavy</span><span>Extreme</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants — must match radar.py ──────────────────────────────────────────
+const FRANKFURT    = [50.11, 8.68];
+const ZOOM         = 9;
+const IMAGE_BOUNDS = [[48.0, 6.0], [52.2, 11.4]];
+const DWD_WMS      = 'https://maps.dwd.de/geoserver/wms';
+const LAYER        = 'dwd:Radar_wn-product_1x1km_ger';
+const WMS_BBOX     = '667917,6106854,1269042,6837402';
+const IMG_W        = 800;
+const IMG_H        = 600;
+const SPEED_MS     = 200;
+const OBS_COUNT    = 18;
+const FC_COUNT     = 12;
+const MIN_FRAME_BYTES = 2000;
+
+// ── Map — locked, no pan/zoom ─────────────────────────────────────────────────
+const map = L.map('map', {
+  zoomControl: false, dragging: false, scrollWheelZoom: false,
+  doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false,
+}).setView(FRANKFURT, ZOOM);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '© OpenStreetMap contributors',
+}).addTo(map);
+
+// Reset view button — same DOM pattern as index.html
+const controlsRow = L.DomUtil.create('div', 'map-controls-row');
+const resetBtn = L.DomUtil.create('button', 'map-reset-btn', controlsRow);
+resetBtn.textContent = '↺ Reset view';
+resetBtn.title = 'Reset map to Frankfurt';
+L.DomEvent.on(resetBtn, 'click', (e) => {
+  L.DomEvent.stopPropagation(e);
+  map.setView(FRANKFURT, ZOOM, { animate: true });
+});
+map.getContainer().appendChild(controlsRow);
+
+// Weather marker — same divIcon pattern as index.html
+const weatherIcon = L.divIcon({
+  className: '',
+  html: '<div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.45))">⛈️</div>',
+  iconSize: [24, 24], iconAnchor: [12, 22], popupAnchor: [0, -24],
+});
+
+const popupContent =
+  '<div class="popup-inner">' +
+    '<div class="popup-src">⛈️ WEATHER</div>' +
+    '<div class="popup-title">Heavy rain warning for Frankfurt am Main</div>' +
+    '<div class="popup-meta">just now · DWD · Level 2</div>' +
+    '<div class="popup-body">Thunderstorms with heavy rain expected. Precipitation up to 40 mm/h possible. Risk of local flooding of roads and underpasses. Valid until 22:00 local time.</div>' +
+  '</div>';
+
+L.marker(FRANKFURT, { icon: weatherIcon })
+  .addTo(map)
+  .bindPopup(popupContent, { closeButton: true, autoClose: false, closeOnClick: false })
+  .openPopup();
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let frames    = [];
+let nowIdx    = 0;
+let frameIdx  = 0;
+let animTimer = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function dateToTs(d) {
+  return d.toISOString().replace(/-|:/g, '').slice(0, 13) + 'Z';
+}
+function tsToDate(ts) {
+  const y = ts.slice(0,4), mo = ts.slice(4,6), dy = ts.slice(6,8);
+  const h = ts.slice(9,11), mi = ts.slice(11,13);
+  return new Date(`${y}-${mo}-${dy}T${h}:${mi}:00Z`);
+}
+function fmtTime(d) {
+  return d.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+}
+function relLabel(i) {
+  const mins = (i - nowIdx) * 10;
+  if (mins === 0) return '⚡ now';
+  return mins > 0 ? `+${mins}m` : `${mins}m`;
+}
+function setStatus(cls, text) {
+  const el = document.getElementById('radar-status');
+  el.className = cls; el.textContent = text;
+}
+function buildDwdUrl(isoTime) {
+  return `${DWD_WMS}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap` +
+    `&LAYERS=${encodeURIComponent(LAYER)}&STYLES=&FORMAT=image%2Fpng&TRANSPARENT=true` +
+    `&SRS=EPSG%3A3857&BBOX=${WMS_BBOX}&WIDTH=${IMG_W}&HEIGHT=${IMG_H}` +
+    `&TIME=${encodeURIComponent(isoTime)}`;
+}
+
+// ── Frame sources ─────────────────────────────────────────────────────────────
+async function fetchLocalFrames() {
+  try {
+    const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!data.obs?.length || !data.forecast?.length) return null;
+    return {
+      frames: [
+        ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
+        ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
+      ],
+      nowIdx: data.obs.length,
+    };
+  } catch { return null; }
+}
+
+function buildDwdFrames() {
+  const nowRef = new Date(Math.floor(Date.now() / 600000) * 600000);
+  const anchor = new Date(nowRef.getTime() - 10 * 60000);
+  const obsDates = Array.from({ length: OBS_COUNT }, (_, i) =>
+    new Date(anchor.getTime() - (OBS_COUNT - 1 - i) * 600000)
+  );
+  const fcDates = Array.from({ length: FC_COUNT }, (_, i) =>
+    new Date(nowRef.getTime() + i * 600000)
+  );
+  return {
+    frames: [
+      ...obsDates.map(d => ({ ts: dateToTs(d), url: buildDwdUrl(d.toISOString()) })),
+      ...fcDates.map(d  => ({ ts: dateToTs(d), url: buildDwdUrl(d.toISOString()) })),
+    ],
+    nowIdx: OBS_COUNT,
+  };
+}
+
+// ── Preload ───────────────────────────────────────────────────────────────────
+async function preload() {
+  for (let i = 0; i < frames.length; i++) {
+    await new Promise(resolve => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      const overlay = L.imageOverlay(frames[i].url, IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
+      frames[i].layer = overlay;
+      overlay.once('load', finish);
+      overlay.once('error', finish);
+      setTimeout(finish, 8000);
+    });
+    const isLocal = frames[0].url.startsWith('/api');
+    setStatus('loading', `Preloading… ${i + 1}/${frames.length}`);
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function buildDots() {
+  const c = document.getElementById('dots');
+  c.innerHTML = '';
+  frames.forEach((f, i) => {
+    const el = document.createElement('div');
+    el.className = 'dot' + (i === nowIdx ? ' now-frame' : i > nowIdx ? ' future' : '');
+    el.id = 'dot-' + i;
+    el.title = relLabel(i);
+    el.onclick = () => { stopAnim(); showFrame(i); };
+    c.appendChild(el);
+  });
+  document.getElementById('hud-t0').textContent   = fmtTime(tsToDate(frames[0].ts));
+  document.getElementById('hud-tnow').textContent = fmtTime(tsToDate(frames[nowIdx].ts));
+  document.getElementById('hud-tend').textContent = fmtTime(tsToDate(frames[frames.length - 1].ts));
+}
+
+function updateHud() {
+  document.querySelectorAll('.dot').forEach((el, i) => el.classList.toggle('on', i === frameIdx));
+}
+
+// ── Animation ─────────────────────────────────────────────────────────────────
+function showFrame(idx) {
+  if (frames[frameIdx]?.layer) frames[frameIdx].layer.setOpacity(0);
+  frameIdx = idx;
+  if (frames[frameIdx]?.layer) frames[frameIdx].layer.setOpacity(0.7);
+  updateHud();
+}
+
+function stepFrame() {
+  const next = (frameIdx + 1) % frames.length;
+  showFrame(next);
+  if (next === frames.length - 1) {
+    clearInterval(animTimer);
+    animTimer = setTimeout(() => { animTimer = setInterval(stepFrame, SPEED_MS); }, 1000);
+  }
+}
+
+function startAnim() { animTimer = setInterval(stepFrame, SPEED_MS); }
+function stopAnim()  { clearInterval(animTimer); clearTimeout(animTimer); animTimer = null; }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  setStatus('loading', 'Loading…');
+  try {
+    const local = await fetchLocalFrames();
+    if (local) {
+      ({ frames, nowIdx } = local);
+      setStatus('loading', 'Preloading local…');
+    } else {
+      ({ frames, nowIdx } = buildDwdFrames());
+      setStatus('dwd', 'Preloading DWD live…');
+    }
+    await preload();
+    buildDots();
+    showFrame(nowIdx);
+    startAnim();
+    const isLocal = frames[0].url.startsWith('/api');
+    setStatus(isLocal ? 'local' : 'dwd', isLocal ? '● Local data' : '⚡ DWD live fallback');
+  } catch (e) {
+    setStatus('error', `Error: ${e.message}`);
+    console.error(e);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

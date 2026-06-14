@@ -358,26 +358,27 @@
     }
 
     .search-bar {
-      background: var(--clr-surface);
-      padding: 8px 14px;
+      background: #f1f5f9;
+      padding: 2px 14px 8px;
       border-bottom: 1px solid var(--clr-border);
       display: flex;
       align-items: center;
       gap: 8px;
     }
+    .dark .search-bar { background: #1a2235; }
     .search-bar input {
       flex: 1;
       border: 1px solid var(--clr-border);
       border-radius: 6px;
       background: var(--clr-bg);
       color: var(--clr-text);
-      font-size: 13px;
+      font-size: 12px;
       padding: 5px 10px;
       outline: none;
       transition: border-color 0.15s;
     }
     .search-bar input:focus { border-color: #1a73e8; }
-    .search-bar input::placeholder { color: var(--clr-muted); }
+    .search-bar input::placeholder { color: var(--clr-muted); font-style: italic; }
     .search-clear {
       background: none;
       border: none;
@@ -422,20 +423,31 @@
     }
 
     .card {
-      padding: 12px 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--clr-border);
       border-left: 3px solid transparent;
       cursor: pointer;
       transition: background 0.1s;
     }
-    .card:hover { background: #f8fafc; }
-    .card.sel { background: #eff6ff; border-left-color: var(--clr-transport); }
-    .card.sel.src-dwd      { background: #f5f3ff; border-left-color: var(--clr-weather); }
-    .card.sel.src-polizei  { background: #fef2f2; border-left-color: var(--clr-police); }
-    .card.sel.src-autobahn   { background: #fffbeb; border-left-color: var(--clr-roads); }
-    .card.sel.src-baustellen { background: #fffbeb; border-left-color: var(--clr-roads); }
-    .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
-    .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
+    .card.src-rmv        { border-left-color: var(--clr-transport); }
+    .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .card.src-polizei    { border-left-color: var(--clr-police); }
+    .card.src-autobahn   { border-left-color: var(--clr-roads); }
+    .card.src-baustellen { border-left-color: var(--clr-roads); }
+    .card.src-events     { background: #ecfdf5; border-left-color: var(--clr-events); }
+    .card.src-sports     { background: #fff7ed; border-left-color: var(--clr-sports); }
+    .card:hover              { background: #f8fafc; }
+    .card.src-events:hover   { background: #d1fae5; }
+    .card.src-sports:hover   { background: #ffedd5; }
+    .card.sel.src-rmv        { background: #bfdbfe; border-left-color: var(--clr-transport); }
+    .card.sel.src-dwd        { background: #ddd6fe; border-left-color: var(--clr-weather); }
+    .card.sel.src-polizei    { background: #fecaca; border-left-color: var(--clr-police); }
+    .card.sel.src-autobahn   { background: #fde68a; border-left-color: var(--clr-roads); }
+    .card.sel.src-baustellen { background: #fde68a; border-left-color: var(--clr-roads); }
+    .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
+    .card.sel.src-sports     { background: #fed7aa; border-left-color: var(--clr-sports); }
+    .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .card.card-removed:hover { background: #f8fafc !important; }
 
     @keyframes alert-blink {
       0%, 100%      { box-shadow: none; }
@@ -444,23 +456,25 @@
     }
     .card.alert-blink { animation: alert-blink 1.4s ease-in-out forwards; }
 
+    .card-inner  { display: flex; align-items: center; gap: 10px; }
+    .card-icon   { font-size: 18px; flex-shrink: 0; }
+    .card-body   { flex: 1; min-width: 0; }
+    .card-labels { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
     .card-src {
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-      margin-bottom: 3px;
     }
     .card-title {
       font-size: 13px;
       font-weight: 500;
       line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
+    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto auto; align-content: start; min-height: 0; overflow: hidden; }
@@ -468,6 +482,17 @@
     .feed-sections:has(#sec-longrunning.open) { grid-template-rows: auto 1fr auto; }
     .feed-sections:has(#sec-removed.open)     { grid-template-rows: auto auto 1fr; }
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .feed-date-header {
+      padding: 8px 14px 2px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      text-align: center;
+      color: var(--clr-muted);
+      background: #f1f5f9;
+      border-top: 1px solid var(--clr-border);
+      border-left: 3px solid transparent;
+      flex-shrink: 0;
+    }
+    .dark .feed-date-header { background: #1a2235; }
     .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
     .feed-section:not(.open) .section-body { display: none; }
     .section-summary {
@@ -518,23 +543,55 @@
       pointer-events: auto;
     }
     .map-reset-btn, .map-close-btn {
-      background: white;
-      border: none;
+      background: rgba(255,255,255,0.93);
+      border: 1px solid #e2e8f0;
       border-radius: 20px;
       padding: 5px 14px;
       font-size: 12px;
       font-weight: 600;
       color: #374151;
       cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
       white-space: nowrap;
       letter-spacing: 0.02em;
     }
     .map-reset-btn:hover, .map-close-btn:hover { background: #f1f5f9; }
-    .dark .map-reset-btn, .dark .map-close-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    .dark .map-reset-btn, .dark .map-close-btn { background: rgba(15,23,42,0.92); color: #e2e8f0; border-color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
     .dark .map-reset-btn:hover, .dark .map-close-btn:hover { background: #273344; }
     .map-close-btn { display: none; }
     @media (max-width: 767px) { .map-close-btn { display: inline-block; } }
+
+    /* ── Radar HUD ──────────────────────────────────────────── */
+    #radar-hud {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: rgba(255,255,255,0.93); color: #1e293b;
+      border-radius: 10px; padding: 10px 16px; min-width: 320px; max-width: 80%;
+      border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.10); pointer-events: auto;
+    }
+    .dark #radar-hud { background: rgba(15,23,42,0.92); color: #e2e8f0; border-color: #334155; box-shadow: none; }
+    #hud-section-labels { display: flex; font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .dark #hud-section-labels { color: #475569; }
+    #lbl-obs { flex: 18; text-align: center; border-right: 1px solid #cbd5e1; padding-right: 4px; }
+    .dark #lbl-obs { border-right-color: #334155; }
+    #lbl-fc  { flex: 12; text-align: center; padding-left: 4px; }
+    .radar-dots { display: flex; gap: 2px; align-items: center; justify-content: center; flex-wrap: nowrap; margin-bottom: 4px; }
+    .radar-dot { width: 8px; height: 8px; border-radius: 2px; background: #94a3b8; cursor: pointer; }
+    .radar-dot:hover { background: #64748b; }
+    .radar-dot.on         { background: #38bdf8; }
+    .radar-dot.future     { background: #bfdbfe; }
+    .radar-dot.future.on  { background: #818cf8; }
+    .radar-dot.now-frame    { background: #f59e0b; }
+    .radar-dot.now-frame.on { background: #fbbf24; }
+    .dark .radar-dot              { background: #334155; }
+    .dark .radar-dot.on           { background: #38bdf8; }
+    .dark .radar-dot.future       { background: #1e3a5f; }
+    .dark .radar-dot.future.on    { background: #818cf8; }
+    .dark .radar-dot.now-frame    { background: #f59e0b; }
+    .dark .radar-dot.now-frame.on { background: #fbbf24; }
+    #hud-range { display: flex; font-size: 10px; color: #64748b; }
+    #hud-t0   { flex: 18; text-align: left; }
+    #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
+    #hud-tend { flex: 12; text-align: right; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -778,14 +835,25 @@
       --clr-muted:   #94a3b8;
       --clr-header:  #020617;
     }
-    .dark .card:hover                { background: #263348; }
-    .dark .card.sel                  { background: #172554; }
-    .dark .card.sel.src-dwd          { background: #2e1065; }
-    .dark .card.sel.src-polizei      { background: #450a0a; }
-    .dark .card.sel.src-autobahn     { background: #431407; }
-    .dark .card.sel.src-baustellen   { background: #431407; }
-    .dark .card.sel.src-events       { background: #022c22; }
-    .dark .card.sel.src-sports       { background: #431a06; }
+    .dark .card.src-rmv        { border-left-color: var(--clr-transport); }
+    .dark .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .dark .card.src-polizei    { border-left-color: var(--clr-police); }
+    .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
+    .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
+    .dark .card.src-events     { background: #022c22; border-left-color: var(--clr-events); }
+    .dark .card.src-sports     { background: #431a06; border-left-color: var(--clr-sports); }
+    .dark .card:hover              { background: #263348; }
+    .dark .card.src-events:hover   { background: #033d2e; }
+    .dark .card.src-sports:hover   { background: #59220a; }
+    .dark .card.sel.src-rmv        { background: #253e7c; border-left-color: var(--clr-transport); }
+    .dark .card.sel.src-dwd        { background: #4a1c99; border-left-color: var(--clr-weather); }
+    .dark .card.sel.src-polizei    { background: #731414; border-left-color: var(--clr-police); }
+    .dark .card.sel.src-autobahn   { background: #722409; border-left-color: var(--clr-roads); }
+    .dark .card.sel.src-baustellen { background: #722409; border-left-color: var(--clr-roads); }
+    .dark .card.sel.src-events     { background: #04503c; border-left-color: var(--clr-events); }
+    .dark .card.sel.src-sports     { background: #742d0a; border-left-color: var(--clr-sports); }
+    .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .dark .card.card-removed:hover { background: #263348 !important; }
 
     .dark .chip.src-sports.on        { background: #431a06; }
     .dark .chip.src-rmv.on           { background: #172554; }
@@ -809,58 +877,6 @@
     .dark .feed::-webkit-scrollbar-thumb       { background: #334155; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-    /* ── Event banners ──────────────────────────────────────── */
-    .event-banner {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--clr-border);
-      background: #ecfdf5;
-      border-left: 3px solid var(--clr-events);
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .event-banner:hover { background: #d1fae5; }
-    .event-banner-inner { display: flex; align-items: center; gap: 10px; }
-    .event-banner-icon  { font-size: 18px; flex-shrink: 0; }
-    .event-banner-content { flex: 1; min-width: 0; }
-    .event-banner-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--clr-text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .event-banner-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
-    .event-banner-chevron { color: var(--clr-muted); font-size: 16px; flex-shrink: 0; }
-    .dark .event-banner       { background: #022c22; border-color: #059669; }
-    .dark .event-banner:hover { background: #064e3b; }
-    .sport-banner {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--clr-border);
-      background: #fff7ed;
-      border-left: 3px solid var(--clr-sports);
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .sport-banner:hover { background: #ffedd5; }
-    .dark .sport-banner       { background: #431a06; border-color: #ea580c; }
-    .dark .sport-banner:hover { background: #7c2d12; }
-    .sport-banner-status {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--clr-sports);
-      margin-bottom: 2px;
-    }
-    .event-banner-status {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--clr-events);
-      margin-bottom: 2px;
-    }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
     .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -939,7 +955,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center;text-transform:uppercase;letter-spacing:0.05em"></div>
+    <div id="feed-date-header" class="feed-date-header"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1179,6 +1195,8 @@ let map          = null;
 let clusterGroup = null;
 let tileLayer    = null;
 let markers      = {}; // id → L.Marker
+let inRadarView  = false;
+let radarHiddenMarkers = [];
 let policeCircles = {}; // id → L.Circle, shown when police marker is expanded
 let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
 let _initialLoad   = true;
@@ -1197,6 +1215,16 @@ if (!filters.roads) filters.roads = {};
 if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
 if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
 if (!filters.roads.hasOwnProperty('city_full'))   filters.roads.city_full   = true;
+
+// ── Radar state ──────────────────────────────────────────────────────────────
+const RADAR_IMAGE_BOUNDS = [[48.0, 6.0], [52.2, 11.4]];
+const RADAR_ZOOM         = 9;
+const RADAR_SPEED_MS     = 100;
+let radarFrames    = [];
+let radarNowIdx    = 0;
+let radarFrameIdx  = 0;
+let radarAnimTimer = null;
+let radarPreloaded = false;
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 function setTileLayer(mode) {
@@ -1229,13 +1257,31 @@ function initMap() {
     closeMobileMap();
   });
   map.getContainer().appendChild(controlsRow);
+  const _popupCloseHandlers = new WeakMap();
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
-    if (btn) L.DomEvent.on(btn, 'click', (ev) => {
-      L.DomEvent.preventDefault(ev);
-      resetState();
-    });
+    if (btn) {
+      const prev = _popupCloseHandlers.get(btn);
+      if (prev) L.DomEvent.off(btn, 'click', prev);
+      const handler = (ev) => {
+        L.DomEvent.preventDefault(ev);
+        if (inRadarView) { map.closePopup(); } else { resetState(); }
+      };
+      L.DomEvent.on(btn, 'click', handler);
+      _popupCloseHandlers.set(btn, handler);
+    }
   });
+
+  // Radar HUD — injected as an absolute child of the Leaflet container
+  const hudEl = document.createElement('div');
+  hudEl.id = 'radar-hud';
+  hudEl.style.display = 'none';
+  hudEl.innerHTML =
+    '<div id="hud-section-labels"><span id="lbl-obs">Observation</span><span id="lbl-fc">Forecast</span></div>' +
+    '<div class="radar-dots" id="radar-dots"></div>' +
+    '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>';
+  map.getContainer().appendChild(hudEl);
+  L.DomEvent.disableClickPropagation(hudEl);
 }
 
 function sourceIcon(source) {
@@ -1309,14 +1355,7 @@ function expandPoliceMarker(a, coords) {
 
 function renderMarkers() {
   if (!map || !clusterGroup) return;
-  const activeOpen  = searchTerm || openSection === 'active';
-  const longRunOpen = searchTerm || openSection === 'longrunning';
-  const feedItems   = [
-    ...(activeOpen  ? visible()            : []),
-    ...(longRunOpen ? visibleLongRunning() : []),
-    ...removedAlerts.filter(a => passesFilters(a)),
-  ];
-  const list = feedItems;
+  const list = feedVisible();
   const visibleIds = new Set(list.map(a => a.id));
 
   // Remove markers (and any active circles) for alerts no longer visible
@@ -1346,6 +1385,126 @@ function renderMarkers() {
     markers[a.id] = m;
   });
 
+}
+
+// ── Radar overlay ────────────────────────────────────────────────────────────
+function _radarTs(ts) {
+  const y = ts.slice(0,4), mo = ts.slice(4,6), dy = ts.slice(6,8);
+  const h = ts.slice(9,11), mi = ts.slice(11,13);
+  return new Date(`${y}-${mo}-${dy}T${h}:${mi}:00Z`);
+}
+
+function _radarFmtTime(d) {
+  return d.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+}
+
+function _radarRelLabel(i) {
+  const mins = (i - radarNowIdx) * 10;
+  if (mins === 0) return '⚡ now';
+  return mins > 0 ? `+${mins}m` : `${mins}m`;
+}
+
+async function startRadarPreload() {
+  try {
+    const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data.obs?.length || !data.forecast?.length) return;
+    radarFrames = [
+      ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
+      ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
+    ];
+    radarNowIdx = data.obs.length;
+    for (let i = 0; i < radarFrames.length; i++) {
+      await new Promise(resolve => {
+        const overlay = L.imageOverlay(radarFrames[i].url, RADAR_IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
+        radarFrames[i].layer = overlay;
+        overlay.once('load', resolve);
+        overlay.once('error', resolve);
+        setTimeout(resolve, 8000);
+      });
+    }
+    radarPreloaded = radarFrames.length > 0;
+  } catch { /* non-critical — radar is enhancement, not core */ }
+}
+
+function _buildRadarHud() {
+  const hud = document.getElementById('radar-hud');
+  if (!hud || !radarFrames.length) return;
+  const dotsEl = document.getElementById('radar-dots');
+  dotsEl.innerHTML = '';
+  radarFrames.forEach((f, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'radar-dot' + (i === radarNowIdx ? ' now-frame' : i > radarNowIdx ? ' future' : '');
+    dot.id = 'radar-dot-' + i;
+    dot.title = _radarRelLabel(i);
+    dot.onclick = () => { _stopRadarAnim(); _showRadarFrame(i); };
+    dotsEl.appendChild(dot);
+  });
+  document.getElementById('hud-t0').textContent   = _radarFmtTime(_radarTs(radarFrames[0].ts));
+  document.getElementById('hud-tnow').textContent = _radarFmtTime(_radarTs(radarFrames[radarNowIdx].ts));
+  document.getElementById('hud-tend').textContent = _radarFmtTime(_radarTs(radarFrames[radarFrames.length - 1].ts));
+}
+
+function _updateRadarHud() {
+  document.querySelectorAll('.radar-dot').forEach((el, i) => el.classList.toggle('on', i === radarFrameIdx));
+}
+
+function _showRadarFrame(idx) {
+  if (radarFrames[radarFrameIdx]?.layer) radarFrames[radarFrameIdx].layer.setOpacity(0);
+  radarFrameIdx = idx;
+  if (radarFrames[radarFrameIdx]?.layer) radarFrames[radarFrameIdx].layer.setOpacity(0.7);
+  _updateRadarHud();
+}
+
+function _stepRadarFrame() {
+  const next = (radarFrameIdx + 1) % radarFrames.length;
+  _showRadarFrame(next);
+  if (next === radarFrames.length - 1) {
+    clearInterval(radarAnimTimer);
+    radarAnimTimer = setTimeout(() => { radarAnimTimer = setInterval(_stepRadarFrame, RADAR_SPEED_MS); }, 1000);
+  }
+}
+
+function _startRadarAnim() { radarAnimTimer = setInterval(_stepRadarFrame, RADAR_SPEED_MS); }
+function _stopRadarAnim()  { clearInterval(radarAnimTimer); clearTimeout(radarAnimTimer); radarAnimTimer = null; }
+
+function openRadarView() {
+  if (!radarPreloaded || !radarFrames.length) return;
+  inRadarView = true;
+  radarHiddenMarkers = [];
+  Object.keys(markers).forEach(id => {
+    if (id !== selectedId) {
+      clusterGroup.removeLayer(markers[id]);
+      radarHiddenMarkers.push(markers[id]);
+    }
+  });
+  map.dragging.disable();
+  map.scrollWheelZoom.disable();
+  map.touchZoom.disable();
+  map.doubleClickZoom.disable();
+  map.boxZoom.disable();
+  _buildRadarHud();
+  document.getElementById('radar-hud').style.display = '';
+  _showRadarFrame(radarNowIdx);
+  _startRadarAnim();
+}
+
+function closeRadarView() {
+  if (!inRadarView) return;
+  map.closePopup();
+  inRadarView = false;
+  _stopRadarAnim();
+  if (radarFrames[radarFrameIdx]?.layer) radarFrames[radarFrameIdx].layer.setOpacity(0);
+  const hud = document.getElementById('radar-hud');
+  if (hud) hud.style.display = 'none';
+  radarHiddenMarkers.forEach(m => clusterGroup.addLayer(m));
+  radarHiddenMarkers = [];
+  map.dragging.enable();
+  map.scrollWheelZoom.enable();
+  map.touchZoom.enable();
+  map.doubleClickZoom.enable();
+  map.boxZoom.enable();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -1489,28 +1648,6 @@ function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilt
 
 const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', football: '⚽', american_football: '🏈', basketball: '🏀' };
 
-function _renderPinnedBanner(a) {
-  const now = new Date();
-  const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
-  const meta = [];
-  if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
-  else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-  const isSport = a.source === 'sports';
-  const cls       = isSport ? 'sport-banner' : 'event-banner';
-  const statusCls = isSport ? 'sport-banner-status' : 'event-banner-status';
-  const icon      = isSport ? (SPORT_EMOJI[a.service] || '🏟️') : '🎉';
-  return `<div class="${cls}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="event-banner-inner">
-    <span class="event-banner-icon">${icon}</span>
-    <div class="event-banner-content">
-      <div class="${statusCls}">${status}</div>
-      <div class="event-banner-title">${esc(a.title)}</div>
-      <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
-    </div>
-    <span class="event-banner-chevron">›</span>
-  </div>
-</div>`;
-}
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -1522,8 +1659,17 @@ function fmtDate(iso) {
 
 function daysUntil(iso) {
   if (!iso) return 'Upcoming';
-  const msPerDay = 86400000;
-  const diff = Math.ceil((new Date(iso) - Date.now()) / msPerDay);
+  const target = new Date(iso);
+  const now = new Date();
+  const diffMs = target - now;
+  if (diffMs <= 0) return 'Today';
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 60) return `In ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
+  const diffHours = Math.floor(diffMs / 3600000);
+  if (diffHours < 24) return `In ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+  const tDay = new Date(target); tDay.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((tDay - today) / 86400000);
   if (diff <= 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   return `In ${diff} days`;
@@ -1547,9 +1693,12 @@ function _sortByDate(arr, key) {
 
 function fmtAge(iso) {
   if (!iso) return '';
-  const months = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24 * 30.44));
-  if (months < 1) return 'published this month';
-  if (months === 1) return 'published a month ago';
+  const days = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24));
+  if (days < 7)  return 'published this week';
+  if (days < 14) return 'published a week ago';
+  if (days < 30) return `published ${Math.floor(days / 7)} weeks ago`;
+  const months = Math.floor(days / 30.44);
+  if (months < 2) return 'published a month ago';
   if (months < 12) return `published ${months} months ago`;
   const years = Math.floor(months / 12);
   return years === 1 ? 'published a year ago' : `published ${years} years ago`;
@@ -1563,13 +1712,72 @@ function _renderRoadSvc(a) {
 
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc  = _renderRoadSvc(a);
-  const time = fmtDateTime(a.published_at || a.valid_until);
-  const ageMeta = opts.showAge && a.published_at ? ' · ' + fmtAge(a.published_at) : '';
+  const svc = _renderRoadSvc(a);
+  let metaHtml = '';
+  if (opts.pinned) {
+    const now = new Date();
+    const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
+    let period = '';
+    if (a.valid_from && a.valid_until) {
+      const from = fmtDate(a.valid_from);
+      const until = fmtDate(a.valid_until);
+      period = from === until ? from : `${from} – ${until}`;
+    } else if (a.valid_until) {
+      period = 'Until ' + fmtDate(a.valid_until);
+    }
+    const statusSpan = `<span style="color:${src.hex}">${status}</span>`;
+    metaHtml = period ? `${esc(period)} · ${statusSpan}` : statusSpan;
+  } else if (opts.showAge) {
+    const time = fmtDateTime(a.published_at || a.valid_until);
+    metaHtml = esc(time + (a.published_at ? ' · ' + fmtAge(a.published_at) : ''));
+  } else {
+    metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
+  }
+
+  let icon;
+  if (a.source === 'sports') {
+    icon = SPORT_EMOJI[a.service] || src.emoji;
+  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
+    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
+  } else {
+    icon = src.emoji;
+  }
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-src" style="color:${src.hex}">${src.emoji} ${src.label}${svc}</div>
-  <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${ageMeta}</div>
+  <div class="card-inner">
+    <span class="card-icon">${icon}</span>
+    <div class="card-body">
+      <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
+      <div class="card-title">${esc(a.title)}</div>
+      <div class="card-meta">${metaHtml}</div>
+    </div>
+  </div>
+</div>`;
+}
+
+function _renderRemovedCard(a) {
+  const src = SOURCE[a.source] || { label: a.source, emoji: '' };
+  const svc = _renderRoadSvc(a);
+  const time = fmtDateTime(a.published_at || a.valid_until);
+  const removedTime = fmtDateTimeShort(a.removed_at);
+  const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
+  const meta = time + (removedTime ? ` · ${reason} at ${removedTime}` : '');
+  let icon;
+  if (a.source === 'sports') {
+    icon = SPORT_EMOJI[a.service] || src.emoji;
+  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
+    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
+  } else {
+    icon = src.emoji;
+  }
+  return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  <div class="card-inner">
+    <span class="card-icon">${icon}</span>
+    <div class="card-body">
+      <div class="card-labels"><span class="card-src">${src.label}${svc}</span></div>
+      <div class="card-title">${esc(a.title)}</div>
+      <div class="card-meta">${esc(meta)}</div>
+    </div>
+  </div>
 </div>`;
 }
 
@@ -1578,12 +1786,12 @@ function renderFeed() {
 
   // ── Active Alerts ──────────────────────────────────────────────────────────
   const allVisible  = _sortByDate(visible(), 'published_at');
-  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports');
-  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports');
+  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
+  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
   document.getElementById('feed-count').textContent = allVisible.length || '0';
 
   const activeFeed = document.getElementById('feed');
-  const pinnedHtml  = pinned.map(_renderPinnedBanner).join('');
+  const pinnedHtml  = pinned.map(a => _renderCard(a, { pinned: true })).join('');
   const regularHtml = regular.map(_renderCard).join('');
   activeFeed.innerHTML = pinnedHtml + regularHtml
     || '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
@@ -1597,18 +1805,8 @@ function renderFeed() {
   // ── Cleared ────────────────────────────────────────────────────────────────
   const clearedList = _sortByDate(removedAlerts.filter(a => passesFilters(a)), 'removed_at');
   document.getElementById('removed-count').textContent = clearedList.length || '0';
-  document.getElementById('removed-feed').innerHTML = clearedList.map(a => {
-    const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-    const svc  = _renderRoadSvc(a);
-    const time = fmtDateTime(a.published_at || a.valid_until);
-    const removedTime = fmtDateTimeShort(a.removed_at);
-    const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-    return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-src">${src.emoji} ${src.label}${svc}</div>
-  <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
-</div>`;
-  }).join('') || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
+  document.getElementById('removed-feed').innerHTML = clearedList.map(_renderRemovedCard).join('')
+    || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
 
   renderMarkers();
 
@@ -1635,6 +1833,7 @@ function closeMobileMap() {
 
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
+  closeRadarView();
   map.closePopup();
   Object.keys(policeCircles).forEach(cid => {
     policeCircles[cid].remove();
@@ -1646,7 +1845,12 @@ function resetState() {
 }
 
 function selectAlert(id, fromMap = false) {
-  if (id === selectedId) return;
+  if (id === selectedId) {
+    if (inRadarView && markers[id]) markers[id].openPopup();
+    return;
+  }
+  closeRadarView();
+  map.closePopup();
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
@@ -1674,9 +1878,8 @@ function selectAlert(id, fromMap = false) {
       return;
     }
 
-    // If marker is still clustered at current zoom, temporarily remove siblings
-    // so the selected marker can display its popup individually
-    const parent = clusterGroup.getVisibleParent(m);
+    // In radar view all other markers are already removed — skip stale cluster lookup
+    const parent = inRadarView ? null : clusterGroup.getVisibleParent(m);
     const siblings = (parent && parent !== m)
       ? parent.getAllChildMarkers().filter(s => s !== m)
       : [];
@@ -1696,7 +1899,7 @@ function selectAlert(id, fromMap = false) {
     }
 
     m.once('popupclose', () => {
-      siblings.forEach(s => clusterGroup.addLayer(s));
+      if (!inRadarView) siblings.forEach(s => clusterGroup.addLayer(s));
       if (popup) popup.options.autoPan = false;
     });
   };
@@ -1706,16 +1909,51 @@ function selectAlert(id, fromMap = false) {
     if (!marker || !clusterGroup) return;
     const expectedId = id;
 
-    if (map.getZoom() < 14) {
-      map.setView(marker.getLatLng(), 14, { animate: true });
-    } else {
-      map.panTo(marker.getLatLng(), { animate: true });
+    if (a.source === 'dwd') {
+      const enterDwd = () => {
+        map.once('moveend', () => {
+          if (selectedId !== expectedId) return;
+          openRadarView();
+          const latest = markers[id];
+          if (latest) openPopup(latest);
+        });
+        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+      };
+      // zoom > 13: large zoom-out to 9 triggers MarkerCluster synthetic moveend mid-animation
+      if (map.getZoom() > 13) {
+        map.once('moveend', () => {
+          if (selectedId !== expectedId) return;
+          enterDwd();
+        });
+        map.setView(FRANKFURT, 12, { animate: true });
+      } else {
+        enterDwd();
+      }
+      return;
     }
-    map.once('moveend', () => {
-      if (selectedId !== expectedId) return;
-      const latest = markers[id];
-      if (latest) openPopup(latest);
-    });
+
+    const enterNonDwd = () => {
+      map.once('moveend', () => {
+        if (selectedId !== expectedId) return;
+        const latest = markers[id];
+        if (latest) openPopup(latest);
+      });
+      if (map.getZoom() < 14) {
+        map.setView(marker.getLatLng(), 14, { animate: true });
+      } else {
+        map.panTo(marker.getLatLng(), { animate: true });
+      }
+    };
+    // zoom < 11: covers radar exit (zoom 9, mass marker restoration) and deep zoom-out
+    if (map.getZoom() < 11) {
+      map.once('moveend', () => {
+        if (selectedId !== expectedId) return;
+        enterNonDwd();
+      });
+      map.setView(FRANKFURT, 12, { animate: true });
+    } else {
+      enterNonDwd();
+    }
   };
 
   if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
@@ -1744,6 +1982,7 @@ function _applyAccordionState() {
 function toggleSection(id) {
   const key = id.replace('sec-', '');
   openSection = (openSection === key && !searchTerm) ? null : key;
+  closeRadarView();
   _applyAccordionState();
   renderFeed();
   buildFilterBar();
@@ -1773,13 +2012,15 @@ function badge(n) {
 
 const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
-function _alertsForSection() {
+function feedVisible() {
   if (searchTerm) {
-    return alerts.filter(a => { const h = `${a.title} ${a.body}`.toLowerCase(); return searchTerm.split(/\s+/).every(t => h.includes(t)); });
+    const terms = searchTerm.toLowerCase().split(/\s+/);
+    const match = a => terms.every(t => `${a.title} ${a.body}`.toLowerCase().includes(t));
+    return [...alerts, ...removedAlerts].filter(a => match(a) && passesFilters(a));
   }
-  if (openSection === 'active')      return alerts.filter(a => !a.stale);
-  if (openSection === 'longrunning') return alerts.filter(a =>  a.stale);
-  if (openSection === 'removed')     return removedAlerts;
+  if (openSection === 'active')      return visible();
+  if (openSection === 'longrunning') return visibleLongRunning();
+  if (openSection === 'removed')     return removedAlerts.filter(passesFilters);
   return [];
 }
 
@@ -1787,7 +2028,7 @@ function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
 
-  const sectionAlerts = _alertsForSection();
+  const sectionAlerts = feedVisible();
   const counts = {};
   ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
@@ -2083,7 +2324,7 @@ function updateTicker() {
   tickerItems = [];
   tickerCurrent = 0;
   const tickerAlerts = [
-    ...alerts.filter(a => a.source !== 'events' && a.source !== 'sports').slice(0, 10),
+    ...alerts.filter(a => !a.stale && a.source !== 'events' && a.source !== 'sports').slice(0, 10),
     ...alerts.filter(a => a.source === 'events' || a.source === 'sports'),
   ];
   tickerAlerts.forEach(a => {
@@ -2202,6 +2443,7 @@ async function init() {
   document.getElementById('feed-date-header').textContent =
     'Active Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   initMap();
+  startRadarPreload();
   maybeShowDisclaimer();
 
   // Swipe-left on feed panel opens map on mobile
@@ -2318,7 +2560,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    const cards = [...document.querySelectorAll('.feed-section.open .card, .feed-section.open .event-banner, .feed-section.open .sport-banner')];
+    const cards = [...document.querySelectorAll('.feed-section.open .card')];
     if (!cards.length) return;
     const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
     const nextIndex = e.key === 'ArrowDown'
