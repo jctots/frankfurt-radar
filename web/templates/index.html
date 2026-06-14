@@ -423,20 +423,35 @@
     }
 
     .card {
-      padding: 12px 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--clr-border);
       border-left: 3px solid transparent;
       cursor: pointer;
       transition: background 0.1s;
     }
-    .card:hover { background: #f8fafc; }
-    .card.sel { background: #eff6ff; border-left-color: var(--clr-transport); }
-    .card.sel.src-dwd      { background: #f5f3ff; border-left-color: var(--clr-weather); }
-    .card.sel.src-polizei  { background: #fef2f2; border-left-color: var(--clr-police); }
-    .card.sel.src-autobahn   { background: #fffbeb; border-left-color: var(--clr-roads); }
-    .card.sel.src-baustellen { background: #fffbeb; border-left-color: var(--clr-roads); }
-    .card.sel.src-events   { background: #ecfdf5; border-left-color: var(--clr-events); }
-    .card.sel.src-sports   { background: #fff7ed; border-left-color: var(--clr-sports); }
+    .card.src-rmv        { background: #eff6ff; border-left-color: var(--clr-transport); }
+    .card.src-dwd        { background: #f5f3ff; border-left-color: var(--clr-weather); }
+    .card.src-polizei    { background: #fef2f2; border-left-color: var(--clr-police); }
+    .card.src-autobahn   { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.src-baustellen { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.src-events     { background: #ecfdf5; border-left-color: var(--clr-events); }
+    .card.src-sports     { background: #fff7ed; border-left-color: var(--clr-sports); }
+    .card.src-rmv:hover        { background: #dbeafe; }
+    .card.src-dwd:hover        { background: #ede9fe; }
+    .card.src-polizei:hover    { background: #fee2e2; }
+    .card.src-autobahn:hover   { background: #fef3c7; }
+    .card.src-baustellen:hover { background: #fef3c7; }
+    .card.src-events:hover     { background: #d1fae5; }
+    .card.src-sports:hover     { background: #ffedd5; }
+    .card.sel.src-rmv        { background: #bfdbfe; border-left-color: var(--clr-transport); }
+    .card.sel.src-dwd        { background: #ddd6fe; border-left-color: var(--clr-weather); }
+    .card.sel.src-polizei    { background: #fecaca; border-left-color: var(--clr-police); }
+    .card.sel.src-autobahn   { background: #fde68a; border-left-color: var(--clr-roads); }
+    .card.sel.src-baustellen { background: #fde68a; border-left-color: var(--clr-roads); }
+    .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
+    .card.sel.src-sports     { background: #fed7aa; border-left-color: var(--clr-sports); }
+    .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .card.card-removed:hover { background: #f8fafc !important; }
 
     @keyframes alert-blink {
       0%, 100%      { box-shadow: none; }
@@ -445,12 +460,16 @@
     }
     .card.alert-blink { animation: alert-blink 1.4s ease-in-out forwards; }
 
+    .card-inner  { display: flex; align-items: center; gap: 10px; }
+    .card-icon   { font-size: 18px; flex-shrink: 0; }
+    .card-body   { flex: 1; min-width: 0; }
+    .card-labels { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+    .card-status,
     .card-src {
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-      margin-bottom: 3px;
     }
     .card-title {
       font-size: 13px;
@@ -461,10 +480,7 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
-    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
-    .card-inner { display: flex; align-items: center; gap: 10px; }
-    .card-icon  { font-size: 22px; flex-shrink: 0; line-height: 1; }
-    .card-body  { flex: 1; min-width: 0; }
+    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto auto; align-content: start; min-height: 0; overflow: hidden; }
@@ -825,14 +841,29 @@
       --clr-muted:   #94a3b8;
       --clr-header:  #020617;
     }
-    .dark .card:hover                { background: #263348; }
-    .dark .card.sel                  { background: #172554; }
-    .dark .card.sel.src-dwd          { background: #2e1065; }
-    .dark .card.sel.src-polizei      { background: #450a0a; }
-    .dark .card.sel.src-autobahn     { background: #431407; }
-    .dark .card.sel.src-baustellen   { background: #431407; }
-    .dark .card.sel.src-events       { background: #022c22; }
-    .dark .card.sel.src-sports       { background: #431a06; }
+    .dark .card.src-rmv        { background: #172554; border-left-color: var(--clr-transport); }
+    .dark .card.src-dwd        { background: #2e1065; border-left-color: var(--clr-weather); }
+    .dark .card.src-polizei    { background: #450a0a; border-left-color: var(--clr-police); }
+    .dark .card.src-autobahn   { background: #431407; border-left-color: var(--clr-roads); }
+    .dark .card.src-baustellen { background: #431407; border-left-color: var(--clr-roads); }
+    .dark .card.src-events     { background: #022c22; border-left-color: var(--clr-events); }
+    .dark .card.src-sports     { background: #431a06; border-left-color: var(--clr-sports); }
+    .dark .card.src-rmv:hover        { background: #1e3268; }
+    .dark .card.src-dwd:hover        { background: #3a157e; }
+    .dark .card.src-polizei:hover    { background: #5a1010; }
+    .dark .card.src-autobahn:hover   { background: #591c09; }
+    .dark .card.src-baustellen:hover { background: #591c09; }
+    .dark .card.src-events:hover     { background: #033d2e; }
+    .dark .card.src-sports:hover     { background: #59220a; }
+    .dark .card.sel.src-rmv        { background: #253e7c; border-left-color: var(--clr-transport); }
+    .dark .card.sel.src-dwd        { background: #4a1c99; border-left-color: var(--clr-weather); }
+    .dark .card.sel.src-polizei    { background: #731414; border-left-color: var(--clr-police); }
+    .dark .card.sel.src-autobahn   { background: #722409; border-left-color: var(--clr-roads); }
+    .dark .card.sel.src-baustellen { background: #722409; border-left-color: var(--clr-roads); }
+    .dark .card.sel.src-events     { background: #04503c; border-left-color: var(--clr-events); }
+    .dark .card.sel.src-sports     { background: #742d0a; border-left-color: var(--clr-sports); }
+    .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .dark .card.card-removed:hover { background: #263348 !important; }
 
     .dark .chip.src-sports.on        { background: #431a06; }
     .dark .chip.src-rmv.on           { background: #172554; }
@@ -856,58 +887,6 @@
     .dark .feed::-webkit-scrollbar-thumb       { background: #334155; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-    /* ── Event banners ──────────────────────────────────────── */
-    .event-banner {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--clr-border);
-      background: #ecfdf5;
-      border-left: 3px solid var(--clr-events);
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .event-banner:hover { background: #d1fae5; }
-    .event-banner-inner { display: flex; align-items: center; gap: 10px; }
-    .event-banner-icon  { font-size: 18px; flex-shrink: 0; }
-    .event-banner-content { flex: 1; min-width: 0; }
-    .event-banner-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--clr-text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .event-banner-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
-    .event-banner-chevron { color: var(--clr-muted); font-size: 16px; flex-shrink: 0; }
-    .dark .event-banner       { background: #022c22; border-color: #059669; }
-    .dark .event-banner:hover { background: #064e3b; }
-    .sport-banner {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--clr-border);
-      background: #fff7ed;
-      border-left: 3px solid var(--clr-sports);
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    .sport-banner:hover { background: #ffedd5; }
-    .dark .sport-banner       { background: #431a06; border-color: #ea580c; }
-    .dark .sport-banner:hover { background: #7c2d12; }
-    .sport-banner-status {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--clr-sports);
-      margin-bottom: 2px;
-    }
-    .event-banner-status {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--clr-events);
-      margin-bottom: 2px;
-    }
     .dark .lines-popup               { background: #1e293b; border-color: #334155; }
     .dark .lines-popup-actions       { border-color: #334155; }
     .dark .lines-popup-actions button{ background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -1679,28 +1658,6 @@ function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilt
 
 const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', football: '⚽', american_football: '🏈', basketball: '🏀' };
 
-function _renderPinnedBanner(a) {
-  const now = new Date();
-  const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
-  const meta = [];
-  if (a.valid_from && a.valid_until) meta.push(fmtDate(a.valid_from) + ' – ' + fmtDate(a.valid_until));
-  else if (a.valid_until) meta.push('Until ' + fmtDate(a.valid_until));
-  const isSport = a.source === 'sports';
-  const cls       = isSport ? 'sport-banner' : 'event-banner';
-  const statusCls = isSport ? 'sport-banner-status' : 'event-banner-status';
-  const icon      = isSport ? (SPORT_EMOJI[a.service] || '🏟️') : '🎉';
-  return `<div class="${cls}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="event-banner-inner">
-    <span class="event-banner-icon">${icon}</span>
-    <div class="event-banner-content">
-      <div class="${statusCls}">${status}</div>
-      <div class="event-banner-title">${esc(a.title)}</div>
-      <div class="event-banner-meta">${esc(meta.join(' · '))}</div>
-    </div>
-    <span class="event-banner-chevron">›</span>
-  </div>
-</div>`;
-}
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -1740,9 +1697,12 @@ function _sortByDate(arr, key) {
 
 function fmtAge(iso) {
   if (!iso) return '';
-  const months = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24 * 30.44));
-  if (months < 1) return 'published this month';
-  if (months === 1) return 'published a month ago';
+  const days = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24));
+  if (days < 7)  return 'published this week';
+  if (days < 14) return 'published a week ago';
+  if (days < 30) return `published ${Math.floor(days / 7)} weeks ago`;
+  const months = Math.floor(days / 30.44);
+  if (months < 2) return 'published a month ago';
   if (months < 12) return `published ${months} months ago`;
   const years = Math.floor(months / 12);
   return years === 1 ? 'published a year ago' : `published ${years} years ago`;
@@ -1756,16 +1716,54 @@ function _renderRoadSvc(a) {
 
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc  = _renderRoadSvc(a);
-  const time = fmtDateTime(a.published_at || a.valid_until);
-  const ageMeta = opts.showAge && a.published_at ? ' · ' + fmtAge(a.published_at) : '';
+  const svc = _renderRoadSvc(a);
+  let statusHtml = '';
+  let metaText = '';
+
+  if (opts.pinned) {
+    const now = new Date();
+    const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
+    statusHtml = `<span class="card-status" style="color:${src.hex}">${status}</span>`;
+    if (a.valid_from && a.valid_until) {
+      const from = fmtDate(a.valid_from);
+      const until = fmtDate(a.valid_until);
+      metaText = from === until ? from : `${from} – ${until}`;
+    } else if (a.valid_until) {
+      metaText = 'Until ' + fmtDate(a.valid_until);
+    }
+  } else if (opts.showAge) {
+    const time = fmtDateTime(a.published_at || a.valid_until);
+    metaText = time + (a.published_at ? ' · ' + fmtAge(a.published_at) : '');
+  } else {
+    metaText = fmtDateTime(a.published_at || a.valid_until);
+  }
+
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
     <span class="card-icon">${src.emoji}</span>
     <div class="card-body">
-      <div class="card-src" style="color:${src.hex}">${src.label}${svc}</div>
+      <div class="card-labels">${statusHtml}<span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${esc(time)}${ageMeta}</div>
+      <div class="card-meta">${esc(metaText)}</div>
+    </div>
+  </div>
+</div>`;
+}
+
+function _renderRemovedCard(a) {
+  const src = SOURCE[a.source] || { label: a.source, emoji: '' };
+  const svc = _renderRoadSvc(a);
+  const time = fmtDateTime(a.published_at || a.valid_until);
+  const removedTime = fmtDateTimeShort(a.removed_at);
+  const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
+  const meta = time + (removedTime ? ` · ${reason} at ${removedTime}` : '');
+  return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  <div class="card-inner">
+    <span class="card-icon">${src.emoji}</span>
+    <div class="card-body">
+      <div class="card-labels"><span class="card-src">${src.label}${svc}</span></div>
+      <div class="card-title">${esc(a.title)}</div>
+      <div class="card-meta">${esc(meta)}</div>
     </div>
   </div>
 </div>`;
@@ -1781,7 +1779,7 @@ function renderFeed() {
   document.getElementById('feed-count').textContent = allVisible.length || '0';
 
   const activeFeed = document.getElementById('feed');
-  const pinnedHtml  = pinned.map(_renderPinnedBanner).join('');
+  const pinnedHtml  = pinned.map(a => _renderCard(a, { pinned: true })).join('');
   const regularHtml = regular.map(_renderCard).join('');
   activeFeed.innerHTML = pinnedHtml + regularHtml
     || '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
@@ -1795,23 +1793,8 @@ function renderFeed() {
   // ── Cleared ────────────────────────────────────────────────────────────────
   const clearedList = _sortByDate(removedAlerts.filter(a => passesFilters(a)), 'removed_at');
   document.getElementById('removed-count').textContent = clearedList.length || '0';
-  document.getElementById('removed-feed').innerHTML = clearedList.map(a => {
-    const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-    const svc  = _renderRoadSvc(a);
-    const time = fmtDateTime(a.published_at || a.valid_until);
-    const removedTime = fmtDateTimeShort(a.removed_at);
-    const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-    return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-inner">
-    <span class="card-icon">${src.emoji}</span>
-    <div class="card-body">
-      <div class="card-src">${src.label}${svc}</div>
-      <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
-    </div>
-  </div>
-</div>`;
-  }).join('') || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
+  document.getElementById('removed-feed').innerHTML = clearedList.map(_renderRemovedCard).join('')
+    || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
 
   renderMarkers();
 
@@ -2566,7 +2549,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    const cards = [...document.querySelectorAll('.feed-section.open .card, .feed-section.open .event-banner, .feed-section.open .sport-banner')];
+    const cards = [...document.querySelectorAll('.feed-section.open .card')];
     if (!cards.length) return;
     const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
     const nextIndex = e.key === 'ArrowDown'
