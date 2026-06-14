@@ -1238,6 +1238,12 @@ function initMap() {
   map = L.map('map', { zoomControl: true }).setView(FRANKFURT, 12);
   setTileLayer(document.body.classList.contains('dark') ? 'dark' : 'light');
   clusterGroup = L.markerClusterGroup({ showCoverageOnHover: false });
+  clusterGroup.on('clusterclick', (e) => {
+    if (map.getZoom() >= 16) {
+      e.layer.spiderfy();
+      L.DomEvent.stopPropagation(e.originalEvent);
+    }
+  });
   map.addLayer(clusterGroup);
   const controlsRow = L.DomUtil.create('div', 'map-controls-row');
   const resetBtn = L.DomUtil.create('button', 'map-reset-btn', controlsRow);
@@ -1248,6 +1254,15 @@ function initMap() {
     resetState();
     map.setView(FRANKFURT, 12, { animate: true });
   });
+  function _updateResetBtn() {
+    const c = map.getCenter();
+    const atDefault = map.getZoom() === 12 &&
+      Math.abs(c.lat - FRANKFURT[0]) < 0.001 &&
+      Math.abs(c.lng - FRANKFURT[1]) < 0.001;
+    resetBtn.style.display = atDefault ? 'none' : '';
+  }
+  map.on('moveend zoomend', _updateResetBtn);
+  _updateResetBtn();
   const closeBtn = L.DomUtil.create('button', 'map-close-btn', controlsRow);
   closeBtn.textContent = '✕ Close map';
   closeBtn.title = 'Close map';
