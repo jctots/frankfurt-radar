@@ -1285,12 +1285,19 @@ function initMap() {
     closeMobileMap();
   });
   map.getContainer().appendChild(controlsRow);
+  const _popupCloseHandlers = new WeakMap();
   map.on('popupopen', (e) => {
     const btn = e.popup.getElement()?.querySelector('.leaflet-popup-close-button');
-    if (btn) L.DomEvent.on(btn, 'click', (ev) => {
-      L.DomEvent.preventDefault(ev);
-      if (inRadarView) { map.closePopup(); } else { resetState(); }
-    });
+    if (btn) {
+      const prev = _popupCloseHandlers.get(btn);
+      if (prev) L.DomEvent.off(btn, 'click', prev);
+      const handler = (ev) => {
+        L.DomEvent.preventDefault(ev);
+        if (inRadarView) { map.closePopup(); } else { resetState(); }
+      };
+      L.DomEvent.on(btn, 'click', handler);
+      _popupCloseHandlers.set(btn, handler);
+    }
   });
 
   // Radar HUD — injected as an absolute child of the Leaflet container
@@ -1709,8 +1716,11 @@ function fmtDate(iso) {
 
 function daysUntil(iso) {
   if (!iso) return 'Upcoming';
-  const msPerDay = 86400000;
-  const diff = Math.ceil((new Date(iso) - Date.now()) / msPerDay);
+  const eventDay = new Date(iso);
+  const today = new Date();
+  eventDay.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((eventDay - today) / 86400000);
   if (diff <= 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   return `In ${diff} days`;
@@ -1838,7 +1848,10 @@ function selectAlert(id, fromMap = false) {
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
+  const wasInRadarView = inRadarView;
+  const prevSelectedId = selectedId;
   closeRadarView();
+  map.closePopup();
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
@@ -1899,26 +1912,50 @@ function selectAlert(id, fromMap = false) {
     const expectedId = id;
 
     if (a.source === 'dwd') {
-      map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+      const enterDwd = () => {
+        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+        map.once('moveend', () => {
+          if (selectedId !== expectedId) return;
+          openRadarView();
+          const latest = markers[id];
+          if (latest) openPopup(latest);
+        });
+      };
+      // Coming from a non-DWD popup: reset to zoom 12 first so cluster restores cleanly
+      if (!wasInRadarView && prevSelectedId !== null) {
+        map.setView(FRANKFURT, 12, { animate: true });
+        map.once('moveend', () => {
+          if (selectedId !== expectedId) return;
+          enterDwd();
+        });
+      } else {
+        enterDwd();
+      }
+      return;
+    }
+
+    const enterNonDwd = () => {
+      if (map.getZoom() < 14) {
+        map.setView(marker.getLatLng(), 14, { animate: true });
+      } else {
+        map.panTo(marker.getLatLng(), { animate: true });
+      }
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
         const latest = markers[id];
         if (latest) openPopup(latest);
-        openRadarView();
       });
-      return;
-    }
-
-    if (map.getZoom() < 14) {
-      map.setView(marker.getLatLng(), 14, { animate: true });
+    };
+    // Coming from radar view: reset to zoom 12 first so cluster restores cleanly
+    if (wasInRadarView) {
+      map.setView(FRANKFURT, 12, { animate: true });
+      map.once('moveend', () => {
+        if (selectedId !== expectedId) return;
+        enterNonDwd();
+      });
     } else {
-      map.panTo(marker.getLatLng(), { animate: true });
+      enterNonDwd();
     }
-    map.once('moveend', () => {
-      if (selectedId !== expectedId) return;
-      const latest = markers[id];
-      if (latest) openPopup(latest);
-    });
   };
 
   if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
