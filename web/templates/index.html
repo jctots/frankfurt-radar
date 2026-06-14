@@ -1829,7 +1829,10 @@ function resetState() {
 }
 
 function selectAlert(id, fromMap = false) {
-  if (id === selectedId) return;
+  if (id === selectedId) {
+    if (inRadarView && markers[id]) markers[id].openPopup();
+    return;
+  }
   closeRadarView();
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
