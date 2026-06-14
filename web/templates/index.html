@@ -462,6 +462,9 @@
       overflow: hidden;
     }
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 4px; }
+    .card-inner { display: flex; align-items: center; gap: 10px; }
+    .card-icon  { font-size: 22px; flex-shrink: 0; line-height: 1; }
+    .card-body  { flex: 1; min-width: 0; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto auto; align-content: start; min-height: 0; overflow: hidden; }
@@ -1764,9 +1767,14 @@ function _renderCard(a, opts = {}) {
   const time = fmtDateTime(a.published_at || a.valid_until);
   const ageMeta = opts.showAge && a.published_at ? ' · ' + fmtAge(a.published_at) : '';
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-src" style="color:${src.hex}">${src.emoji} ${src.label}${svc}</div>
-  <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${ageMeta}</div>
+  <div class="card-inner">
+    <span class="card-icon">${src.emoji}</span>
+    <div class="card-body">
+      <div class="card-src" style="color:${src.hex}">${src.label}${svc}</div>
+      <div class="card-title">${esc(a.title)}</div>
+      <div class="card-meta">${esc(time)}${ageMeta}</div>
+    </div>
+  </div>
 </div>`;
 }
 
@@ -1801,9 +1809,14 @@ function renderFeed() {
     const removedTime = fmtDateTimeShort(a.removed_at);
     const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
     return `<div class="card card-removed" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-src">${src.emoji} ${src.label}${svc}</div>
-  <div class="card-title">${esc(a.title)}</div>
-  <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
+  <div class="card-inner">
+    <span class="card-icon">${src.emoji}</span>
+    <div class="card-body">
+      <div class="card-src">${src.label}${svc}</div>
+      <div class="card-title">${esc(a.title)}</div>
+      <div class="card-meta">${esc(time)}${removedTime ? ` · ✗ ${esc(reason)} at ${esc(removedTime)}` : ''}</div>
+    </div>
+  </div>
 </div>`;
   }).join('') || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
 
