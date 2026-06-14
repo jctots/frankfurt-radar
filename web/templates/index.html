@@ -1515,6 +1515,7 @@ function openRadarView() {
 
 function closeRadarView() {
   if (!inRadarView) return;
+  map.closePopup();
   inRadarView = false;
   _stopRadarAnim();
   if (radarFrames[radarFrameIdx]?.layer) radarFrames[radarFrameIdx].layer.setOpacity(0);
