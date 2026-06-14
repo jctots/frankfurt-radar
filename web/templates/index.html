@@ -2085,13 +2085,13 @@ function buildFilterBar() {
   // Roads
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${SOURCE.autobahn.emoji} ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
   if (abOn) {
     const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
     if (roadAlerts.length) {
       const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
       const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Road <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
@@ -2341,22 +2341,18 @@ function updateTicker() {
   wrap.innerHTML = '';
   tickerItems = [];
   tickerCurrent = 0;
-  const tickerAlerts = [
-    ...alerts.filter(a => !a.stale && a.source !== 'events' && a.source !== 'sports').slice(0, 10),
-    ...alerts.filter(a => a.source === 'events' || a.source === 'sports'),
-  ];
+  const tickerAlerts = visible().slice().sort(() => Math.random() - 0.5);
   tickerAlerts.forEach(a => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
-    const src = (SOURCE[a.source] || {}).emoji || '📍';
-    el.textContent = `${src} ${a.title}`;
+    el.textContent = `${alertEmoji(a)} ${a.title}`;
     wrap.appendChild(el);
     tickerItems.push(el);
   });
   if (tickerTimer) clearInterval(tickerTimer);
   if (tickerItems.length) {
     tickerShowNext();
-    tickerTimer = setInterval(tickerShowNext, 6000);
+    tickerTimer = setInterval(tickerShowNext, 5500);
   }
 }
 
