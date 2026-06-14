@@ -371,13 +371,13 @@
       border-radius: 6px;
       background: var(--clr-bg);
       color: var(--clr-text);
-      font-size: 13px;
+      font-size: 12px;
       padding: 5px 10px;
       outline: none;
       transition: border-color 0.15s;
     }
     .search-bar input:focus { border-color: #1a73e8; }
-    .search-bar input::placeholder { color: var(--clr-muted); }
+    .search-bar input::placeholder { color: var(--clr-muted); font-style: italic; }
     .search-clear {
       background: none;
       border: none;
@@ -468,6 +468,17 @@
     .feed-sections:has(#sec-longrunning.open) { grid-template-rows: auto 1fr auto; }
     .feed-sections:has(#sec-removed.open)     { grid-template-rows: auto auto 1fr; }
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .feed-date-header {
+      padding: 9px 14px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--clr-muted);
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--clr-border);
+      border-top: 1px solid var(--clr-border);
+      border-left: 3px solid transparent;
+      flex-shrink: 0;
+    }
+    .dark .feed-date-header { background: #1a2235; }
     .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
     .feed-section:not(.open) .section-body { display: none; }
     .section-summary {
@@ -518,20 +529,20 @@
       pointer-events: auto;
     }
     .map-reset-btn, .map-close-btn {
-      background: white;
-      border: none;
+      background: rgba(255,255,255,0.93);
+      border: 1px solid #e2e8f0;
       border-radius: 20px;
       padding: 5px 14px;
       font-size: 12px;
       font-weight: 600;
       color: #374151;
       cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
       white-space: nowrap;
       letter-spacing: 0.02em;
     }
     .map-reset-btn:hover, .map-close-btn:hover { background: #f1f5f9; }
-    .dark .map-reset-btn, .dark .map-close-btn { background: #1e293b; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+    .dark .map-reset-btn, .dark .map-close-btn { background: rgba(15,23,42,0.92); color: #e2e8f0; border-color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
     .dark .map-reset-btn:hover, .dark .map-close-btn:hover { background: #273344; }
     .map-close-btn { display: none; }
     @media (max-width: 767px) { .map-close-btn { display: inline-block; } }
@@ -539,34 +550,30 @@
     /* ── Radar HUD ──────────────────────────────────────────── */
     #radar-hud {
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      z-index: 1000; background: rgba(15,23,42,0.92); color: #e2e8f0;
+      z-index: 1000; background: rgba(255,255,255,0.93); color: #1e293b;
       border-radius: 10px; padding: 10px 16px; min-width: 320px; max-width: 80%;
-      border: 1px solid #334155; pointer-events: auto;
+      border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.10); pointer-events: auto;
     }
-    #hud-section-labels { display: flex; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
-    #lbl-obs { flex: 18; text-align: center; border-right: 1px solid #334155; padding-right: 4px; }
+    .dark #radar-hud { background: rgba(15,23,42,0.92); color: #e2e8f0; border-color: #334155; box-shadow: none; }
+    #hud-section-labels { display: flex; font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .dark #hud-section-labels { color: #475569; }
+    #lbl-obs { flex: 18; text-align: center; border-right: 1px solid #cbd5e1; padding-right: 4px; }
+    .dark #lbl-obs { border-right-color: #334155; }
     #lbl-fc  { flex: 12; text-align: center; padding-left: 4px; }
     .radar-dots { display: flex; gap: 2px; align-items: center; justify-content: center; flex-wrap: nowrap; margin-bottom: 4px; }
-    .radar-dot { width: 8px; height: 8px; border-radius: 2px; background: #334155; cursor: pointer; }
+    .radar-dot { width: 8px; height: 8px; border-radius: 2px; background: #94a3b8; cursor: pointer; }
     .radar-dot:hover { background: #64748b; }
     .radar-dot.on         { background: #38bdf8; }
-    .radar-dot.future     { background: #1e3a5f; }
+    .radar-dot.future     { background: #bfdbfe; }
     .radar-dot.future.on  { background: #818cf8; }
     .radar-dot.now-frame    { background: #f59e0b; }
     .radar-dot.now-frame.on { background: #fbbf24; }
+    .dark .radar-dot        { background: #334155; }
+    .dark .radar-dot.future { background: #1e3a5f; }
     #hud-range { display: flex; font-size: 10px; color: #64748b; }
     #hud-t0   { flex: 18; text-align: left; }
     #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
     #hud-tend { flex: 12; text-align: right; }
-    #hud-legend { margin-top: 8px; padding-top: 7px; border-top: 1px solid #334155; }
-    #hud-legend-label { font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-    #hud-legend-bar {
-      height: 8px; border-radius: 3px; width: 100%;
-      background: linear-gradient(to right,
-        #29b6f6 0%, #66bb6a 25%, #ffee58 45%, #ffa726 62%, #e53935 78%, #8e24aa 100%
-      );
-    }
-    #hud-legend-ticks { display: flex; justify-content: space-between; font-size: 9px; color: #64748b; margin-top: 2px; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -971,7 +978,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" style="padding:4px 16px 4px;font-size:12px;color:var(--clr-muted);font-weight:500;text-align:center;text-transform:uppercase;letter-spacing:0.05em"></div>
+    <div id="feed-date-header" class="feed-date-header"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1235,7 +1242,7 @@ if (!filters.roads.hasOwnProperty('city_full'))   filters.roads.city_full   = tr
 // ── Radar state ──────────────────────────────────────────────────────────────
 const RADAR_IMAGE_BOUNDS = [[48.0, 6.0], [52.2, 11.4]];
 const RADAR_ZOOM         = 9;
-const RADAR_SPEED_MS     = 50;
+const RADAR_SPEED_MS     = 100;
 let radarFrames    = [];
 let radarNowIdx    = 0;
 let radarFrameIdx  = 0;
@@ -1288,12 +1295,7 @@ function initMap() {
   hudEl.innerHTML =
     '<div id="hud-section-labels"><span id="lbl-obs">Observation</span><span id="lbl-fc">Forecast</span></div>' +
     '<div class="radar-dots" id="radar-dots"></div>' +
-    '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>' +
-    '<div id="hud-legend">' +
-      '<div id="hud-legend-label">Precipitation intensity</div>' +
-      '<div id="hud-legend-bar"></div>' +
-      '<div id="hud-legend-ticks"><span>Light</span><span>Moderate</span><span>Heavy</span><span>Extreme</span></div>' +
-    '</div>';
+    '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>';
   map.getContainer().appendChild(hudEl);
   L.DomEvent.disableClickPropagation(hudEl);
 }
@@ -1827,6 +1829,7 @@ function resetState() {
 
 function selectAlert(id, fromMap = false) {
   if (id === selectedId) return;
+  closeRadarView();
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
   if (!a) return;
@@ -1876,7 +1879,7 @@ function selectAlert(id, fromMap = false) {
     }
 
     m.once('popupclose', () => {
-      siblings.forEach(s => clusterGroup.addLayer(s));
+      if (!inRadarView) siblings.forEach(s => clusterGroup.addLayer(s));
       if (popup) popup.options.autoPan = false;
     });
   };
@@ -1935,6 +1938,7 @@ function _applyAccordionState() {
 function toggleSection(id) {
   const key = id.replace('sec-', '');
   openSection = (openSection === key && !searchTerm) ? null : key;
+  closeRadarView();
   _applyAccordionState();
   renderFeed();
   buildFilterBar();
