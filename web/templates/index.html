@@ -1659,11 +1659,17 @@ function fmtDate(iso) {
 
 function daysUntil(iso) {
   if (!iso) return 'Upcoming';
-  const eventDay = new Date(iso);
-  const today = new Date();
-  eventDay.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.round((eventDay - today) / 86400000);
+  const target = new Date(iso);
+  const now = new Date();
+  const diffMs = target - now;
+  if (diffMs <= 0) return 'Today';
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 60) return `In ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
+  const diffHours = Math.floor(diffMs / 3600000);
+  if (diffHours < 24) return `In ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+  const tDay = new Date(target); tDay.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((tDay - today) / 86400000);
   if (diff <= 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   return `In ${diff} days`;
@@ -1755,9 +1761,17 @@ function _renderRemovedCard(a) {
   const removedTime = fmtDateTimeShort(a.removed_at);
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
   const meta = time + (removedTime ? ` · ${reason} at ${removedTime}` : '');
+  let icon;
+  if (a.source === 'sports') {
+    icon = SPORT_EMOJI[a.service] || src.emoji;
+  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
+    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
+  } else {
+    icon = src.emoji;
+  }
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
-    <span class="card-icon">${src.emoji}</span>
+    <span class="card-icon">${icon}</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
@@ -1772,8 +1786,8 @@ function renderFeed() {
 
   // ── Active Alerts ──────────────────────────────────────────────────────────
   const allVisible  = _sortByDate(visible(), 'published_at');
-  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports');
-  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports');
+  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
+  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
   document.getElementById('feed-count').textContent = allVisible.length || '0';
 
   const activeFeed = document.getElementById('feed');
@@ -1864,9 +1878,8 @@ function selectAlert(id, fromMap = false) {
       return;
     }
 
-    // If marker is still clustered at current zoom, temporarily remove siblings
-    // so the selected marker can display its popup individually
-    const parent = clusterGroup.getVisibleParent(m);
+    // In radar view all other markers are already removed — skip stale cluster lookup
+    const parent = inRadarView ? null : clusterGroup.getVisibleParent(m);
     const siblings = (parent && parent !== m)
       ? parent.getAllChildMarkers().filter(s => s !== m)
       : [];
@@ -1898,21 +1911,21 @@ function selectAlert(id, fromMap = false) {
 
     if (a.source === 'dwd') {
       const enterDwd = () => {
-        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
         map.once('moveend', () => {
           if (selectedId !== expectedId) return;
           openRadarView();
           const latest = markers[id];
           if (latest) openPopup(latest);
         });
+        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
       };
       // zoom > 13: large zoom-out to 9 triggers MarkerCluster synthetic moveend mid-animation
       if (map.getZoom() > 13) {
-        map.setView(FRANKFURT, 12, { animate: true });
         map.once('moveend', () => {
           if (selectedId !== expectedId) return;
           enterDwd();
         });
+        map.setView(FRANKFURT, 12, { animate: true });
       } else {
         enterDwd();
       }
@@ -1920,24 +1933,24 @@ function selectAlert(id, fromMap = false) {
     }
 
     const enterNonDwd = () => {
-      if (map.getZoom() < 14) {
-        map.setView(marker.getLatLng(), 14, { animate: true });
-      } else {
-        map.panTo(marker.getLatLng(), { animate: true });
-      }
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
         const latest = markers[id];
         if (latest) openPopup(latest);
       });
+      if (map.getZoom() < 14) {
+        map.setView(marker.getLatLng(), 14, { animate: true });
+      } else {
+        map.panTo(marker.getLatLng(), { animate: true });
+      }
     };
     // zoom < 11: covers radar exit (zoom 9, mass marker restoration) and deep zoom-out
     if (map.getZoom() < 11) {
-      map.setView(FRANKFURT, 12, { animate: true });
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
         enterNonDwd();
       });
+      map.setView(FRANKFURT, 12, { animate: true });
     } else {
       enterNonDwd();
     }
@@ -2311,7 +2324,7 @@ function updateTicker() {
   tickerItems = [];
   tickerCurrent = 0;
   const tickerAlerts = [
-    ...alerts.filter(a => a.source !== 'events' && a.source !== 'sports').slice(0, 10),
+    ...alerts.filter(a => !a.stale && a.source !== 'events' && a.source !== 'sports').slice(0, 10),
     ...alerts.filter(a => a.source === 'events' || a.source === 'sports'),
   ];
   tickerAlerts.forEach(a => {
