@@ -429,20 +429,16 @@
       cursor: pointer;
       transition: background 0.1s;
     }
-    .card.src-rmv        { background: #eff6ff; border-left-color: var(--clr-transport); }
-    .card.src-dwd        { background: #f5f3ff; border-left-color: var(--clr-weather); }
-    .card.src-polizei    { background: #fef2f2; border-left-color: var(--clr-police); }
-    .card.src-autobahn   { background: #fffbeb; border-left-color: var(--clr-roads); }
-    .card.src-baustellen { background: #fffbeb; border-left-color: var(--clr-roads); }
+    .card.src-rmv        { border-left-color: var(--clr-transport); }
+    .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .card.src-polizei    { border-left-color: var(--clr-police); }
+    .card.src-autobahn   { border-left-color: var(--clr-roads); }
+    .card.src-baustellen { border-left-color: var(--clr-roads); }
     .card.src-events     { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.src-sports     { background: #fff7ed; border-left-color: var(--clr-sports); }
-    .card.src-rmv:hover        { background: #dbeafe; }
-    .card.src-dwd:hover        { background: #ede9fe; }
-    .card.src-polizei:hover    { background: #fee2e2; }
-    .card.src-autobahn:hover   { background: #fef3c7; }
-    .card.src-baustellen:hover { background: #fef3c7; }
-    .card.src-events:hover     { background: #d1fae5; }
-    .card.src-sports:hover     { background: #ffedd5; }
+    .card:hover              { background: #f8fafc; }
+    .card.src-events:hover   { background: #d1fae5; }
+    .card.src-sports:hover   { background: #ffedd5; }
     .card.sel.src-rmv        { background: #bfdbfe; border-left-color: var(--clr-transport); }
     .card.sel.src-dwd        { background: #ddd6fe; border-left-color: var(--clr-weather); }
     .card.sel.src-polizei    { background: #fecaca; border-left-color: var(--clr-police); }
@@ -839,20 +835,16 @@
       --clr-muted:   #94a3b8;
       --clr-header:  #020617;
     }
-    .dark .card.src-rmv        { background: #172554; border-left-color: var(--clr-transport); }
-    .dark .card.src-dwd        { background: #2e1065; border-left-color: var(--clr-weather); }
-    .dark .card.src-polizei    { background: #450a0a; border-left-color: var(--clr-police); }
-    .dark .card.src-autobahn   { background: #431407; border-left-color: var(--clr-roads); }
-    .dark .card.src-baustellen { background: #431407; border-left-color: var(--clr-roads); }
+    .dark .card.src-rmv        { border-left-color: var(--clr-transport); }
+    .dark .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .dark .card.src-polizei    { border-left-color: var(--clr-police); }
+    .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
+    .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
     .dark .card.src-events     { background: #022c22; border-left-color: var(--clr-events); }
     .dark .card.src-sports     { background: #431a06; border-left-color: var(--clr-sports); }
-    .dark .card.src-rmv:hover        { background: #1e3268; }
-    .dark .card.src-dwd:hover        { background: #3a157e; }
-    .dark .card.src-polizei:hover    { background: #5a1010; }
-    .dark .card.src-autobahn:hover   { background: #591c09; }
-    .dark .card.src-baustellen:hover { background: #591c09; }
-    .dark .card.src-events:hover     { background: #033d2e; }
-    .dark .card.src-sports:hover     { background: #59220a; }
+    .dark .card:hover              { background: #263348; }
+    .dark .card.src-events:hover   { background: #033d2e; }
+    .dark .card.src-sports:hover   { background: #59220a; }
     .dark .card.sel.src-rmv        { background: #253e7c; border-left-color: var(--clr-transport); }
     .dark .card.sel.src-dwd        { background: #4a1c99; border-left-color: var(--clr-weather); }
     .dark .card.sel.src-polizei    { background: #731414; border-left-color: var(--clr-police); }
@@ -1736,9 +1728,17 @@ function _renderCard(a, opts = {}) {
     metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
   }
 
+  let icon;
+  if (a.source === 'sports') {
+    icon = SPORT_EMOJI[a.service] || src.emoji;
+  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
+    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
+  } else {
+    icon = src.emoji;
+  }
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
-    <span class="card-icon">${src.emoji}</span>
+    <span class="card-icon">${icon}</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
