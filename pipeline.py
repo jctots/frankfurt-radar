@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from models import Alert
 
 from db import get_unseen_alerts, mark_seen, mark_seen_batch, patch_published_at
-from models import SOURCE_EMOJI
+from models import alert_emoji
 from notifications import notify
 from translation import translate_alert
 
@@ -55,7 +55,7 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
     throttle_every = config.get("notifier", {}).get("notify_throttle_every", 10)
     for i, alert in enumerate(notify_alerts):
         en_title, en_body = translate_alert(alert, config)
-        emoji = SOURCE_EMOJI.get(alert.source, "")
+        emoji = alert_emoji(alert)
         if alert.source in ("events", "sports"):
             meta = _fmt_event_meta(alert)
             en_body = f"{meta}\n{en_body}".strip() if meta else en_body

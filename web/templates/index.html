@@ -1098,7 +1098,7 @@ const SOURCE = {
   rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
-  autobahn:   { label: 'Roadworks',  emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
+  autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
   events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
@@ -1284,8 +1284,21 @@ function initMap() {
   L.DomEvent.disableClickPropagation(hudEl);
 }
 
-function sourceIcon(source) {
-  const emoji = (SOURCE[source] || {}).emoji || '📍';
+function alertEmoji(a) {
+  if (a.source === 'sports') return SPORT_EMOJI[a.service] || SOURCE.sports.emoji;
+  if (a.source === 'baustellen' && a.service === 'City (Partial)') return '🚦';
+  return (SOURCE[a.source] || {}).emoji || '📍';
+}
+
+function alertIconHtml(a) {
+  if (a.source === 'rmv' && SVC_ICON[a.service]) {
+    return `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
+  }
+  return alertEmoji(a);
+}
+
+function sourceIcon(a) {
+  const emoji = alertEmoji(a);
   return L.divIcon({
     className: '',
     html: `<div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.45))">${emoji}</div>`,
@@ -1325,7 +1338,7 @@ function buildPopupHtml(a) {
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
   return `${imgHtml}<div class="popup-inner">
     ${locBadge}
-    <div class="popup-src" style="color:${src.hex}">${src.emoji} ${src.label}</div>
+    <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}</div>
     <div class="popup-title">${esc(a.title)}</div>
     ${meta.length ? `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>` : ''}
     ${a.body ? `<div class="popup-body">${esc(a.body)}</div>` : ''}
@@ -1373,7 +1386,7 @@ function renderMarkers() {
     if (markers[a.id]) return;
     if (policeCircles[a.id]) return; // circle is showing — marker was temporarily removed
     const { coords } = alertCoords(a);
-    const m = L.marker(coords, { icon: sourceIcon(a.source) });
+    const m = L.marker(coords, { icon: sourceIcon(a) });
     if (a.source === 'polizei') {
       // Police: clicking replaces the pin with an area circle to show location is approximate
       m.on('click', () => selectAlert(a.id, true));
@@ -1734,14 +1747,7 @@ function _renderCard(a, opts = {}) {
     metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
   }
 
-  let icon;
-  if (a.source === 'sports') {
-    icon = SPORT_EMOJI[a.service] || src.emoji;
-  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
-    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
-  } else {
-    icon = src.emoji;
-  }
+  const icon = alertIconHtml(a);
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
     <span class="card-icon">${icon}</span>
@@ -1761,14 +1767,7 @@ function _renderRemovedCard(a) {
   const removedTime = fmtDateTimeShort(a.removed_at);
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
   const meta = time + (removedTime ? ` · ${reason} at ${removedTime}` : '');
-  let icon;
-  if (a.source === 'sports') {
-    icon = SPORT_EMOJI[a.service] || src.emoji;
-  } else if (a.source === 'rmv' && SVC_ICON[a.service]) {
-    icon = `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle">`;
-  } else {
-    icon = src.emoji;
-  }
+  const icon = alertIconHtml(a);
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
     <span class="card-icon">${icon}</span>
