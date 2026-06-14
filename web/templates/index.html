@@ -1848,8 +1848,6 @@ function selectAlert(id, fromMap = false) {
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
-  const wasInRadarView = inRadarView;
-  const prevSelectedId = selectedId;
   closeRadarView();
   map.closePopup();
 
@@ -1921,10 +1919,8 @@ function selectAlert(id, fromMap = false) {
           if (latest) openPopup(latest);
         });
       };
-      // Reset to zoom 12 first when zoomed in past default (>12) or coming from a non-DWD
-      // popup — prevents MarkerCluster synthetic moveend from consuming the listener
-      // mid-animation during a large zoom-out to RADAR_ZOOM
-      if (map.getZoom() > 12 || (!wasInRadarView && prevSelectedId !== null)) {
+      // zoom > 13: large zoom-out to 9 triggers MarkerCluster synthetic moveend mid-animation
+      if (map.getZoom() > 13) {
         map.setView(FRANKFURT, 12, { animate: true });
         map.once('moveend', () => {
           if (selectedId !== expectedId) return;
@@ -1948,8 +1944,8 @@ function selectAlert(id, fromMap = false) {
         if (latest) openPopup(latest);
       });
     };
-    // Coming from radar view: reset to zoom 12 first so cluster restores cleanly
-    if (wasInRadarView) {
+    // zoom < 11: covers radar exit (zoom 9, mass marker restoration) and deep zoom-out
+    if (map.getZoom() < 11) {
       map.setView(FRANKFURT, 12, { animate: true });
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
