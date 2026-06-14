@@ -1386,14 +1386,7 @@ function expandPoliceMarker(a, coords) {
 
 function renderMarkers() {
   if (!map || !clusterGroup) return;
-  const activeOpen  = searchTerm || openSection === 'active';
-  const longRunOpen = searchTerm || openSection === 'longrunning';
-  const feedItems   = [
-    ...(activeOpen  ? visible()            : []),
-    ...(longRunOpen ? visibleLongRunning() : []),
-    ...removedAlerts.filter(a => passesFilters(a)),
-  ];
-  const list = feedItems;
+  const list = feedVisible();
   const visibleIds = new Set(list.map(a => a.id));
 
   // Remove markers (and any active circles) for alerts no longer visible
@@ -2025,13 +2018,15 @@ function badge(n) {
 
 const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
-function _alertsForSection() {
+function feedVisible() {
   if (searchTerm) {
-    return alerts.filter(a => { const h = `${a.title} ${a.body}`.toLowerCase(); return searchTerm.split(/\s+/).every(t => h.includes(t)); });
+    const terms = searchTerm.toLowerCase().split(/\s+/);
+    const match = a => terms.every(t => `${a.title} ${a.body}`.toLowerCase().includes(t));
+    return [...alerts, ...removedAlerts].filter(a => match(a) && passesFilters(a));
   }
-  if (openSection === 'active')      return alerts.filter(a => !a.stale);
-  if (openSection === 'longrunning') return alerts.filter(a =>  a.stale);
-  if (openSection === 'removed')     return removedAlerts;
+  if (openSection === 'active')      return visible();
+  if (openSection === 'longrunning') return visibleLongRunning();
+  if (openSection === 'removed')     return removedAlerts.filter(passesFilters);
   return [];
 }
 
@@ -2039,7 +2034,7 @@ function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   let html  = '';
 
-  const sectionAlerts = _alertsForSection();
+  const sectionAlerts = feedVisible();
   const counts = {};
   ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
