@@ -464,7 +464,6 @@
     .card-icon   { font-size: 18px; flex-shrink: 0; }
     .card-body   { flex: 1; min-width: 0; }
     .card-labels { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-    .card-status,
     .card-src {
       font-size: 11px;
       font-weight: 700;
@@ -475,10 +474,9 @@
       font-size: 13px;
       font-weight: 500;
       line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
     }
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
 
@@ -1717,34 +1715,34 @@ function _renderRoadSvc(a) {
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const svc = _renderRoadSvc(a);
-  let statusHtml = '';
-  let metaText = '';
-
+  let metaHtml = '';
   if (opts.pinned) {
     const now = new Date();
     const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
-    statusHtml = `<span class="card-status" style="color:${src.hex}">${status}</span>`;
+    let period = '';
     if (a.valid_from && a.valid_until) {
       const from = fmtDate(a.valid_from);
       const until = fmtDate(a.valid_until);
-      metaText = from === until ? from : `${from} – ${until}`;
+      period = from === until ? from : `${from} – ${until}`;
     } else if (a.valid_until) {
-      metaText = 'Until ' + fmtDate(a.valid_until);
+      period = 'Until ' + fmtDate(a.valid_until);
     }
+    const statusSpan = `<span style="color:${src.hex}">${status}</span>`;
+    metaHtml = period ? `${esc(period)} · ${statusSpan}` : statusSpan;
   } else if (opts.showAge) {
     const time = fmtDateTime(a.published_at || a.valid_until);
-    metaText = time + (a.published_at ? ' · ' + fmtAge(a.published_at) : '');
+    metaHtml = esc(time + (a.published_at ? ' · ' + fmtAge(a.published_at) : ''));
   } else {
-    metaText = fmtDateTime(a.published_at || a.valid_until);
+    metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
   }
 
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
     <span class="card-icon">${src.emoji}</span>
     <div class="card-body">
-      <div class="card-labels">${statusHtml}<span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
+      <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${esc(metaText)}</div>
+      <div class="card-meta">${metaHtml}</div>
     </div>
   </div>
 </div>`;
