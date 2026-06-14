@@ -457,7 +457,7 @@
     .card.alert-blink { animation: alert-blink 1.4s ease-in-out forwards; }
 
     .card-inner  { display: flex; align-items: center; gap: 10px; }
-    .card-icon   { font-size: 18px; flex-shrink: 0; }
+    .card-icon   { font-size: 18px; flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; line-height: 1; }
     .card-body   { flex: 1; min-width: 0; }
     .card-labels { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
     .card-src {
@@ -1292,7 +1292,7 @@ function alertEmoji(a) {
 
 function alertIconHtml(a, size = 18) {
   if (a.source === 'rmv' && SVC_ICON[a.service]) {
-    return `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle">`;
+    return `<img src="${SVC_ICON[a.service]}" alt="${esc(a.service)}" style="width:${size}px;height:${size}px;object-fit:contain">`;
   }
   return alertEmoji(a);
 }
