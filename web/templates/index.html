@@ -358,13 +358,14 @@
     }
 
     .search-bar {
-      background: var(--clr-surface);
-      padding: 8px 14px;
+      background: #f1f5f9;
+      padding: 2px 14px 8px;
       border-bottom: 1px solid var(--clr-border);
       display: flex;
       align-items: center;
       gap: 8px;
     }
+    .dark .search-bar { background: #1a2235; }
     .search-bar input {
       flex: 1;
       border: 1px solid var(--clr-border);
@@ -469,11 +470,11 @@
     .feed-sections:has(#sec-removed.open)     { grid-template-rows: auto auto 1fr; }
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .feed-date-header {
-      padding: 9px 14px;
+      padding: 8px 14px 2px;
       font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      text-align: center;
       color: var(--clr-muted);
       background: #f1f5f9;
-      border-bottom: 1px solid var(--clr-border);
       border-top: 1px solid var(--clr-border);
       border-left: 3px solid transparent;
       flex-shrink: 0;
