@@ -1,14 +1,17 @@
+import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
+import psutil
 import requests as http_requests
 import yaml
 from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from db import get_status_json, init_db
+from db import get_meta, get_status_json, init_db
 
 app = Flask(__name__)
 
@@ -19,6 +22,8 @@ BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
+
+_TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 init_db()
 
@@ -132,6 +137,36 @@ def api_poll():
     return jsonify(get_status_json())
 
 
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token") != secret:
+        abort(403)
+
+    data = request.get_json(silent=True) or {}
+    message = data.get("message") or data.get("edited_message") or {}
+    chat_id = message.get("chat", {}).get("id")
+    text = (message.get("text") or "").strip()
+
+    if not chat_id or str(chat_id) != _admin_chat_id():
+        return "", 200
+
+    cmd = text.split()[0].lower() if text else ""
+    if cmd == "/status":
+        reply = _cmd_status()
+    elif cmd == "/alerts":
+        reply = _cmd_alerts()
+    elif cmd == "/uptime":
+        reply = _cmd_uptime()
+    elif cmd == "/poll":
+        reply = _cmd_poll()
+    else:
+        reply = "Available: /status /alerts /uptime /poll"
+
+    _tg_reply(chat_id, reply)
+    return "", 200
+
+
 @app.route("/radar-test")
 def radar_test():
     return render_template("radar_test.html")
@@ -176,6 +211,107 @@ def _allow_manual_poll() -> bool:
     if web is None:
         return True   # no web: section → self-hosted, poll always available
     return bool(web.get("allow_manual_poll", False))
+
+
+def _admin_chat_id() -> str:
+    try:
+        cfg = yaml.safe_load(CONFIG_FILE.read_text())
+        return str(cfg.get("admin_health_notifier", {}).get("telegram_chat_id", ""))
+    except Exception:
+        return ""
+
+
+def _tg_reply(chat_id, text: str) -> None:
+    token = os.environ.get("TELEGRAM_ADMIN_BOT_TOKEN", "")
+    if not token:
+        return
+    try:
+        http_requests.post(
+            _TG_API.format(token=token),
+            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
+            timeout=10,
+        )
+    except http_requests.RequestException:
+        pass
+
+
+def _cmd_status() -> str:
+    health_raw = get_meta("admin_health")
+    health: dict = json.loads(health_raw) if health_raw else {}
+    last_polled = get_meta("last_polled_at")
+
+    icon = {True: "🟢", False: "🔴"}
+    system_keys = {"translator", "poll_schedule", "ram", "load"}
+    sources = {k: v for k, v in health.items() if k not in system_keys}
+    checks = {k: health[k] for k in ("translator", "poll_schedule", "ram", "load") if k in health}
+    check_labels = {"translator": "Translator", "poll_schedule": "Cron", "ram": "RAM", "load": "Load"}
+
+    lines = ["<b>📡 Frankfurt Radar — Status</b>", ""]
+    if sources:
+        lines.append(" · ".join(f"{icon[ok]} {k.replace('Poller', '')}" for k, ok in sources.items()))
+    if checks:
+        lines.append(" · ".join(f"{icon[ok]} {check_labels[k]}" for k, ok in checks.items()))
+    if last_polled:
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
+            lines.append(f"\nLast poll: {int(age.total_seconds() / 60)} min ago")
+        except ValueError:
+            pass
+    return "\n".join(lines)
+
+
+def _cmd_alerts() -> str:
+    alerts = get_status_json().get("alerts", [])
+    counts: dict[str, int] = {}
+    for a in alerts:
+        src = a.get("source", "unknown")
+        counts[src] = counts.get(src, 0) + 1
+    if not counts:
+        return "📭 No active alerts"
+    lines = ["<b>📋 Active Alerts</b>", ""]
+    lines += [f"• {src}: {n}" for src, n in sorted(counts.items())]
+    lines.append(f"\nTotal: {sum(counts.values())}")
+    return "\n".join(lines)
+
+
+def _cmd_uptime() -> str:
+    boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
+    delta = datetime.now(timezone.utc) - boot
+    hours, rem = divmod(int(delta.total_seconds()), 3600)
+    mins = rem // 60
+    last_polled = get_meta("last_polled_at")
+    poll_line = ""
+    if last_polled:
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
+            poll_line = f"\nLast poll: {int(age.total_seconds() / 60)} min ago"
+        except ValueError:
+            pass
+    return f"<b>⏱️ Uptime</b>\n\nServer: {hours}h {mins}m{poll_line}"
+
+
+def _cmd_poll() -> str:
+    if not _allow_manual_poll():
+        return "⛔ Manual poll is disabled in config"
+    if POLLER_TRIGGER_URL:
+        try:
+            resp = http_requests.post(POLLER_TRIGGER_URL, timeout=95)
+            if resp.status_code != 200:
+                return f"❌ Poll failed: {resp.text[-200:]}"
+        except http_requests.RequestException as e:
+            return f"❌ Poll error: {e}"
+    else:
+        try:
+            result = subprocess.run(
+                [sys.executable, str(MAIN_PY), "--mode", "poll"],
+                capture_output=True, text=True, timeout=90,
+                cwd=str(MAIN_PY.parent),
+            )
+        except subprocess.TimeoutExpired:
+            return "❌ Poll timed out after 90s"
+        if result.returncode != 0:
+            return f"❌ Poll failed:\n{result.stderr[-200:]}"
+    return "✅ Poll complete"
 
 
 if __name__ == "__main__":
