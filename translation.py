@@ -9,6 +9,17 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+_health = {"ok": True}
+
+
+def translation_ok() -> bool:
+    return _health["ok"]
+
+
+def reset_translation_health() -> None:
+    _health["ok"] = True
+
+
 _UMLAUT_MAP = str.maketrans({
     'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
     'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
@@ -37,6 +48,7 @@ def _translate_libre(text: str, config: dict) -> str:
         resp.raise_for_status()
         return resp.json().get("translatedText", text)
     except requests.RequestException as e:
+        _health["ok"] = False
         log.error("LibreTranslate failed: %s", e)
         return text
 
@@ -56,6 +68,7 @@ def _translate_google(text: str) -> str:
         resp.raise_for_status()
         return resp.json()["data"]["translations"][0]["translatedText"]
     except (requests.RequestException, KeyError) as e:
+        _health["ok"] = False
         log.error("Google Translate failed: %s", e)
         return text
 

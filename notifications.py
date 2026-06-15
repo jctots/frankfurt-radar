@@ -67,3 +67,54 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
         log.info("Telegram: sent '%s' to %s", title, channel)
     except requests.RequestException as e:
         log.error("Telegram send failed: %s", e)
+
+
+def notify_admin_health(title: str, body: str, config: dict) -> None:
+    cfg = config.get("admin_health_notifier", {})
+    if not cfg:
+        return
+    backend = cfg.get("backend", "").lower()
+    if backend == "ntfy":
+        _notify_admin_ntfy(title, body, cfg)
+    elif backend == "telegram":
+        _notify_admin_telegram(title, body, cfg)
+    else:
+        log.warning("Unknown admin_health_notifier backend '%s'", backend)
+
+
+def _notify_admin_ntfy(title: str, body: str, cfg: dict) -> None:
+    ntfy_url = cfg.get("ntfy_url", "http://ntfy:80").rstrip("/")
+    topic = cfg.get("ntfy_topic", "frankfurt-radar-health")
+    payload: dict = {"topic": topic, "title": title, "message": body}
+    try:
+        resp = requests.post(ntfy_url, json=payload, timeout=10)
+        resp.raise_for_status()
+        log.info("ntfy admin health: sent '%s'", title)
+    except requests.RequestException as e:
+        log.error("ntfy admin health send failed: %s", e)
+
+
+def _notify_admin_telegram(title: str, body: str, cfg: dict) -> None:
+    token = os.environ.get("TELEGRAM_ADMIN_BOT_TOKEN", "")
+    chat_id = cfg.get("telegram_chat_id", "")
+    if not token or not chat_id:
+        log.warning("Admin health notifier: TELEGRAM_ADMIN_BOT_TOKEN or telegram_chat_id not configured")
+        return
+    text = f"<b>{html_lib.escape(title)}</b>"
+    if body:
+        text += f"\n\n{html_lib.escape(body)}"
+    try:
+        resp = requests.post(
+            _TG_API.format(token=token),
+            json={
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        log.info("Telegram admin health: sent '%s'", title)
+    except requests.RequestException as e:
+        log.error("Telegram admin health send failed: %s", e)

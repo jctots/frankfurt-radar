@@ -11,8 +11,10 @@ import yaml
 from dotenv import load_dotenv
 
 from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
+from notifications import notify_admin_health
 from pipeline import process_alerts
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
+from translation import reset_translation_health, translation_ok
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -64,6 +66,21 @@ def main() -> None:
 
     config = load_config()
     init_db()
+
+    # Check poll staleness before this run (detects missed/delayed cron)
+    health_cfg = config.get("admin_health_notifier") or {}
+    stale_minutes = health_cfg.get("poll_stale_minutes", 0)
+    poll_fresh = True
+    if stale_minutes:
+        last_polled = get_meta("last_polled_at")
+        if last_polled:
+            try:
+                age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
+                poll_fresh = age <= timedelta(minutes=stale_minutes)
+            except ValueError:
+                pass
+
+    reset_translation_health()
 
     transport_cfg = config.get("transport", {})
     services = transport_cfg.get("services") or {}
@@ -156,6 +173,30 @@ def main() -> None:
     expire_processed_alerts()
     process_alerts(all_alerts, mode=args.mode, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+    if health_cfg:
+        current_health: dict[str, bool] = {type(p).__name__: p.ok for p, _ in fetched}
+        current_health["translator"] = translation_ok()
+        if stale_minutes:
+            current_health["poll_schedule"] = poll_fresh
+
+        prev_raw = get_meta("admin_health")
+        prev_health: dict[str, bool] = json.loads(prev_raw) if prev_raw else {}
+
+        _display = {"translator": "Translator", "poll_schedule": "Cron schedule"}
+
+        def _fmt(keys: list[str]) -> str:
+            return ", ".join(_display.get(k, k.replace("Poller", "")) for k in keys)
+
+        degraded = [k for k, ok in current_health.items() if not ok and prev_health.get(k, True)]
+        recovered = [k for k, ok in current_health.items() if ok and k in prev_health and not prev_health[k]]
+
+        if degraded:
+            notify_admin_health("🔴 Frankfurt Radar — health alert", f"Failing: {_fmt(degraded)}", config)
+        if recovered:
+            notify_admin_health("🟢 Frankfurt Radar — recovered", f"Recovered: {_fmt(recovered)}", config)
+
+        set_meta("admin_health", json.dumps(current_health))
 
 
 if __name__ == "__main__":
