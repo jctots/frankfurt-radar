@@ -250,7 +250,21 @@ def _cmd_status() -> str:
     if sources:
         lines.append(" · ".join(f"{icon[ok]} {k.replace('Poller', '')}" for k, ok in sources.items()))
     if checks:
-        lines.append(" · ".join(f"{icon[ok]} {check_labels[k]}" for k, ok in checks.items()))
+        mem = psutil.virtual_memory()
+        try:
+            load1, _, _ = psutil.getloadavg()
+        except AttributeError:
+            load1 = 0.0
+        cpu_count = psutil.cpu_count() or 1
+        check_values = {
+            "ram": f"RAM {mem.percent:.0f}%",
+            "load": f"Load {load1:.1f}/{cpu_count}",
+        }
+        parts = []
+        for k, ok in checks.items():
+            label = check_values.get(k, check_labels[k])
+            parts.append(f"{icon[ok]} {label}")
+        lines.append(" · ".join(parts))
     if last_polled:
         try:
             age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
@@ -260,17 +274,20 @@ def _cmd_status() -> str:
     return "\n".join(lines)
 
 
+_ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports"]
+
+
 def _cmd_alerts() -> str:
     alerts = get_status_json().get("alerts", [])
-    counts: dict[str, int] = {}
+    counts: dict[str, int] = {src: 0 for src in _ALL_SOURCES}
     for a in alerts:
-        src = a.get("source", "unknown")
-        counts[src] = counts.get(src, 0) + 1
-    if not counts:
-        return "📭 No active alerts"
+        src = a.get("source", "")
+        if src in counts:
+            counts[src] += 1
     lines = ["<b>📋 Active Alerts</b>", ""]
-    lines += [f"• {src}: {n}" for src, n in sorted(counts.items())]
-    lines.append(f"\nTotal: {sum(counts.values())}")
+    lines += [f"• {src}: {n}" for src, n in counts.items()]
+    total = sum(counts.values())
+    lines.append(f"\nTotal: {total}")
     return "\n".join(lines)
 
 
