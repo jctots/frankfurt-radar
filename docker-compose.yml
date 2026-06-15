@@ -7,6 +7,7 @@ services:
       - TZ=Europe/Berlin
       - RMV_API_KEY=${RMV_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ADMIN_BOT_TOKEN=${TELEGRAM_ADMIN_BOT_TOKEN:-}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
@@ -28,6 +29,8 @@ services:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - UMAMI_INTERNAL_URL=http://umami:3000
+      - TELEGRAM_ADMIN_BOT_TOKEN=${TELEGRAM_ADMIN_BOT_TOKEN:-}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
     volumes:
       - radar_data:/app/data
     ports:
