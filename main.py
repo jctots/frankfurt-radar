@@ -7,6 +7,7 @@ from pathlib import Path
 
 import json
 
+import psutil
 import yaml
 from dotenv import load_dotenv
 
@@ -47,6 +48,26 @@ def load_sports_events() -> list:
         return []
     with SPORTS_FILE.open(encoding="utf-8") as f:
         return yaml.safe_load(f) or []
+
+
+def _system_metrics() -> dict:
+    cpu_pct = psutil.cpu_percent(interval=1)
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    try:
+        load1, load5, _ = psutil.getloadavg()
+    except AttributeError:
+        load1, load5 = 0.0, 0.0
+    return {
+        "cpu_pct": cpu_pct,
+        "ram_pct": mem.percent,
+        "ram_used_gb": mem.used / 1024 ** 3,
+        "ram_total_gb": mem.total / 1024 ** 3,
+        "swap_used_mb": swap.used / 1024 ** 2,
+        "load1": load1,
+        "load5": load5,
+        "cpu_count": psutil.cpu_count() or 1,
+    }
 
 
 def main() -> None:
@@ -175,26 +196,43 @@ def main() -> None:
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     if health_cfg:
+        metrics = _system_metrics()
+        ram_warn_pct = health_cfg.get("ram_warn_pct", 85)
+
         current_health: dict[str, bool] = {type(p).__name__: p.ok for p, _ in fetched}
         current_health["translator"] = translation_ok()
         if stale_minutes:
             current_health["poll_schedule"] = poll_fresh
+        current_health["ram"] = metrics["ram_pct"] <= ram_warn_pct
+        current_health["load"] = metrics["load1"] <= metrics["cpu_count"]
 
         prev_raw = get_meta("admin_health")
         prev_health: dict[str, bool] = json.loads(prev_raw) if prev_raw else {}
 
-        _display = {"translator": "Translator", "poll_schedule": "Cron schedule"}
+        _display = {
+            "translator": "Translator",
+            "poll_schedule": "Cron schedule",
+            "ram": f"RAM ({metrics['ram_pct']:.0f}%)",
+            "load": f"Load ({metrics['load1']:.1f}/{metrics['cpu_count']})",
+        }
 
         def _fmt(keys: list[str]) -> str:
             return ", ".join(_display.get(k, k.replace("Poller", "")) for k in keys)
+
+        metrics_line = (
+            f"CPU: {metrics['cpu_pct']:.0f}% · "
+            f"Load: {metrics['load1']:.1f}/{metrics['cpu_count']} · "
+            f"RAM: {metrics['ram_used_gb']:.1f}/{metrics['ram_total_gb']:.1f} GB ({metrics['ram_pct']:.0f}%) · "
+            f"Swap: {metrics['swap_used_mb']:.0f} MB"
+        )
 
         degraded = [k for k, ok in current_health.items() if not ok and prev_health.get(k, True)]
         recovered = [k for k, ok in current_health.items() if ok and k in prev_health and not prev_health[k]]
 
         if degraded:
-            notify_admin_health("🔴 Frankfurt Radar — health alert", f"Failing: {_fmt(degraded)}", config)
+            notify_admin_health("🔴 Frankfurt Radar — health alert", f"Failing: {_fmt(degraded)}\n\n{metrics_line}", config)
         if recovered:
-            notify_admin_health("🟢 Frankfurt Radar — recovered", f"Recovered: {_fmt(recovered)}", config)
+            notify_admin_health("🟢 Frankfurt Radar — recovered", f"Recovered: {_fmt(recovered)}\n\n{metrics_line}", config)
 
         set_meta("admin_health", json.dumps(current_health))
 

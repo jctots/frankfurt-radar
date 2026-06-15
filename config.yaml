@@ -29,6 +29,7 @@ admin_health_notifier:
   # ntfy_topic: frankfurt-radar-health
   telegram_chat_id: "123456789"    # your personal numeric chat ID (msg the bot, then GET /bot<TOKEN>/getUpdates)
   poll_stale_minutes: 20           # alert if last poll is older than this; 0 = disabled
+  ram_warn_pct: 85                 # alert if RAM usage exceeds this percentage
 
 notifier:
   backend: telegram                # ntfy | telegram
