@@ -46,11 +46,15 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
         patch_published_at()
         return
 
-    stale_new   = [a for a in new_alerts if a.stale]
-    notify_alerts = [a for a in new_alerts if not a.stale]
+    notif_disabled = set(config.get("notifier", {}).get("disabled_sources") or [])
+    stale_new     = [a for a in new_alerts if a.stale]
+    notify_alerts = [a for a in new_alerts if not a.stale and a.source not in notif_disabled]
+    silent_new    = [a for a in new_alerts if not a.stale and a.source in notif_disabled]
 
     if stale_new:
         mark_seen_batch(stale_new)
+    if silent_new:
+        mark_seen_batch(silent_new)
 
     throttle_every = config.get("notifier", {}).get("notify_throttle_every", 10)
     for i, alert in enumerate(notify_alerts):
@@ -76,17 +80,18 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
     date_str = datetime.now(timezone.utc).strftime("%d %b")
     status_url = config.get("notifier", {}).get("status_url") or None
     cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    notif_disabled = set(config.get("notifier", {}).get("disabled_sources") or [])
 
     sections: list[str] = []
     to_mark: list["Alert"] = []
 
-    transit = [a for a in alerts if a.source == "rmv"]
+    transit = [a for a in alerts if a.source == "rmv" and a.source not in notif_disabled]
     if transit:
         rows = [f"• {translate_alert(a, config)[0]}" for a in transit]
         sections.append("🚇 Transport\n" + "\n".join(rows))
         to_mark.extend(transit)
 
-    weather = [a for a in alerts if a.source == "dwd"]
+    weather = [a for a in alerts if a.source == "dwd" and a.source not in notif_disabled]
     if weather:
         lines = []
         for a in weather:
@@ -105,7 +110,7 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
     # Police: only unseen items published in the last 24h
     police_candidates = [
         a for a in alerts
-        if a.source == "polizei"
+        if a.source == "polizei" and a.source not in notif_disabled
         and a.published_at is not None
         and datetime.fromisoformat(a.published_at) >= cutoff_24h
     ]
@@ -115,19 +120,19 @@ def _process_daily(alerts: list["Alert"], config: dict) -> None:
         sections.append("🚨 Police — last 24h\n" + "\n".join(lines))
         to_mark.extend(unseen_police)
 
-    road = [a for a in alerts if a.source in ("autobahn", "baustellen")]
+    road = [a for a in alerts if a.source in ("autobahn", "baustellen") and a.source not in notif_disabled]
     if road:
-        rows = [f"• {translate_alert(a, config)[0]}" for a in road]
+        rows = [f"• {alert_emoji(a)} {translate_alert(a, config)[0]}" for a in road]
         sections.append("🚧 Roads\n" + "\n".join(rows))
         to_mark.extend(road)
 
-    events = [a for a in alerts if a.source == "events"]
+    events = [a for a in alerts if a.source == "events" and a.source not in notif_disabled]
     if events:
         rows = [f"• {translate_alert(a, config)[0]} — {_fmt_event_meta(a)}" if _fmt_event_meta(a) else f"• {translate_alert(a, config)[0]}" for a in events]
         sections.append("🎉 Events\n" + "\n".join(rows))
         to_mark.extend(events)
 
-    sports = [a for a in alerts if a.source == "sports"]
+    sports = [a for a in alerts if a.source == "sports" and a.source not in notif_disabled]
     if sports:
         rows = [f"• {translate_alert(a, config)[0]} — {_fmt_event_meta(a)}" if _fmt_event_meta(a) else f"• {translate_alert(a, config)[0]}" for a in sports]
         sections.append("⚽ Sports\n" + "\n".join(rows))

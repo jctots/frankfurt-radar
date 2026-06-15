@@ -13,15 +13,33 @@
 #   url     : link shown in the detail popup — use the official event page (optional)
 #   image   : direct upload.wikimedia.org URL for popup photo (optional, CC-licensed)
 
+- name: "Frankfurter Fastnachtsumzug (Carnival Parade)"
+  start: "2026-02-15"
+  end: "2026-02-15"
+  location: "Untermainkai / city centre"
+  lat: 50.1061
+  lon: 8.6750
+  details: "Main carnival parade starting at Untermainkai at 12:21. Route through the city centre closes Mainufer and key streets — trams 11 and 12 are diverted; U4 (Dom/Römer) and city-centre buses heavily loaded around midday."
+  url: "https://www.grosser-rat.de/fastnachtszug/"
+
 - name: "Frühjahrs-Dippemess (Spring Folk Fair)"
   start: "2026-03-27"
   end: "2026-04-19"
   location: "Festplatz Ratsweg"
   lat: 50.1167
   lon: 8.7067
-  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  details: "Frankfurt's popular folk fair at Festplatz Ratsweg — rides, food stalls, and beer tents. Tram 12 (Ratsweg stop) is the main connection; expect busy services on weekend afternoons and evenings."
   url: "https://www.frankfurt.de/dippemess"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Frankfurt_am_Main%2C_Dippemess_%28Fr%C3%BChling_2026%29%2C_main_entrance.jpg/960px-Frankfurt_am_Main%2C_Dippemess_%28Fr%C3%BChling_2026%29%2C_main_entrance.jpg"
+
+- name: "Nacht der Museen (Long Night of Museums)"
+  start: "2026-04-25T19:00:00"
+  end: "2026-04-26T02:00:00"
+  location: "Museumsufer / city centre"
+  lat: 50.1060
+  lon: 8.6720
+  details: "40+ museums open until 2am with RMV shuttle buses. Trams 15 and 16 along Schaumainkai and U1/U2/U3 (Schweizer Platz) are packed from 19:00; expect long waits at stops along the Museumsufer."
+  url: "https://frankfurt.de/de-de/aktuelle-meldung/meldungen/nacht-der-museen-2026/"
 
 - name: "Wäldchestag (Forest Day)"
   start: "2026-05-22"
@@ -29,7 +47,7 @@
   location: "Stadtwald"
   lat: 50.0795
   lon: 8.6524
-  details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music."
+  details: "Traditional Whitsun fair in the city forest — funfair rides, food, and live music. Bus routes 36 and 961 serve the Stadtwald; no direct U-Bahn. Expect packed buses from Südbahnhof on weekend afternoons."
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Frankfurt_am_Main%2C_W%C3%A4ldchestag%2C_ferris_wheel.jpg/960px-Frankfurt_am_Main%2C_W%C3%A4ldchestag%2C_ferris_wheel.jpg"
 
 - name: "Opernplatzfest (Opera Square Festival)"
@@ -38,9 +56,29 @@
   location: "Opernplatz"
   lat: 50.1158
   lon: 8.6709
-  details: "Ten days of live music, food, and drinks on the square in front of the Alte Oper."
+  details: "Ten days of live music, food, and drinks in front of the Alte Oper. U6/U7 (Alte Oper) and tram 16 are the main connections — expect heavy evening crowds around the station and on Freßgass."
   url: "https://www.opernplatzfest.eu/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Frankfurt_am_Main%2C_Opernplatzfest_2025_-_4.jpg/960px-Frankfurt_am_Main%2C_Opernplatzfest_2025_-_4.jpg"
+
+- name: "Schweizer Straßenfest"
+  start: "2026-06-19T16:00:00"
+  end: "2026-06-20T23:00:00"
+  location: "Schweizer Straße, Sachsenhausen"
+  lat: 50.0982
+  lon: 8.6802
+  details: "Street festival closing Schweizer Straße in Sachsenhausen Fri 16:00–Sat 23:00. Bus lines 30 and 36 are diverted — use U1/U2/U3 to Schweizer Platz as the main alternative."
+  url: "https://die-schweizerstrasse.de/strassenfest/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Frankfurt_am_Main%2C_Schweizer_Stra%C3%9Fenfest_2025_-_2.jpg/960px-Frankfurt_am_Main%2C_Schweizer_Stra%C3%9Fenfest_2025_-_2.jpg"
+
+- name: "CSD Frankfurt / Frankfurt Pride"
+  start: "2026-07-16"
+  end: "2026-07-19"
+  location: "Römerberg → Konstablerwache"
+  lat: 50.1103
+  lon: 8.6821
+  details: "Main Pride parade on 18 July at 12:30 from Römerberg to Konstablerwache. Trams 11, 12, and 14 are disrupted along the route — U4 (Dom/Römer, Konstablerwache) and S-Bahn (Konstablerwache) are the most reliable alternatives."
+  url: "https://ikknow.de/events/christopher-street-day-2026-frankfurt/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/CSD_Frankfurt_2022_359.jpg/960px-CSD_Frankfurt_2022_359.jpg"
 
 - name: "Mainfest (Main River Festival)"
   start: "2026-07-31"
@@ -48,8 +86,18 @@
   location: "Römerberg / Mainufer"
   lat: 50.1103
   lon: 8.6821
-  details: "Annual riverside festival along the Main with fair rides, wine, and a closing fireworks display."
+  details: "Annual riverside festival along the Main — rides, wine, and a fireworks finale on the last night. U4 (Dom/Römer) and trams 15/16 along Mainufer are packed in evenings; fireworks night draws the largest crowds."
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Frankfurt_Mainfest_2025_-_swing_ride.jpg/960px-Frankfurt_Mainfest_2025_-_swing_ride.jpg"
+
+- name: "Bernemer Kerb (Bornheim Street Festival)"
+  start: "2026-08-07"
+  end: "2026-08-12"
+  location: "Berger Straße, Bornheim"
+  lat: 50.1231
+  lon: 8.7012
+  details: "Traditional neighbourhood festival closing Berger Straße in Bornheim. Bus 30 is diverted for the duration — U4 (Bornheim Mitte, 10-min walk) is the nearest U-Bahn alternative."
+  url: "https://www.bernemerkerb.de/"
+  image: "https://commons.wikimedia.org/wiki/File:Fendt_Traktor_Bernemer_Kerb_Festzug_Aufstellung_13082011.JPG"
 
 - name: "Frankfurter Apfelweinfestival (Apple Wine Festival)"
   start: "2026-08-07"
@@ -57,7 +105,7 @@
   location: "Roßmarkt"
   lat: 50.1151
   lon: 8.6780
-  details: "Official city festival celebrating Frankfurt's signature drink — apple wine, live music, and traditional food at the Roßmarkt."
+  details: "Official city apple wine festival at the Roßmarkt — live music and traditional food. U6/U7 and all S-Bahn lines to Hauptwache are the main access; trams at Roßmarkt busier than usual in evenings and on weekends."
   url: "https://www.visitfrankfurt.travel/en/experience/festival-and-events/frankfurt-apple-wine-festival"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/GraphyArchy_-_Wikipedia_00951.jpg/960px-GraphyArchy_-_Wikipedia_00951.jpg"
 
@@ -67,7 +115,7 @@
   location: "Paradiesplatz, Alt-Sachsenhausen"
   lat: 50.0990
   lon: 8.6820
-  details: "One of Frankfurt's oldest festivals, first recorded in 1490 — traditional processions, the Kerbebaum pole, and neighbourhood celebrations."
+  details: "One of Frankfurt's oldest festivals (first recorded 1490) — processions, the Kerbebaum pole, and neighbourhood celebrations in Alt-Sachsenhausen. U1/U2/U3 (Schweizer Platz) is the nearest U-Bahn; local buses busier than usual."
   image: ""
 
 - name: "Museumsuferfest (Museum Embankment Festival)"
@@ -76,7 +124,7 @@
   location: "Museumsufer"
   lat: 50.1060
   lon: 8.6720
-  details: "One of Europe's largest cultural festivals — open-air concerts and art along both banks of the Main."
+  details: "One of Europe's largest cultural festivals (2M+ visitors) — open-air concerts and art along both Main banks. RMV runs extra trains and buses; trams 15/16 (Schaumainkai), U4 (Dom/Römer), U1–U3 (Schweizer Platz), and all S-Bahn lines severely crowded all three days."
   url: "https://www.museumsufer.de"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Frankfurt_Museumsuferfest_2025_-_11.jpg/960px-Frankfurt_Museumsuferfest_2025_-_11.jpg"
 
@@ -86,7 +134,7 @@
   location: "Festplatz Ratsweg"
   lat: 50.1167
   lon: 8.7067
-  details: "Frankfurt's popular folk fair with rides, food stalls, shooting stands, and beer tents."
+  details: "Frankfurt's popular folk fair at Festplatz Ratsweg — rides, food stalls, and beer tents. Tram 12 (Ratsweg stop) is the main connection; expect busy services on weekend afternoons and evenings."
   url: "https://www.frankfurt.de/dippemess"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Frankfurt_am_Main%2C_Dippemess_%28Herbst_2025%29%2C_Plakat.jpg/960px-Frankfurt_am_Main%2C_Dippemess_%28Herbst_2025%29%2C_Plakat.jpg"
 
@@ -96,7 +144,7 @@
   location: "Messe Frankfurt"
   lat: 50.1112
   lon: 8.6490
-  details: "The world's largest trade fair for books — expect heavy road and public transport congestion around Messe."
+  details: "The world's largest book trade fair — 100,000+ visitors on public days (Sat–Sun). U4 (Messe/Festhalle) and tram 16 severely overcrowded; S-Bahn to Galluswarte is a useful alternative on peak days."
   url: "https://www.buchmesse.de"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Frankfurter_Buchmesse_2025_-_Forum.jpg/960px-Frankfurter_Buchmesse_2025_-_Forum.jpg"
 
@@ -106,6 +154,6 @@
   location: "Römerberg / Zeil"
   lat: 50.1103
   lon: 8.6821
-  details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. Expect heavy crowds in the city centre."
+  details: "One of Germany's oldest Christmas markets, stretching from the Römer to the Zeil. All city-centre lines (U4 Dom/Römer, U6/U7 Hauptwache, all S-Bahn) heavily loaded on evenings and weekends throughout the entire run."
   url: "https://www.frankfurt-tourismus.de/weihnachtsmarkt"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Frankfurt_am_Main_-_Frankfurter_Weihnachtsmarkt_%282025%29_4.jpg/960px-Frankfurt_am_Main_-_Frankfurter_Weihnachtsmarkt_%282025%29_4.jpg"

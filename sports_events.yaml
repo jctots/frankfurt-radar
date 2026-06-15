@@ -5,7 +5,7 @@
 #   IRONMAN:   https://www.ironman.com (Frankfurt European Championship)
 #   Cycling:   https://www.eschborn-frankfurt.de/en
 #   Triathlon: https://www.frankfurt-city-triathlon.de/
-#   Galaxy:    https://europeanleague.football/teams/frankfurt-galaxy
+#   Galaxy:    https://frankfurt-galaxy.eu/spielplan/
 #   WC 2026:   https://www.deutschebankpark.de/news/public-viewing-zur-fifa-fussball-wm-2026-im-kletterwald-im-deutsche-bank-park-177798/
 #
 # Fields:
@@ -28,7 +28,7 @@
   location: "Römerberg (finish)"
   lat: 50.1103
   lon: 8.6821
-  details: "UCI WorldTour one-day classic — start in Eschborn, finish at Römerberg. Road closures along the finish circuit in the city centre from mid-morning."
+  details: "UCI WorldTour one-day classic — start in Eschborn, finish at Römerberg. Finish circuit closes city-centre streets from mid-morning; trams and buses along the route are diverted. U4 (Dom/Römer) remains the most reliable connection to the finish area."
   url: "https://www.eschborn-frankfurt.de/en"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Henninger_Turm-2005-Finale-Runde3-Spitzengruppe.jpg/960px-Henninger_Turm-2005-Finale-Runde3-Spitzengruppe.jpg"
 
@@ -41,7 +41,7 @@
   location: "Frankfurt city centre / Deutsche Bank Park"
   lat: 50.0690
   lon: 8.6453
-  details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike loop through Frankfurt, marathon finish. Extensive road closures across the city all day."
+  details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike loop through Frankfurt, marathon finish at Deutsche Bank Park. Major road closures all day across Sachsenhausen, Hanauer Landstraße, and northern Frankfurt; virtually all cross-city bus routes are disrupted. Use S-Bahn and U-Bahn."
   url: "https://www.ironman.com"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg/960px-Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg"
 
@@ -52,78 +52,56 @@
   location: "Hauptwache (finish)"
   lat: 50.1134
   lon: 8.6776
-  details: "Multi-distance city triathlon — run finish at Hauptwache with road closures through the city centre."
+  details: "Multi-distance city triathlon — run finish at Hauptwache. Road closures through the city centre disrupt bus services; U6/U7 and all S-Bahn lines to Hauptwache are the most reliable way to access the finish area."
   url: "https://www.frankfurt-city-triathlon.de/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/FCT_Unger.jpg/960px-FCT_Unger.jpg"
 
-# ── American Football — Frankfurt Galaxy (ELF) ────────────────────────────────
+# ── American Football — Frankfurt Galaxy (EFA) ────────────────────────────────
 # Home games at PSD Bank Arena, Bornheimer Hang
 # All Galaxy games share the same image field value — update all when changing.
 
-- name: "Frankfurt Galaxy vs Prague Lions (ELF Week 6)"
+- name: "Frankfurt Galaxy vs Prague Lions (EFA Week 6)"
   sport: american_football
-  start: "2026-06-20"
-  end: "2026-06-21"
+  start: "2026-06-21T16:00:00"
+  end: "2026-06-21T19:30:00"
   location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "Frankfurt Galaxy home game — European League of Football regular season."
-  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  lat: 50.12806
+  lon: 8.72333
+  details: "Frankfurt Galaxy home game — European Football Alliance regular season. U4 to Bornheim Mitte (10-min walk) is the main connection; expect crowded trains for 1 hour before kick-off and after the final whistle."
+  url: "https://frankfurt-galaxy.eu"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
-- name: "Frankfurt Galaxy vs Paris Musketeers (ELF Week 8)"
+- name: "Frankfurt Galaxy vs Raiders Tirol (EFA Week 10)"
   sport: american_football
-  start: "2026-07-04"
-  end: "2026-07-05"
+  start: "2026-07-18T18:00:00"
+  end: "2026-07-18T21:30:00"
   location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "Frankfurt Galaxy home game — European League of Football regular season."
-  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  lat: 50.12806
+  lon: 8.72333
+  details: "Frankfurt Galaxy home game — European Football Alliance regular season. U4 to Bornheim Mitte (10-min walk) is the main connection; expect crowded trains for 1 hour before kick-off and after the final whistle."
+  url: "https://frankfurt-galaxy.eu"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
-- name: "Frankfurt Galaxy vs Munich Ravens (ELF Week 9)"
+- name: "Frankfurt Galaxy vs Nordic Storm (EFA Week 12)"
   sport: american_football
-  start: "2026-07-11"
-  end: "2026-07-12"
+  start: "2026-08-02T13:00:00"
+  end: "2026-08-02T16:30:00"
   location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "Frankfurt Galaxy home game — European League of Football regular season."
-  url: "https://europeanleague.football/teams/frankfurt-galaxy"
+  lat: 50.12806
+  lon: 8.72333
+  details: "Frankfurt Galaxy home game — European Football Alliance regular season. U4 to Bornheim Mitte (10-min walk) is the main connection; expect crowded trains for 1 hour before kick-off and after the final whistle."
+  url: "https://frankfurt-galaxy.eu"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
-- name: "Frankfurt Galaxy vs Raiders Tirol (ELF Week 10)"
-  sport: american_football
-  start: "2026-07-18"
-  end: "2026-07-19"
-  location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "Frankfurt Galaxy home game — European League of Football regular season."
-  url: "https://europeanleague.football/teams/frankfurt-galaxy"
-  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
-
-- name: "Frankfurt Galaxy vs Nordic Storm (ELF Week 12)"
-  sport: american_football
-  start: "2026-08-01"
-  end: "2026-08-02"
-  location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "Frankfurt Galaxy home game — European League of Football regular season."
-  url: "https://europeanleague.football/teams/frankfurt-galaxy"
-  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
-
-- name: "ELF Semi-Finals at Frankfurt (BIG4)"
+- name: "EFA Semi-Finals at Frankfurt (BIG4)"
   sport: american_football
   start: "2026-08-15"
   end: "2026-08-16"
   location: "PSD Bank Arena"
-  lat: 50.1235
-  lon: 8.7207
-  details: "European League of Football semi-finals hosted at PSD Bank Arena. High attendance expected."
-  url: "https://europeanleague.football"
+  lat: 50.12806
+  lon: 8.72333
+  details: "European Football Alliance semi-finals hosted at PSD Bank Arena — two games on consecutive days, higher attendance than regular season. U4 to Bornheim Mitte is the main connection; expect severely crowded trains before and after each game."
+  url: "https://frankfurt-galaxy.eu"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg/960px-Hamburg_Sea_Devils_-_Frankfurt_Galaxy.jpg"
 
 # ── FIFA World Cup 2026 — Germany Public Viewing ──────────────────────────────
@@ -137,7 +115,7 @@
   location: "Kletterwald, Deutsche Bank Park"
   lat: 50.0690
   lon: 8.6453
-  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Curaçao, Group A. €10 per person, limited capacity — book early. With HIT RADIO FFH entertainment and fan zone."
+  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Curaçao, Group A. €10 per person, limited capacity — book early. S-Bahn to Frankfurt Stadion or Galluswarte; U4 (Festhalle/Messe) is also walkable."
   url: "https://www.deutschebankpark.de/news/public-viewing-zur-fifa-fussball-wm-2026-im-kletterwald-im-deutsche-bank-park-177798/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/National_anthems_GER_ESP.png/960px-National_anthems_GER_ESP.png"
 
@@ -148,7 +126,7 @@
   location: "Kletterwald, Deutsche Bank Park"
   lat: 50.0690
   lon: 8.6453
-  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Ivory Coast, Group A. Late kick-off (22:00). €10 per person, limited capacity — book early."
+  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Ivory Coast, Group A. Late kick-off (22:00). €10 per person, limited capacity — book early. S-Bahn to Frankfurt Stadion or Galluswarte; late-night services may be crowded after the match."
   url: "https://www.deutschebankpark.de/news/public-viewing-zur-fifa-fussball-wm-2026-im-kletterwald-im-deutsche-bank-park-177798/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/National_anthems_GER_ESP.png/960px-National_anthems_GER_ESP.png"
 
@@ -159,7 +137,7 @@
   location: "Kletterwald, Deutsche Bank Park"
   lat: 50.0690
   lon: 8.6453
-  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Ecuador, Group A. Late kick-off (22:00). €10 per person, limited capacity — book early."
+  details: "Public viewing at the Kletterwald outdoor screen, Deutsche Bank Park. Germany vs Ecuador, Group A. Late kick-off (22:00). €10 per person, limited capacity — book early. S-Bahn to Frankfurt Stadion or Galluswarte; late-night services may be crowded after the match."
   url: "https://www.deutschebankpark.de/news/public-viewing-zur-fifa-fussball-wm-2026-im-kletterwald-im-deutsche-bank-park-177798/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/National_anthems_GER_ESP.png/960px-National_anthems_GER_ESP.png"
 
@@ -172,6 +150,6 @@
   location: "Frankfurt city centre"
   lat: 50.1100
   lon: 8.6820
-  details: "Annual marathon — road closures across city centre, Sachsenhausen, and the Römerberg finish. Expect major disruption to road and public transport all morning."
+  details: "Annual marathon with road closures across city centre, Sachsenhausen, Bornheim, and Nordend until midday. Virtually all bus routes are disrupted — S-Bahn and U-Bahn are the only reliable transport for the morning."
   url: "https://www.frankfurt-marathon.com/en/"
   image: "https://upload.wikimedia.org/wikipedia/commons/b/b5/Frankfurt_marathon_2004_erster_kilometer.jpg"

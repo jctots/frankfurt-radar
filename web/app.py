@@ -46,6 +46,7 @@ def index():
         legal_url=web_cfg.get("legal_url") or "",
         site_url=(web_cfg.get("site_url") or "").rstrip("/"),
         umami_website_id=web_cfg.get("umami_website_id") or "",
+        website_disabled_default=web_cfg.get("disabled_default_sources") or [],
     )
 
 
@@ -167,6 +168,7 @@ def _web_config() -> dict | None:
         return cfg.get("web")  # None when section is absent
     except Exception:
         return None
+
 
 
 def _allow_manual_poll() -> bool:
