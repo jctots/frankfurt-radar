@@ -1099,7 +1099,7 @@ const SOURCE = {
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
-  baustellen: { label: 'Roadworks',  emoji: '🚧', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
+  baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
   events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
 };
@@ -1205,12 +1205,14 @@ let _linesClosedBy = null;
 let _roadsClosedBy = null;
 let _hiddenAlertIds = null;
 let _hiddenTimeout  = null;
+const WEBSITE_DISABLED_DEFAULT = new Set({{ website_disabled_default | tojson }});
+function _srcOn(src) { return !WEBSITE_DISABLED_DEFAULT.has(src); }
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: true, dwd: true, polizei: true, autobahn: true, events: true, sports: true }, services: {}, lines: {}, roads: {} };
-if (!filters.sources.hasOwnProperty('events'))    filters.sources.events = true;
-if (!filters.sources.hasOwnProperty('sports'))    filters.sources.sports = true;
-if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = true;
+})() || { sources: { rmv: _srcOn('rmv'), dwd: _srcOn('dwd'), polizei: _srcOn('polizei'), autobahn: _srcOn('autobahn'), events: _srcOn('events'), sports: _srcOn('sports') }, services: {}, lines: {}, roads: {} };
+if (!filters.sources.hasOwnProperty('events'))     filters.sources.events     = _srcOn('events');
+if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
+if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.roads) filters.roads = {};
 if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
 if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
@@ -1301,7 +1303,7 @@ function initMap() {
 
 function alertEmoji(a) {
   if (a.source === 'sports') return SPORT_EMOJI[a.service] || SOURCE.sports.emoji;
-  if (a.source === 'baustellen' && a.service === 'City (Partial)') return '🚦';
+  if (a.source === 'baustellen' && a.service === 'City (Partial)') return '🚧';
   return (SOURCE[a.source] || {}).emoji || '📍';
 }
 
@@ -1351,7 +1353,7 @@ function buildPopupHtml(a) {
   const useDateOnly = a.source === 'events';
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
-  if (a.service)      meta.push(a.service + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
+  if (a.service)      meta.push(a.service.replace(/_/g, ' ') + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
@@ -1738,7 +1740,7 @@ function fmtAge(iso) {
 
 function _renderRoadSvc(a) {
   if (a.source === 'autobahn') return ' · Autobahn';
-  if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service)}`;
+  if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service.replace(/_/g, ' '))}`;
   return '';
 }
 

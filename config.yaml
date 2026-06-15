@@ -31,6 +31,8 @@ notifier:
   status_url: https://frankfurt-radar.com   # status page URL used in daily briefing "Details" link
   notify_burst_threshold: 10      # if new alerts >= this in one run, skip notifications (cold-start guard)
   notify_throttle_every: 10       # pause 3s after every N notifications (0 = disabled)
+  # disabled_sources:             # sources never sent to Telegram/ntfy (still polled + shown on website)
+  #   - polizei                   # valid: rmv, dwd, polizei, autobahn, baustellen, events, sports
 
 police:
   enabled: true
