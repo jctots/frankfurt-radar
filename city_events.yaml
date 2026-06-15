@@ -68,6 +68,7 @@
   lon: 8.6802
   details: "Street festival closing Schweizer Straße in Sachsenhausen Fri 16:00–Sat 23:00. Bus lines 30 and 36 are diverted — use U1/U2/U3 to Schweizer Platz as the main alternative."
   url: "https://die-schweizerstrasse.de/strassenfest/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Frankfurt_am_Main%2C_Schweizer_Stra%C3%9Fenfest_2025_-_2.jpg/960px-Frankfurt_am_Main%2C_Schweizer_Stra%C3%9Fenfest_2025_-_2.jpg"
 
 - name: "CSD Frankfurt / Frankfurt Pride"
   start: "2026-07-16"
@@ -77,6 +78,7 @@
   lon: 8.6821
   details: "Main Pride parade on 18 July at 12:30 from Römerberg to Konstablerwache. Trams 11, 12, and 14 are disrupted along the route — U4 (Dom/Römer, Konstablerwache) and S-Bahn (Konstablerwache) are the most reliable alternatives."
   url: "https://ikknow.de/events/christopher-street-day-2026-frankfurt/"
+  image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/CSD_Frankfurt_2022_359.jpg/960px-CSD_Frankfurt_2022_359.jpg"
 
 - name: "Mainfest (Main River Festival)"
   start: "2026-07-31"
@@ -95,6 +97,7 @@
   lon: 8.7012
   details: "Traditional neighbourhood festival closing Berger Straße in Bornheim. Bus 30 is diverted for the duration — U4 (Bornheim Mitte, 10-min walk) is the nearest U-Bahn alternative."
   url: "https://www.bernemerkerb.de/"
+  image: "https://commons.wikimedia.org/wiki/File:Fendt_Traktor_Bernemer_Kerb_Festzug_Aufstellung_13082011.JPG"
 
 - name: "Frankfurter Apfelweinfestival (Apple Wine Festival)"
   start: "2026-08-07"
