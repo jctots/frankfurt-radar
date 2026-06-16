@@ -486,12 +486,12 @@
     .feed-toggle-panel {
       background: var(--clr-bg);
       margin: 8px 0;
+      border-left: 3px solid var(--clr-transport);
       flex-shrink: 0;
     }
     .feed-toggle {
       display: flex; align-items: center; gap: 6px;
       padding: 4px 14px 4px 11px;
-      border-left: 3px solid var(--clr-transport);
       font-size: 12px;
       color: var(--clr-text);
       flex-shrink: 0;
@@ -2164,16 +2164,20 @@ function toggleLongRunning() {
   showLongRunning = document.getElementById('lr-switch').checked;
   localStorage.setItem('fr_show_lr', JSON.stringify(showLongRunning));
   _track('longrunning_toggle', { on: showLongRunning });
+  resetState();
   renderFeed();
   buildFilterBar();
+  map.setView(FRANKFURT, 12, { animate: true });
 }
 
 function toggleFutureEvents() {
   showFutureEvents = document.getElementById('future-switch').checked;
   localStorage.setItem('fr_show_future', JSON.stringify(showFutureEvents));
   _track('future_events_toggle', { on: showFutureEvents });
+  resetState();
   renderFeed();
   buildFilterBar();
+  map.setView(FRANKFURT, 12, { animate: true });
 }
 
 function buildFilterBar() {
