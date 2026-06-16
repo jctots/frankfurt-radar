@@ -490,7 +490,8 @@
     }
     .feed-toggle {
       display: flex; align-items: center; gap: 6px;
-      padding: 4px 14px;
+      padding: 4px 14px 4px 11px;
+      border-left: 3px solid var(--clr-transport);
       font-size: 12px;
       color: var(--clr-text);
       flex-shrink: 0;
@@ -2105,14 +2106,12 @@ function toggleSection(id) {
   const key = id.replace('sec-', '');
   const opening = openSection !== key || searchTerm;
   openSection = (openSection === key && !searchTerm) ? null : key;
-  if (opening) {
-    _track('section_open', { section: key });
-    document.querySelector(`#${id} .section-body`)?.scrollTo(0, 0);
-  }
+  if (opening) _track('section_open', { section: key });
   closeRadarView();
   _applyAccordionState();
   renderFeed();
   buildFilterBar();
+  if (opening) document.querySelector(`#${id} .section-body`)?.scrollTo(0, 0);
   selectedId = null;
   if (map) map.setView(FRANKFURT, 12, { animate: true });
 }
