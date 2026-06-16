@@ -22,6 +22,7 @@ BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
+UMAMI_API_KEY        = os.getenv("UMAMI_API_KEY", "")
 
 _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -156,12 +157,12 @@ def telegram_webhook():
         reply = _cmd_status()
     elif cmd == "/alerts":
         reply = _cmd_alerts()
-    elif cmd == "/uptime":
-        reply = _cmd_uptime()
+    elif cmd == "/visits":
+        reply = _cmd_visits()
     elif cmd == "/poll":
         reply = _cmd_poll()
     else:
-        reply = "Available: /status /alerts /uptime /poll"
+        reply = "Available: /status /alerts /visits /poll"
 
     _tg_reply(chat_id, reply)
     return "", 200
@@ -240,37 +241,45 @@ def _cmd_status() -> str:
     health: dict = json.loads(health_raw) if health_raw else {}
     last_polled = get_meta("last_polled_at")
 
-    icon = {True: "🟢", False: "🔴"}
-    system_keys = {"translator", "poll_schedule", "ram", "load"}
-    sources = {k: v for k, v in health.items() if k not in system_keys}
-    checks = {k: health[k] for k in ("translator", "poll_schedule", "ram", "load") if k in health}
-    check_labels = {"translator": "Translator", "poll_schedule": "Cron", "ram": "RAM", "load": "Load"}
+    label_overrides = {"translator": "Translator", "poll_schedule": "Cron", "ram": "RAM", "load": "Load"}
+    named = {
+        label_overrides.get(k, k.replace("Poller", "")): ok
+        for k, ok in health.items()
+    }
+    healthy = [name for name, ok in named.items() if ok]
+    failing = [name for name, ok in named.items() if not ok]
 
     lines = ["<b>📡 Frankfurt Radar — Status</b>", ""]
-    if sources:
-        lines.append(" · ".join(f"{icon[ok]} {k.replace('Poller', '')}" for k, ok in sources.items()))
-    if checks:
+    if healthy:
+        lines.append("🟢 " + " · ".join(healthy))
+    if failing:
+        lines.append("🔴 " + " · ".join(failing))
+    if healthy or failing:
+        lines.append("")
+
+    if "ram" in health or "load" in health:
         mem = psutil.virtual_memory()
         try:
             load1, _, _ = psutil.getloadavg()
         except AttributeError:
             load1 = 0.0
         cpu_count = psutil.cpu_count() or 1
-        check_values = {
-            "ram": f"RAM {mem.percent:.0f}%",
-            "load": f"Load {load1:.1f}/{cpu_count}",
-        }
-        parts = []
-        for k, ok in checks.items():
-            label = check_values.get(k, check_labels[k])
-            parts.append(f"{icon[ok]} {label}")
-        lines.append(" · ".join(parts))
+        lines.append(f"RAM: {mem.percent:.0f}%")
+        lines.append(f"Load: {load1:.1f}/{cpu_count}")
+
     if last_polled:
         try:
             age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
-            lines.append(f"\nLast poll: {int(age.total_seconds() / 60)} min ago")
+            lines.append(f"Last poll: {int(age.total_seconds() / 60)} min ago")
         except ValueError:
             pass
+
+    boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
+    delta = datetime.now(timezone.utc) - boot
+    hours, rem = divmod(int(delta.total_seconds()), 3600)
+    mins = rem // 60
+    lines.append(f"Server uptime: {hours}h {mins}m")
+
     return "\n".join(lines)
 
 
@@ -291,20 +300,47 @@ def _cmd_alerts() -> str:
     return "\n".join(lines)
 
 
-def _cmd_uptime() -> str:
-    boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
-    delta = datetime.now(timezone.utc) - boot
-    hours, rem = divmod(int(delta.total_seconds()), 3600)
-    mins = rem // 60
-    last_polled = get_meta("last_polled_at")
-    poll_line = ""
-    if last_polled:
-        try:
-            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
-            poll_line = f"\nLast poll: {int(age.total_seconds() / 60)} min ago"
-        except ValueError:
-            pass
-    return f"<b>⏱️ Uptime</b>\n\nServer: {hours}h {mins}m{poll_line}"
+def _cmd_visits() -> str:
+    website_id = (_web_config() or {}).get("umami_website_id") or ""
+    if not UMAMI_INTERNAL_URL or not UMAMI_API_KEY or not website_id:
+        return "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_API_KEY, umami_website_id)"
+
+    headers = {"x-umami-api-key": UMAMI_API_KEY}
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_ms = int(month_start.timestamp() * 1000)
+    end_ms = int(now.timestamp() * 1000)
+
+    try:
+        stats_resp = http_requests.get(
+            f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/stats",
+            params={"startAt": start_ms, "endAt": end_ms},
+            headers=headers,
+            timeout=10,
+        )
+        stats_resp.raise_for_status()
+        stats = stats_resp.json()
+
+        active_resp = http_requests.get(
+            f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/active",
+            headers=headers,
+            timeout=10,
+        )
+        active_resp.raise_for_status()
+        active = active_resp.json()
+    except http_requests.RequestException as e:
+        return f"❌ Umami query failed: {e}"
+
+    visits = stats.get("visits", {}).get("value", 0)
+    visitors = stats.get("visitors", {}).get("value", 0)
+    active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
+
+    return (
+        "<b>📊 Visits — this month</b>\n\n"
+        f"Visits: {visits}\n"
+        f"Unique visitors: {visitors}\n"
+        f"Active now: {active_now}"
+    )
 
 
 def _cmd_poll() -> str:
