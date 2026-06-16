@@ -528,6 +528,7 @@
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
     .status-pill.expired     { background: #fee2e2; color: #991b1b; }
+    .status-pill.report      { background: #e2e8f0; color: #475569; }
 
     .feed-date-header {
       padding: 8px 14px 2px;
@@ -1764,11 +1765,17 @@ function isFuture(a) {
 // Ongoing/upcoming/long-running pill — only meaningful for alerts that are
 // still active. Removed/cleared alerts use clearedPillHtml() instead (call
 // statusPillHtml only for non-removed alerts). Sources without valid_from
-// (e.g. police reports describe something that already happened) get no
-// pill rather than a misleading default. Single source of truth so cards,
-// the long-running list, and the map popup all agree on the same status.
+// don't have a meaningful ongoing/upcoming state — police reports describe
+// something that already happened, so they get a neutral "REPORT" pill
+// instead of a misleading ongoing/upcoming default. Single source of truth
+// so cards, the long-running list, and the map popup all agree on the same
+// status for the same alert.
 function statusPillHtml(a) {
-  if (!a.valid_from) return '';
+  if (!a.valid_from) {
+    return a.source === 'polizei'
+      ? `<span class="status-pill report">REPORT</span>`
+      : '';
+  }
   if (a.stale) {
     return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
