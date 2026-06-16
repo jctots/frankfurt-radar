@@ -1789,10 +1789,9 @@ function statusPillHtml(a) {
 // Cleared card list and the map popup so a cleared alert's popup never
 // shows an "Ongoing"/"Starts in..." pill that no longer applies.
 function clearedPillHtml(a) {
-  const removedDate = fmtDate(a.removed_at);
-  if (!removedDate) return '';
+  if (!a.removed_at) return '';
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-  return `<span class="status-pill expired">${esc(`${reason} on ${removedDate}`.toUpperCase())}</span>`;
+  return `<span class="status-pill expired">${esc(reason.toUpperCase())}</span>`;
 }
 
 function fmtDate(iso) {
@@ -1845,14 +1844,14 @@ function _sortByDate(arr, key) {
 function fmtOngoing(iso) {
   if (!iso) return '';
   const days = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24));
-  if (days < 7)  return 'ongoing this week';
-  if (days < 14) return 'ongoing for a week';
-  if (days < 30) return `ongoing for ${Math.floor(days / 7)} weeks`;
+  if (days < 7)  return 'this week';
+  if (days < 14) return '1 week';
+  if (days < 30) return `${Math.floor(days / 7)} weeks`;
   const months = Math.floor(days / 30.44);
-  if (months < 2) return 'ongoing for a month';
-  if (months < 12) return `ongoing for ${months} months`;
+  if (months < 2) return '1 month';
+  if (months < 12) return `${months} months`;
   const years = Math.floor(months / 12);
-  return years === 1 ? 'ongoing for a year' : `ongoing for ${years} years`;
+  return years === 1 ? '1 year' : `${years} years`;
 }
 
 function _renderRoadSvc(a) {
