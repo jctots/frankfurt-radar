@@ -527,8 +527,7 @@
     .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
-    .status-pill.expired     { background: #fee2e2; color: #991b1b; }
-    .status-pill.report      { background: #e2e8f0; color: #475569; }
+    .status-pill.neutral     { background: #e2e8f0; color: #475569; }
 
     .feed-date-header {
       padding: 8px 14px 2px;
@@ -1774,11 +1773,11 @@ function isFuture(a) {
 function statusPillHtml(a) {
   if (!a.valid_from) {
     return a.source === 'polizei'
-      ? `<span class="status-pill report">REPORT</span>`
+      ? `<span class="status-pill neutral">REPORT</span>`
       : '';
   }
   if (a.stale) {
-    return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
+    return `<span class="status-pill longrunning">⏳ ${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
   const future = isFuture(a);
   const label = future ? daysUntil(a.valid_from) : 'Ongoing';
@@ -1790,8 +1789,7 @@ function statusPillHtml(a) {
 // shows an "Ongoing"/"Starts in..." pill that no longer applies.
 function clearedPillHtml(a) {
   if (!a.removed_at) return '';
-  const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-  return `<span class="status-pill expired">${esc(reason.toUpperCase())}</span>`;
+  return `<span class="status-pill neutral">✅ ${esc(fmtDate(a.removed_at).toUpperCase())}</span>`;
 }
 
 function fmtDate(iso) {
