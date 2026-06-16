@@ -1764,16 +1764,21 @@ function daysUntil(iso) {
   const now = new Date();
   const diffMs = target - now;
   if (diffMs <= 0) return 'Today';
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 60) return `In ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
-  const diffHours = Math.floor(diffMs / 3600000);
-  if (diffHours < 24) return `In ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+
+  // Calendar-day distance first, so "tomorrow morning" reads as "Tomorrow"
+  // rather than "In 10 hours" just because it's less than a day away.
   const tDay = new Date(target); tDay.setHours(0, 0, 0, 0);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const diff = Math.round((tDay - today) / 86400000);
-  if (diff <= 0) return 'Today';
-  if (diff === 1) return 'Tomorrow';
-  return `In ${diff} days`;
+  const dayDiff = Math.round((tDay - today) / 86400000);
+
+  if (dayDiff <= 0) {
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) return `In ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
+    const diffHours = Math.floor(diffMs / 3600000);
+    return `In ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+  }
+  if (dayDiff === 1) return 'Tomorrow';
+  return `In ${dayDiff} days`;
 }
 
 function fmtTime(iso) {
@@ -1829,11 +1834,16 @@ function _renderCard(a, opts = {}) {
     const statusPill = `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(status.toUpperCase())}</span>`;
     metaHtml = period ? `${esc(period)} · ${statusPill}` : statusPill;
   } else if (opts.showAge) {
-    const time = fmtDateTime(a.published_at || a.valid_until);
+    const time = fmtDate(a.published_at || a.valid_until);
     const ongoingPill = a.valid_from ? `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>` : '';
     metaHtml = esc(time) + (ongoingPill ? ' · ' + ongoingPill : '');
   } else {
-    metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
+    const future = isFuture(a);
+    const time = esc(fmtDateTime(a.published_at || a.valid_until));
+    const statusPill = future
+      ? `<span class="status-pill upcoming">${esc(daysUntil(a.valid_from).toUpperCase())}</span>`
+      : `<span class="status-pill ongoing">ONGOING</span>`;
+    metaHtml = time + ' · ' + statusPill;
   }
 
   const icon = alertIconHtml(a);
@@ -1852,7 +1862,7 @@ function _renderCard(a, opts = {}) {
 function _renderRemovedCard(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '' };
   const svc = _renderRoadSvc(a);
-  const time = fmtDateTime(a.published_at || a.valid_until);
+  const time = fmtDate(a.published_at || a.valid_until);
   const removedTime = fmtDateTimeShort(a.removed_at);
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
   const reasonPill = `<span class="status-pill expired">${esc(reason.toUpperCase())}</span>`;
