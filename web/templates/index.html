@@ -514,6 +514,17 @@
     .toggle-switch input:checked + .toggle-slider { background: var(--clr-weather); }
     .toggle-switch input:checked + .toggle-slider::before { transform: translateX(15px); }
 
+    /* ── Status pills (card meta line) ──────────────────────── */
+    .status-pill {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 1px 6px; border-radius: 999px;
+    }
+    .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
+    .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
+    .status-pill.longrunning { background: #fef3c7; color: #92400e; }
+    .status-pill.expired     { background: #fee2e2; color: #991b1b; }
+
     .feed-date-header {
       padding: 8px 14px 2px;
       font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
@@ -1012,10 +1023,10 @@
           </div>
           <div class="feed-toggle">
             <span class="toggle-icon">🟢</span>
-            <span class="toggle-label">Show ongoing only</span>
+            <span class="toggle-label">Show future events</span>
             <span class="toggle-count" id="future-count">0</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="ongoing-switch" onchange="toggleOngoingOnly()">
+              <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -1230,8 +1241,8 @@ const TILES = {
 // ── State ────────────────────────────────────────────────────────────────────
 let alerts        = [];
 let removedAlerts = [];
-let showLongRunning = JSON.parse(localStorage.getItem('fr_show_lr') || 'false');
-let ongoingOnly      = JSON.parse(localStorage.getItem('fr_ongoing_only') || 'false');
+let showLongRunning  = JSON.parse(localStorage.getItem('fr_show_lr') || 'false');
+let showFutureEvents = JSON.parse(localStorage.getItem('fr_show_future') || 'true');
 let selectedId   = null;
 let map          = null;
 let clusterGroup = null;
@@ -1725,9 +1736,9 @@ function visible()            { return alerts.filter(a => !a.stale && passesFilt
 function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilters(a)); }
 
 // Combined Active list: recent alerts (optionally hiding future-dated ones) +
-// long-running alerts (always already ongoing, so unaffected by ongoingOnly).
+// long-running alerts (always already ongoing, so unaffected by showFutureEvents).
 function activeFeedList() {
-  const recent = visible().filter(a => !ongoingOnly || !isFuture(a));
+  const recent = visible().filter(a => showFutureEvents || !isFuture(a));
   const longrun = showLongRunning ? visibleLongRunning() : [];
   return [...recent, ...longrun];
 }
@@ -1805,7 +1816,8 @@ function _renderCard(a, opts = {}) {
   const svc = _renderRoadSvc(a);
   let metaHtml = '';
   if (opts.pinned) {
-    const status = !isFuture(a) ? 'Ongoing' : daysUntil(a.valid_from);
+    const future = isFuture(a);
+    const status = !future ? 'Ongoing' : daysUntil(a.valid_from);
     let period = '';
     if (a.valid_from && a.valid_until) {
       const from = fmtDate(a.valid_from);
@@ -1814,11 +1826,12 @@ function _renderCard(a, opts = {}) {
     } else if (a.valid_until) {
       period = 'Until ' + fmtDate(a.valid_until);
     }
-    const statusSpan = `<span style="color:${src.hex}">${status}</span>`;
-    metaHtml = period ? `${esc(period)} · ${statusSpan}` : statusSpan;
+    const statusPill = `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(status.toUpperCase())}</span>`;
+    metaHtml = period ? `${esc(period)} · ${statusPill}` : statusPill;
   } else if (opts.showAge) {
     const time = fmtDateTime(a.published_at || a.valid_until);
-    metaHtml = esc(time + (a.valid_from ? ' · ' + fmtOngoing(a.valid_from) : ''));
+    const ongoingPill = a.valid_from ? `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>` : '';
+    metaHtml = esc(time) + (ongoingPill ? ' · ' + ongoingPill : '');
   } else {
     metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
   }
@@ -1842,7 +1855,8 @@ function _renderRemovedCard(a) {
   const time = fmtDateTime(a.published_at || a.valid_until);
   const removedTime = fmtDateTimeShort(a.removed_at);
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-  const meta = time + (removedTime ? ` · ${reason} at ${removedTime}` : '');
+  const reasonPill = `<span class="status-pill expired">${esc(reason.toUpperCase())}</span>`;
+  const meta = esc(time) + (removedTime ? ` · ${reasonPill} at ${esc(removedTime)}` : '');
   const icon = alertIconHtml(a);
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
@@ -1850,7 +1864,7 @@ function _renderRemovedCard(a) {
     <div class="card-body">
       <div class="card-labels"><span class="card-src">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${esc(meta)}</div>
+      <div class="card-meta">${meta}</div>
     </div>
   </div>
 </div>`;
@@ -1861,7 +1875,7 @@ function renderFeed() {
 
   // ── Active Alerts (recent + optional long-running, optional future hidden) ──
   const recentAll = visible();
-  const recent  = _sortByDate(recentAll.filter(a => !ongoingOnly || !isFuture(a)), 'published_at');
+  const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
   const pinned  = recent.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
   const regular = recent.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
   const longList = showLongRunning ? _sortByDate(visibleLongRunning(), 'published_at') : [];
@@ -2095,7 +2109,7 @@ function feedVisible() {
     return [...alerts, ...removedAlerts].filter(a =>
       match(a) && passesFilters(a) &&
       (!a.stale || showLongRunning) &&
-      (!ongoingOnly || !isFuture(a))
+      (showFutureEvents || !isFuture(a))
     );
   }
   if (openSection === 'active')  return activeFeedList();
@@ -2111,10 +2125,10 @@ function toggleLongRunning() {
   buildFilterBar();
 }
 
-function toggleOngoingOnly() {
-  ongoingOnly = document.getElementById('ongoing-switch').checked;
-  localStorage.setItem('fr_ongoing_only', JSON.stringify(ongoingOnly));
-  _track('ongoing_only_toggle', { on: ongoingOnly });
+function toggleFutureEvents() {
+  showFutureEvents = document.getElementById('future-switch').checked;
+  localStorage.setItem('fr_show_future', JSON.stringify(showFutureEvents));
+  _track('future_events_toggle', { on: showFutureEvents });
   renderFeed();
   buildFilterBar();
 }
@@ -2531,11 +2545,11 @@ async function init() {
     document.getElementById('btn-dark-label').textContent = ' Light mode';
   }
   document.getElementById('lr-switch').checked = showLongRunning;
-  document.getElementById('ongoing-switch').checked = ongoingOnly;
+  document.getElementById('future-switch').checked = showFutureEvents;
   updateNotifyBtn();
   const _today = new Date();
   document.getElementById('feed-date-header').textContent =
-    'Active Alerts for ' + _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   initMap();
   startRadarPreload();
   maybeShowDisclaimer();
