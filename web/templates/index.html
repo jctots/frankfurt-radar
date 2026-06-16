@@ -524,6 +524,7 @@
       font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
       padding: 1px 6px; border-radius: 999px;
     }
+    .status-pill .pill-emoji { font-size: 12px; vertical-align: -1px; }
     .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
@@ -1777,7 +1778,7 @@ function statusPillHtml(a) {
       : '';
   }
   if (a.stale) {
-    return `<span class="status-pill longrunning">⏳ ${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
+    return `<span class="status-pill longrunning"><span class="pill-emoji">⏳</span> ${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
   const future = isFuture(a);
   const label = future ? daysUntil(a.valid_from) : 'Ongoing';
@@ -1789,7 +1790,7 @@ function statusPillHtml(a) {
 // shows an "Ongoing"/"Starts in..." pill that no longer applies.
 function clearedPillHtml(a) {
   if (!a.removed_at) return '';
-  return `<span class="status-pill neutral">✅ ${esc(fmtDate(a.removed_at).toUpperCase())}</span>`;
+  return `<span class="status-pill neutral"><span class="pill-emoji">✅</span> ${esc(fmtDate(a.removed_at).toUpperCase())}</span>`;
 }
 
 function fmtDate(iso) {
@@ -2462,9 +2463,8 @@ function updateRelativeTime() {
 
 function updateFeedDateHeader() {
   const ref = lastUpdatedAt || new Date();
-  const date = ref.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const time = ref.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  document.getElementById('feed-date-header').textContent = `${date} · as of ${time}`;
+  document.getElementById('feed-date-header').textContent =
+    ref.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function tickerShowNext() {
