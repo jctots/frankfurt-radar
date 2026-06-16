@@ -157,6 +157,27 @@ class TestUmamiVisits:
         assert "Unique visitors: 5" in result
         assert "Active now: 2" in result
 
+    def test_handles_flat_stats_response_shape(self, mocker):
+        # Self-hosted Umami (Prisma/v2 backend) returns bare numbers instead
+        # of the older {"value": N} nesting — confirmed against a live
+        # instance: {"pageviews":109,"visitors":13,"visits":63,...}.
+        self._write_web_config()
+        mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")
+        mocker.patch.object(web_app, "UMAMI_USERNAME", "admin")
+        mocker.patch.object(web_app, "UMAMI_PASSWORD", "secret")
+        mocker.patch.object(web_app, "_umami_token", "cached-token")
+
+        stats_resp = MagicMock(status_code=200)
+        stats_resp.json.return_value = {"pageviews": 109, "visitors": 13, "visits": 63, "bounces": 37, "totaltime": 21955}
+        active_resp = MagicMock(status_code=200)
+        active_resp.json.return_value = []
+
+        mocker.patch("app.http_requests.get", side_effect=[stats_resp, active_resp])
+
+        result = web_app._cmd_visits()
+        assert "Visits: 63" in result
+        assert "Unique visitors: 13" in result
+
     def test_retries_login_on_401(self, mocker):
         self._write_web_config()
         mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")

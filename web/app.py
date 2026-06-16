@@ -303,6 +303,15 @@ def _cmd_alerts() -> str:
     return "\n".join(lines)
 
 
+def _stat_value(v) -> int:
+    """Umami's stats response shape has changed across versions — v1-style
+    nests each metric as {"value": N}, v2 (e.g. self-hosted with Prisma)
+    returns the bare number directly. Handle both."""
+    if isinstance(v, dict):
+        return v.get("value", 0)
+    return v or 0
+
+
 def _umami_login() -> str | None:
     """Self-hosted Umami has no API-key feature (that's Cloud-only) — log in
     with username/password to get a JWT instead. Token is cached in memory
@@ -356,8 +365,8 @@ def _cmd_visits() -> str:
     except http_requests.RequestException as e:
         return f"❌ Umami query failed: {e}"
 
-    visits = stats.get("visits", {}).get("value", 0)
-    visitors = stats.get("visitors", {}).get("value", 0)
+    visits = _stat_value(stats.get("visits"))
+    visitors = _stat_value(stats.get("visitors"))
     active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
 
     return (

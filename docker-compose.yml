@@ -63,6 +63,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD:-unused}@umami-db:5432/umami
       - APP_SECRET=${UMAMI_APP_SECRET:-unused}
+      - APP_URL
     depends_on:
       umami-db:
         condition: service_healthy
