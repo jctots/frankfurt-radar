@@ -22,7 +22,10 @@ BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
-UMAMI_API_KEY        = os.getenv("UMAMI_API_KEY", "")
+UMAMI_USERNAME       = os.getenv("UMAMI_USERNAME", "")
+UMAMI_PASSWORD       = os.getenv("UMAMI_PASSWORD", "")
+
+_umami_token: str | None = None
 
 _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
@@ -300,34 +303,56 @@ def _cmd_alerts() -> str:
     return "\n".join(lines)
 
 
+def _umami_login() -> str | None:
+    """Self-hosted Umami has no API-key feature (that's Cloud-only) — log in
+    with username/password to get a JWT instead. Token is cached in memory
+    and only refreshed when a request comes back 401."""
+    global _umami_token
+    try:
+        resp = http_requests.post(
+            f"{UMAMI_INTERNAL_URL}/api/auth/login",
+            json={"username": UMAMI_USERNAME, "password": UMAMI_PASSWORD},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        _umami_token = resp.json().get("token")
+    except http_requests.RequestException:
+        _umami_token = None
+    return _umami_token
+
+
+def _umami_get(url: str, params: dict | None = None):
+    """GET against the Umami API, logging in lazily and retrying once on 401
+    (cached token expired/invalid)."""
+    global _umami_token
+    if not _umami_token and not _umami_login():
+        raise http_requests.RequestException("Umami login failed")
+
+    resp = http_requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
+    if resp.status_code == 401:
+        if not _umami_login():
+            raise http_requests.RequestException("Umami login failed")
+        resp = http_requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
+    resp.raise_for_status()
+    return resp
+
+
 def _cmd_visits() -> str:
     website_id = (_web_config() or {}).get("umami_website_id") or ""
-    if not UMAMI_INTERNAL_URL or not UMAMI_API_KEY or not website_id:
-        return "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_API_KEY, umami_website_id)"
+    if not UMAMI_INTERNAL_URL or not UMAMI_USERNAME or not UMAMI_PASSWORD or not website_id:
+        return "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_USERNAME, UMAMI_PASSWORD, umami_website_id)"
 
-    headers = {"x-umami-api-key": UMAMI_API_KEY}
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     start_ms = int(month_start.timestamp() * 1000)
     end_ms = int(now.timestamp() * 1000)
 
     try:
-        stats_resp = http_requests.get(
+        stats = _umami_get(
             f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/stats",
             params={"startAt": start_ms, "endAt": end_ms},
-            headers=headers,
-            timeout=10,
-        )
-        stats_resp.raise_for_status()
-        stats = stats_resp.json()
-
-        active_resp = http_requests.get(
-            f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/active",
-            headers=headers,
-            timeout=10,
-        )
-        active_resp.raise_for_status()
-        active = active_resp.json()
+        ).json()
+        active = _umami_get(f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/active").json()
     except http_requests.RequestException as e:
         return f"❌ Umami query failed: {e}"
 
