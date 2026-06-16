@@ -483,11 +483,14 @@
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
     /* ── Active-section toggles (long-running / ongoing-only) ── */
+    .feed-toggle-panel {
+      background: var(--clr-bg);
+      border-bottom: 1px solid var(--clr-border);
+      flex-shrink: 0;
+    }
     .feed-toggle {
       display: flex; align-items: center; gap: 6px;
-      padding: 8px 14px;
-      border-bottom: 1px solid var(--clr-border);
-      background: var(--clr-bg);
+      padding: 4px 14px;
       font-size: 12px;
       color: var(--clr-text);
       flex-shrink: 0;
@@ -1007,28 +1010,30 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          🔔 Active
+          🔔 Active Alerts
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
         <div class="section-body">
-          <div class="feed-toggle">
-            <span class="toggle-icon">⏳</span>
-            <span class="toggle-label">Show long-running disruptions</span>
-            <span class="toggle-count" id="longrunning-count">0</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="lr-switch" onchange="toggleLongRunning()">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feed-toggle">
-            <span class="toggle-icon">🟢</span>
-            <span class="toggle-label">Show future events</span>
-            <span class="toggle-count" id="future-count">0</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
-              <span class="toggle-slider"></span>
-            </label>
+          <div class="feed-toggle-panel">
+            <div class="feed-toggle">
+              <span class="toggle-icon">⏳</span>
+              <span class="toggle-label">Show long-running disruptions</span>
+              <span class="toggle-count" id="longrunning-count">0</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="lr-switch" onchange="toggleLongRunning()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feed-toggle">
+              <span class="toggle-icon">📅</span>
+              <span class="toggle-label">Show future events</span>
+              <span class="toggle-count" id="future-count">0</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
           <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
         </div>
@@ -1405,17 +1410,20 @@ function buildPopupHtml(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const meta = [];
   const useDateOnly = a.source === 'events';
+  if (a.published_at) meta.push('Published at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
   if (a.service)      meta.push(a.service.replace(/_/g, ' ') + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
+  const metaText = meta.filter(Boolean).map(esc).join(' · ');
+  const metaLine = [metaText, statusPillHtml(a)].filter(Boolean).join(' · ');
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
   return `${imgHtml}<div class="popup-inner">
     ${locBadge}
     <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}</div>
     <div class="popup-title">${esc(a.title)}</div>
-    ${meta.length ? `<div class="popup-meta">${meta.filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    ${metaLine ? `<div class="popup-meta">${metaLine}</div>` : ''}
     ${a.body ? `<div class="popup-body">${esc(a.body)}</div>` : ''}
     ${(a.url || src.officialUrl) ? `<a class="popup-link" href="${esc(a.url || src.officialUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
   </div>`;
@@ -1750,6 +1758,16 @@ function isFuture(a) {
   return !!(a.valid_from && new Date(a.valid_from) > new Date());
 }
 
+// Ongoing/upcoming pill — only meaningful when we know a start time. Sources
+// without valid_from (e.g. police reports describe something that already
+// happened) get no pill rather than a misleading default.
+function statusPillHtml(a) {
+  if (!a.valid_from) return '';
+  const future = isFuture(a);
+  const label = future ? daysUntil(a.valid_from) : 'Ongoing';
+  return `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(label.toUpperCase())}</span>`;
+}
+
 function fmtDate(iso) {
   if (!iso) return '';
   try {
@@ -1834,16 +1852,13 @@ function _renderCard(a, opts = {}) {
     const statusPill = `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(status.toUpperCase())}</span>`;
     metaHtml = period ? `${esc(period)} · ${statusPill}` : statusPill;
   } else if (opts.showAge) {
-    const time = fmtDate(a.published_at || a.valid_until);
+    const time = 'Published at ' + esc(fmtDate(a.published_at || a.valid_until));
     const ongoingPill = a.valid_from ? `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>` : '';
-    metaHtml = esc(time) + (ongoingPill ? ' · ' + ongoingPill : '');
+    metaHtml = time + (ongoingPill ? ' · ' + ongoingPill : '');
   } else {
-    const future = isFuture(a);
-    const time = esc(fmtDateTime(a.published_at || a.valid_until));
-    const statusPill = future
-      ? `<span class="status-pill upcoming">${esc(daysUntil(a.valid_from).toUpperCase())}</span>`
-      : `<span class="status-pill ongoing">ONGOING</span>`;
-    metaHtml = time + ' · ' + statusPill;
+    const time = 'Published at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
+    const statusPill = statusPillHtml(a);
+    metaHtml = time + (statusPill ? ' · ' + statusPill : '');
   }
 
   const icon = alertIconHtml(a);
@@ -1862,11 +1877,11 @@ function _renderCard(a, opts = {}) {
 function _renderRemovedCard(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '' };
   const svc = _renderRoadSvc(a);
-  const time = fmtDate(a.published_at || a.valid_until);
-  const removedTime = fmtDateTimeShort(a.removed_at);
+  const time = 'Published at ' + esc(fmtDate(a.published_at || a.valid_until));
+  const removedDate = fmtDate(a.removed_at);
   const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-  const reasonPill = `<span class="status-pill expired">${esc(reason.toUpperCase())}</span>`;
-  const meta = esc(time) + (removedTime ? ` · ${reasonPill} at ${esc(removedTime)}` : '');
+  const reasonPill = `<span class="status-pill expired">${esc(`${reason} on ${removedDate}`.toUpperCase())}</span>`;
+  const meta = time + (removedDate ? ' · ' + reasonPill : '');
   const icon = alertIconHtml(a);
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
@@ -2081,7 +2096,10 @@ function toggleSection(id) {
   const key = id.replace('sec-', '');
   const opening = openSection !== key || searchTerm;
   openSection = (openSection === key && !searchTerm) ? null : key;
-  if (opening) _track('section_open', { section: key });
+  if (opening) {
+    _track('section_open', { section: key });
+    document.querySelector(`#${id} .section-body`)?.scrollTo(0, 0);
+  }
   closeRadarView();
   _applyAccordionState();
   renderFeed();
@@ -2491,7 +2509,7 @@ function fmtDateTimeShort(iso) {
     const hh  = String(d.getHours()).padStart(2, '0');
     const mm  = String(d.getMinutes()).padStart(2, '0');
     return `${dd} ${mon} ${hh}:${mm}`;
-  } catch { return ''; }
+  } catch { return iso || ''; }
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────

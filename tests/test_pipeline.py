@@ -105,6 +105,40 @@ class TestPollMode:
         mock_patch.assert_called_once()
 
 
+class TestFmtAlertStatus:
+    def test_no_valid_from_returns_empty(self):
+        from pipeline import _fmt_alert_status
+        alert = Alert(id="A", source="rmv", title="X", body="", url=None, valid_until=None, service=None)
+        assert _fmt_alert_status(alert) == ""
+
+    def test_already_started_is_ongoing(self):
+        from pipeline import _fmt_alert_status
+        past = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        alert = Alert(id="A", source="rmv", title="X", body="", url=None, valid_until=None, service=None, valid_from=past)
+        assert _fmt_alert_status(alert) == "Ongoing"
+
+    def test_starts_in_minutes(self):
+        from pipeline import _fmt_alert_status
+        soon = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()
+        alert = Alert(id="A", source="rmv", title="X", body="", url=None, valid_until=None, service=None, valid_from=soon)
+        assert _fmt_alert_status(alert) in ("Starts in 29 mins", "Starts in 30 mins")
+
+    def test_starts_tomorrow_even_if_few_hours_away(self):
+        from pipeline import _fmt_alert_status
+        # Just after midnight tomorrow, but possibly <24h from "now" depending on time of day.
+        tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+        if tomorrow <= datetime.now(timezone.utc):
+            tomorrow += timedelta(days=1)
+        alert = Alert(id="A", source="rmv", title="X", body="", url=None, valid_until=None, service=None, valid_from=tomorrow.isoformat())
+        assert _fmt_alert_status(alert) == "Starts tomorrow"
+
+    def test_starts_in_days(self):
+        from pipeline import _fmt_alert_status
+        future = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        alert = Alert(id="A", source="rmv", title="X", body="", url=None, valid_until=None, service=None, valid_from=future)
+        assert _fmt_alert_status(alert) == "Starts in 5 days"
+
+
 class TestProcessDaily:
     def _make_polizei(self, alert_id, hours_ago):
         pub = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
