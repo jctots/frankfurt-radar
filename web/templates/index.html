@@ -524,7 +524,7 @@
       font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
       padding: 1px 6px; border-radius: 999px;
     }
-    .status-pill .pill-emoji { font-size: 12px; vertical-align: -1px; }
+
     .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
@@ -1778,7 +1778,7 @@ function statusPillHtml(a) {
       : '';
   }
   if (a.stale) {
-    return `<span class="status-pill longrunning"><span class="pill-emoji">⏳</span> ${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
+    return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
   const future = isFuture(a);
   const label = future ? daysUntil(a.valid_from) : 'Ongoing';
@@ -1790,7 +1790,7 @@ function statusPillHtml(a) {
 // shows an "Ongoing"/"Starts in..." pill that no longer applies.
 function clearedPillHtml(a) {
   if (!a.removed_at) return '';
-  return `<span class="status-pill neutral"><span class="pill-emoji">✅</span> ${esc(fmtDate(a.removed_at).toUpperCase())}</span>`;
+  return `<span class="status-pill neutral">✓ ${esc(fmtDate(a.removed_at).toUpperCase())}</span>`;
 }
 
 function fmtDate(iso) {
@@ -1844,13 +1844,13 @@ function fmtOngoing(iso) {
   if (!iso) return '';
   const days = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24));
   if (days < 7)  return 'this week';
-  if (days < 14) return '1 week';
-  if (days < 30) return `${Math.floor(days / 7)} weeks`;
+  if (days < 14) return 'over 1 week';
+  if (days < 30) return `over ${Math.floor(days / 7)} weeks`;
   const months = Math.floor(days / 30.44);
-  if (months < 2) return '1 month';
-  if (months < 12) return `${months} months`;
+  if (months < 2) return 'over 1 month';
+  if (months < 12) return `over ${months} months`;
   const years = Math.floor(months / 12);
-  return years === 1 ? '1 year' : `${years} years`;
+  return years === 1 ? 'over 1 year' : `over ${years} years`;
 }
 
 function _renderRoadSvc(a) {
