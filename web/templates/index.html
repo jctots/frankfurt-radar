@@ -491,7 +491,7 @@
     }
     .feed-toggle {
       display: flex; align-items: center; gap: 6px;
-      padding: 4px 14px 4px 11px;
+      padding: 8px 14px 8px 11px;
       font-size: 12px;
       color: var(--clr-text);
       flex-shrink: 0;
@@ -1676,6 +1676,7 @@ function applyData(data) {
   if (data.updated_at) {
     lastUpdatedAt = new Date(data.updated_at);
     updateRelativeTime();
+    updateFeedDateHeader();
   }
 
   const dot = document.getElementById('pulse-dot');
@@ -2463,10 +2464,10 @@ function updateRelativeTime() {
 }
 
 function updateFeedDateHeader() {
-  const now = new Date();
-  const date = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  document.getElementById('feed-date-header').textContent = `${date} · ${time}`;
+  const ref = lastUpdatedAt || new Date();
+  const date = ref.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const time = ref.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('feed-date-header').textContent = `${date} · as of ${time}`;
 }
 
 function tickerShowNext() {
@@ -2640,7 +2641,6 @@ async function init() {
   }, REFRESH_INTERVAL);
 
   setInterval(updateRelativeTime, 30_000);
-  setInterval(updateFeedDateHeader, 30_000);
 
   fetchCurrentWeather();
   setInterval(fetchCurrentWeather, 15 * 60 * 1000);
