@@ -477,11 +477,43 @@
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
-    .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto auto; align-content: start; min-height: 0; overflow: hidden; }
-    .feed-sections:has(#sec-active.open)      { grid-template-rows: 1fr auto auto; }
-    .feed-sections:has(#sec-longrunning.open) { grid-template-rows: auto 1fr auto; }
-    .feed-sections:has(#sec-removed.open)     { grid-template-rows: auto auto 1fr; }
+    .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; align-content: start; min-height: 0; overflow: hidden; }
+    .feed-sections:has(#sec-active.open)      { grid-template-rows: 1fr auto; }
+    .feed-sections:has(#sec-removed.open)     { grid-template-rows: auto 1fr; }
     .feed-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+
+    /* ── Active-section toggles (long-running / ongoing-only) ── */
+    .feed-toggle {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--clr-border);
+      background: var(--clr-bg);
+      font-size: 12px;
+      color: var(--clr-text);
+      flex-shrink: 0;
+    }
+    .feed-toggle .toggle-icon  { font-size: 13px; }
+    .feed-toggle .toggle-label { flex: 1; }
+    .feed-toggle .toggle-count {
+      background: var(--clr-surface); border: 1px solid var(--clr-border);
+      border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: 600;
+    }
+    .toggle-switch { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--clr-border); border-radius: 999px;
+      transition: background 0.15s;
+    }
+    .toggle-slider::before {
+      content: ""; position: absolute; width: 15px; height: 15px;
+      left: 2px; top: 2px; background: #fff; border-radius: 50%;
+      transition: transform 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,.25);
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--clr-weather); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(15px); }
+
     .feed-date-header {
       padding: 8px 14px 2px;
       font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
@@ -964,22 +996,30 @@
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
         <div class="section-summary" onclick="toggleSection('sec-active')">
-          🔔 Recent Announcements
+          🔔 Active
           <span class="feed-count" id="feed-count">—</span>
           <span class="section-chevron">▶</span>
         </div>
         <div class="section-body">
+          <div class="feed-toggle">
+            <span class="toggle-icon">⏳</span>
+            <span class="toggle-label">Show long-running disruptions</span>
+            <span class="toggle-count" id="longrunning-count">0</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="lr-switch" onchange="toggleLongRunning()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feed-toggle">
+            <span class="toggle-icon">🟢</span>
+            <span class="toggle-label">Show ongoing only</span>
+            <span class="toggle-count" id="future-count">0</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="ongoing-switch" onchange="toggleOngoingOnly()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
-        </div>
-      </div>
-      <div class="feed-section" id="sec-longrunning">
-        <div class="section-summary" onclick="toggleSection('sec-longrunning')">
-          ⏳ Long-running Disruptions
-          <span class="feed-count" id="longrunning-count">0</span>
-          <span class="section-chevron">▶</span>
-        </div>
-        <div class="section-body">
-          <div class="feed" id="longrunning-feed"></div>
         </div>
       </div>
       <div class="feed-section" id="sec-removed">
@@ -1190,6 +1230,8 @@ const TILES = {
 // ── State ────────────────────────────────────────────────────────────────────
 let alerts        = [];
 let removedAlerts = [];
+let showLongRunning = JSON.parse(localStorage.getItem('fr_show_lr') || 'false');
+let ongoingOnly      = JSON.parse(localStorage.getItem('fr_ongoing_only') || 'false');
 let selectedId   = null;
 let map          = null;
 let clusterGroup = null;
@@ -1682,8 +1724,20 @@ function passesFilters(a) {
 function visible()            { return alerts.filter(a => !a.stale && passesFilters(a)); }
 function visibleLongRunning() { return alerts.filter(a =>  a.stale && passesFilters(a)); }
 
+// Combined Active list: recent alerts (optionally hiding future-dated ones) +
+// long-running alerts (always already ongoing, so unaffected by ongoingOnly).
+function activeFeedList() {
+  const recent = visible().filter(a => !ongoingOnly || !isFuture(a));
+  const longrun = showLongRunning ? visibleLongRunning() : [];
+  return [...recent, ...longrun];
+}
+
 const SPORT_EMOJI = { running: '🏃', triathlon: '🏊', cycling: '🚴', football: '⚽', american_football: '🏈', basketball: '🏀' };
 
+
+function isFuture(a) {
+  return !!(a.valid_from && new Date(a.valid_from) > new Date());
+}
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -1751,8 +1805,7 @@ function _renderCard(a, opts = {}) {
   const svc = _renderRoadSvc(a);
   let metaHtml = '';
   if (opts.pinned) {
-    const now = new Date();
-    const status = (!a.valid_from || new Date(a.valid_from) <= now) ? 'Ongoing' : daysUntil(a.valid_from);
+    const status = !isFuture(a) ? 'Ongoing' : daysUntil(a.valid_from);
     let period = '';
     if (a.valid_from && a.valid_until) {
       const from = fmtDate(a.valid_from);
@@ -1806,23 +1859,23 @@ function _renderRemovedCard(a) {
 function renderFeed() {
   updateTicker();
 
-  // ── Active Alerts ──────────────────────────────────────────────────────────
-  const allVisible  = _sortByDate(visible(), 'published_at');
-  const pinned  = allVisible.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
-  const regular = allVisible.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
-  document.getElementById('feed-count').textContent = allVisible.length || '0';
+  // ── Active Alerts (recent + optional long-running, optional future hidden) ──
+  const recentAll = visible();
+  const recent  = _sortByDate(recentAll.filter(a => !ongoingOnly || !isFuture(a)), 'published_at');
+  const pinned  = recent.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
+  const regular = recent.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
+  const longList = showLongRunning ? _sortByDate(visibleLongRunning(), 'published_at') : [];
 
-  const activeFeed = document.getElementById('feed');
+  document.getElementById('feed-count').textContent = (recent.length + longList.length) || '0';
+  document.getElementById('longrunning-count').textContent = visibleLongRunning().length || '0';
+  document.getElementById('future-count').textContent = recentAll.filter(isFuture).length || '0';
+
+  const activeFeed  = document.getElementById('feed');
   const pinnedHtml  = pinned.map(a => _renderCard(a, { pinned: true })).join('');
   const regularHtml = regular.map(_renderCard).join('');
-  activeFeed.innerHTML = pinnedHtml + regularHtml
+  const longHtml    = longList.map(a => _renderCard(a, { showAge: true })).join('');
+  activeFeed.innerHTML = pinnedHtml + regularHtml + longHtml
     || '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
-
-  // ── Long-running Disruptions ───────────────────────────────────────────────
-  const longList = _sortByDate(visibleLongRunning(), 'published_at');
-  document.getElementById('longrunning-count').textContent = longList.length || '0';
-  document.getElementById('longrunning-feed').innerHTML = longList.map(a => _renderCard(a, { showAge: true })).join('')
-    || '<div class="empty-state" style="padding:24px 16px">No long-running disruptions.</div>';
 
   // ── Cleared ────────────────────────────────────────────────────────────────
   const clearedList = _sortByDate(removedAlerts.filter(a => passesFilters(a)), 'removed_at');
@@ -1982,20 +2035,19 @@ function selectAlert(id, fromMap = false) {
   else applyMapOp();
 }
 
-let openSection = 'active'; // 'active' | 'longrunning' | 'removed' | null
+let openSection = 'active'; // 'active' | 'removed' | null
 
 function _applyAccordionState() {
   if (searchTerm) {
     const counts = {
-      active:      visible().length,
-      longrunning: visibleLongRunning().length,
-      removed:     removedAlerts.filter(a => passesFilters(a)).length,
+      active:  activeFeedList().length,
+      removed: removedAlerts.filter(a => passesFilters(a)).length,
     };
-    ['active', 'longrunning', 'removed'].forEach(s => {
+    ['active', 'removed'].forEach(s => {
       document.getElementById('sec-' + s).classList.toggle('open', counts[s] > 0);
     });
   } else {
-    ['active', 'longrunning', 'removed'].forEach(s => {
+    ['active', 'removed'].forEach(s => {
       document.getElementById('sec-' + s).classList.toggle('open', s === openSection);
     });
   }
@@ -2040,12 +2092,31 @@ function feedVisible() {
   if (searchTerm) {
     const terms = searchTerm.toLowerCase().split(/\s+/);
     const match = a => terms.every(t => `${a.title} ${a.body}`.toLowerCase().includes(t));
-    return [...alerts, ...removedAlerts].filter(a => match(a) && passesFilters(a));
+    return [...alerts, ...removedAlerts].filter(a =>
+      match(a) && passesFilters(a) &&
+      (!a.stale || showLongRunning) &&
+      (!ongoingOnly || !isFuture(a))
+    );
   }
-  if (openSection === 'active')      return visible();
-  if (openSection === 'longrunning') return visibleLongRunning();
-  if (openSection === 'removed')     return removedAlerts.filter(passesFilters);
+  if (openSection === 'active')  return activeFeedList();
+  if (openSection === 'removed') return removedAlerts.filter(passesFilters);
   return [];
+}
+
+function toggleLongRunning() {
+  showLongRunning = document.getElementById('lr-switch').checked;
+  localStorage.setItem('fr_show_lr', JSON.stringify(showLongRunning));
+  _track('longrunning_toggle', { on: showLongRunning });
+  renderFeed();
+  buildFilterBar();
+}
+
+function toggleOngoingOnly() {
+  ongoingOnly = document.getElementById('ongoing-switch').checked;
+  localStorage.setItem('fr_ongoing_only', JSON.stringify(ongoingOnly));
+  _track('ongoing_only_toggle', { on: ongoingOnly });
+  renderFeed();
+  buildFilterBar();
 }
 
 function buildFilterBar() {
@@ -2459,6 +2530,8 @@ async function init() {
     document.getElementById('btn-dark-icon').textContent = '☀️';
     document.getElementById('btn-dark-label').textContent = ' Light mode';
   }
+  document.getElementById('lr-switch').checked = showLongRunning;
+  document.getElementById('ongoing-switch').checked = ongoingOnly;
   updateNotifyBtn();
   const _today = new Date();
   document.getElementById('feed-date-header').textContent =

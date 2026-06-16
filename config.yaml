@@ -1,4 +1,4 @@
-stale_after_days: 30        # RMV/autobahn/baustellen alerts older than this move to "Long-running Disruptions"
+stale_after_days: 30        # alerts whose valid_from is older than this move to "Long-running Disruptions"
 cleared_retention_days: 7   # how many days to keep cleared alerts visible in the Cleared section
 
 transport:
