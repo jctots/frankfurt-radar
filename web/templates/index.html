@@ -935,8 +935,8 @@
 <body>
 
 <header>
-  <div class="brand" onclick="location.reload()" title="Refresh">📡 Frankfurt Radar</div>
-  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/wetterundklima_vorort/hessen/frankfurt/_node.html" target="_blank" rel="noopener" title="DWD weather warnings"></a>
+  <div class="brand" onclick="_track('banner_click'); location.reload()" title="Refresh">📡 Frankfurt Radar</div>
+  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/wetterundklima_vorort/hessen/frankfurt/_node.html" target="_blank" rel="noopener" title="DWD weather warnings" onclick="_track('weather_widget_click')"></a>
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
@@ -1038,7 +1038,7 @@
     <hr>
     {% endif %}
 
-    <p class="info-attr">📡 Frankfurt Radar · {{ version | e }} · Free &amp; open source</p>
+    <p class="info-attr">📡 Frankfurt Radar · {% if github_url %}<a href="{{ github_url | e }}/releases" target="_blank" rel="noopener">{{ version | e }}</a>{% else %}{{ version | e }}{% endif %} · Free &amp; open source</p>
     <p class="info-attr" style="margin-top:4px">
       Data: <a href="https://opendata.rmv.de" target="_blank" rel="noopener">RMV</a>,
       <a href="https://brightsky.dev" target="_blank" rel="noopener">BrightSky/DWD</a>,
@@ -1304,6 +1304,7 @@ function initMap() {
 function alertEmoji(a) {
   if (a.source === 'sports') return SPORT_EMOJI[a.service] || SOURCE.sports.emoji;
   if (a.source === 'baustellen' && a.service === 'City (Partial)') return '🚧';
+  if (a.source === 'dwd' && a.icon) return a.icon;
   return (SOURCE[a.source] || {}).emoji || '📍';
 }
 
@@ -1505,6 +1506,7 @@ function _stopRadarAnim()  { clearInterval(radarAnimTimer); clearTimeout(radarAn
 
 function openRadarView() {
   if (!radarPreloaded || !radarFrames.length) return;
+  _track('weather_popup_radar');
   inRadarView = true;
   radarHiddenMarkers = [];
   Object.keys(markers).forEach(id => {
@@ -2001,7 +2003,9 @@ function _applyAccordionState() {
 
 function toggleSection(id) {
   const key = id.replace('sec-', '');
+  const opening = openSection !== key || searchTerm;
   openSection = (openSection === key && !searchTerm) ? null : key;
+  if (opening) _track('section_open', { section: key });
   closeRadarView();
   _applyAccordionState();
   renderFeed();
@@ -2010,7 +2014,7 @@ function toggleSection(id) {
   if (map) map.setView(FRANKFURT, 12, { animate: true });
 }
 
-function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); }
+function openInfoModal()  { document.getElementById('info-modal').classList.add('open'); _track('info_open'); }
 function closeInfoModal() { document.getElementById('info-modal').classList.remove('open'); }
 
 function dismissDisclaimer() {
@@ -2286,6 +2290,7 @@ async function toggleNotifications() {
     }
   }
   updateNotifyBtn();
+  _track('notify_toggle', { enabled: _notifyEnabled });
 }
 
 function updateNotifyBtn() {

@@ -11,7 +11,7 @@ from typing import Optional
 import feedparser
 import requests
 
-from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
+from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
 
@@ -285,10 +285,11 @@ class DWDPoller(BasePoller):
             desc = w.get("description_en") or w.get("description_de", "")
             instruction = w.get("instruction_en") or w.get("instruction_de", "")
             body = "\n\n".join(filter(None, [desc, instruction]))
+            title = w.get("headline_en") or w.get("headline_de", "DWD Warning")
             alerts.append(Alert(
                 id=w.get("alert_id", ""),
                 source="dwd",
-                title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
+                title=title,
                 body=body,
                 url=None,
                 published_at=w.get("published") or datetime.now(timezone.utc).isoformat(),
@@ -296,6 +297,7 @@ class DWDPoller(BasePoller):
                 valid_until=w.get("expires"),
                 service=None,
                 severity=rank,
+                icon=dwd_alert_icon(title, desc),
             ))
         log.info("DWD: %d warnings at severity >= %d", len(alerts), self.min_severity)
         return alerts

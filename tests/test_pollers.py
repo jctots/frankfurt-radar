@@ -138,6 +138,16 @@ class TestDWDPoller:
         alert = DWDPoller(min_severity=1).fetch()[0]
         assert alert.severity == 3  # "severe" → 3
 
+    def test_icon_derived_from_headline(self, mocker):
+        from pollers import DWDPoller
+        fixture = json.loads((FIXTURES_DIR / "dwd_brightsky_response.json").read_text())
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alerts = DWDPoller(min_severity=1).fetch()
+        thunderstorm, wind = alerts[0], alerts[1]
+        assert thunderstorm.icon == "⛈️"
+        assert wind.icon == "💨"
+
 
 # ── PolizeiPoller ─────────────────────────────────────────────────────────────
 
