@@ -1781,17 +1781,17 @@ function _sortByDate(arr, key) {
   });
 }
 
-function fmtAge(iso) {
+function fmtOngoing(iso) {
   if (!iso) return '';
   const days = Math.floor((Date.now() - new Date(iso)) / (1000 * 60 * 60 * 24));
-  if (days < 7)  return 'published this week';
-  if (days < 14) return 'published a week ago';
-  if (days < 30) return `published ${Math.floor(days / 7)} weeks ago`;
+  if (days < 7)  return 'ongoing this week';
+  if (days < 14) return 'ongoing for a week';
+  if (days < 30) return `ongoing for ${Math.floor(days / 7)} weeks`;
   const months = Math.floor(days / 30.44);
-  if (months < 2) return 'published a month ago';
-  if (months < 12) return `published ${months} months ago`;
+  if (months < 2) return 'ongoing for a month';
+  if (months < 12) return `ongoing for ${months} months`;
   const years = Math.floor(months / 12);
-  return years === 1 ? 'published a year ago' : `published ${years} years ago`;
+  return years === 1 ? 'ongoing for a year' : `ongoing for ${years} years`;
 }
 
 function _renderRoadSvc(a) {
@@ -1818,7 +1818,7 @@ function _renderCard(a, opts = {}) {
     metaHtml = period ? `${esc(period)} · ${statusSpan}` : statusSpan;
   } else if (opts.showAge) {
     const time = fmtDateTime(a.published_at || a.valid_until);
-    metaHtml = esc(time + (a.published_at ? ' · ' + fmtAge(a.published_at) : ''));
+    metaHtml = esc(time + (a.valid_from ? ' · ' + fmtOngoing(a.valid_from) : ''));
   } else {
     metaHtml = esc(fmtDateTime(a.published_at || a.valid_until));
   }
