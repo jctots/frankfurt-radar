@@ -475,6 +475,7 @@
       text-overflow: ellipsis;
     }
     .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
+    .card-status-row { margin-top: 4px; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; align-content: start; min-height: 0; overflow: hidden; }
@@ -485,7 +486,9 @@
     /* ── Active-section toggles (long-running / ongoing-only) ── */
     .feed-toggle-panel {
       background: var(--clr-bg);
-      border-bottom: 1px solid var(--clr-border);
+      border: 1px solid var(--clr-border);
+      margin: 8px 14px;
+      border-radius: 6px;
       flex-shrink: 0;
     }
     .feed-toggle {
@@ -678,7 +681,8 @@
       color: #1e293b;
       margin-bottom: 4px;
     }
-    .popup-meta { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+    .popup-meta { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+    .popup-status-row { margin-bottom: 8px; }
     .popup-body {
       font-size: 12px;
       line-height: 1.6;
@@ -1408,22 +1412,23 @@ function alertCoords(a) {
 function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
+  const svc = _renderRoadSvc(a);
   const meta = [];
   const useDateOnly = a.source === 'events';
-  if (a.published_at) meta.push('Published at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
+  if (a.published_at) meta.push('Posted at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
-  if (a.service)      meta.push(a.service.replace(/_/g, ' ') + (a.lines && a.lines.length ? ': ' + a.lines.join(', ') : ''));
   if (a.severity)     meta.push(SEV_LABEL[a.severity] || '');
   const metaText = meta.filter(Boolean).map(esc).join(' · ');
-  const metaLine = [metaText, statusPillHtml(a)].filter(Boolean).join(' · ');
+  const statusPill = a.removed_at ? clearedPillHtml(a) : statusPillHtml(a);
   const locBadge = label ? `<div class="popup-loc-badge">📍 ${esc(label)}</div>` : '';
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
   return `${imgHtml}<div class="popup-inner">
     ${locBadge}
-    <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}</div>
+    <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}${svc}</div>
     <div class="popup-title">${esc(a.title)}</div>
-    ${metaLine ? `<div class="popup-meta">${metaLine}</div>` : ''}
+    ${metaText ? `<div class="popup-meta">${metaText}</div>` : ''}
+    ${statusPill ? `<div class="popup-status-row">${statusPill}</div>` : ''}
     ${a.body ? `<div class="popup-body">${esc(a.body)}</div>` : ''}
     ${(a.url || src.officialUrl) ? `<a class="popup-link" href="${esc(a.url || src.officialUrl)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
   </div>`;
@@ -1758,14 +1763,30 @@ function isFuture(a) {
   return !!(a.valid_from && new Date(a.valid_from) > new Date());
 }
 
-// Ongoing/upcoming pill — only meaningful when we know a start time. Sources
-// without valid_from (e.g. police reports describe something that already
-// happened) get no pill rather than a misleading default.
+// Ongoing/upcoming/long-running pill — only meaningful for alerts that are
+// still active. Removed/cleared alerts use clearedPillHtml() instead (call
+// statusPillHtml only for non-removed alerts). Sources without valid_from
+// (e.g. police reports describe something that already happened) get no
+// pill rather than a misleading default. Single source of truth so cards,
+// the long-running list, and the map popup all agree on the same status.
 function statusPillHtml(a) {
   if (!a.valid_from) return '';
+  if (a.stale) {
+    return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
+  }
   const future = isFuture(a);
   const label = future ? daysUntil(a.valid_from) : 'Ongoing';
   return `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(label.toUpperCase())}</span>`;
+}
+
+// Red Expired/Resolved pill for removed/cleared alerts — shared by the
+// Cleared card list and the map popup so a cleared alert's popup never
+// shows an "Ongoing"/"Starts in..." pill that no longer applies.
+function clearedPillHtml(a) {
+  const removedDate = fmtDate(a.removed_at);
+  if (!removedDate) return '';
+  const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
+  return `<span class="status-pill expired">${esc(`${reason} on ${removedDate}`.toUpperCase())}</span>`;
 }
 
 function fmtDate(iso) {
@@ -1837,29 +1858,21 @@ function _renderRoadSvc(a) {
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const svc = _renderRoadSvc(a);
-  let metaHtml = '';
+  let dateLine = '';
   if (opts.pinned) {
-    const future = isFuture(a);
-    const status = !future ? 'Ongoing' : daysUntil(a.valid_from);
-    let period = '';
     if (a.valid_from && a.valid_until) {
       const from = fmtDate(a.valid_from);
       const until = fmtDate(a.valid_until);
-      period = from === until ? from : `${from} – ${until}`;
+      dateLine = esc(from === until ? from : `${from} – ${until}`);
     } else if (a.valid_until) {
-      period = 'Until ' + fmtDate(a.valid_until);
+      dateLine = esc('Until ' + fmtDate(a.valid_until));
     }
-    const statusPill = `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(status.toUpperCase())}</span>`;
-    metaHtml = period ? `${esc(period)} · ${statusPill}` : statusPill;
   } else if (opts.showAge) {
-    const time = 'Published at ' + esc(fmtDate(a.published_at || a.valid_until));
-    const ongoingPill = a.valid_from ? `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>` : '';
-    metaHtml = time + (ongoingPill ? ' · ' + ongoingPill : '');
+    dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   } else {
-    const time = 'Published at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
-    const statusPill = statusPillHtml(a);
-    metaHtml = time + (statusPill ? ' · ' + statusPill : '');
+    dateLine = 'Posted at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
   }
+  const statusPill = statusPillHtml(a);
 
   const icon = alertIconHtml(a);
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
@@ -1868,7 +1881,8 @@ function _renderCard(a, opts = {}) {
     <div class="card-body">
       <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${metaHtml}</div>
+      ${dateLine ? `<div class="card-meta">${dateLine}</div>` : ''}
+      ${statusPill ? `<div class="card-status-row">${statusPill}</div>` : ''}
     </div>
   </div>
 </div>`;
@@ -1877,11 +1891,8 @@ function _renderCard(a, opts = {}) {
 function _renderRemovedCard(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '' };
   const svc = _renderRoadSvc(a);
-  const time = 'Published at ' + esc(fmtDate(a.published_at || a.valid_until));
-  const removedDate = fmtDate(a.removed_at);
-  const reason = (a.valid_until && a.removed_at && a.valid_until <= a.removed_at) ? 'Expired' : 'Resolved';
-  const reasonPill = `<span class="status-pill expired">${esc(`${reason} on ${removedDate}`.toUpperCase())}</span>`;
-  const meta = time + (removedDate ? ' · ' + reasonPill : '');
+  const dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
+  const reasonPill = clearedPillHtml(a);
   const icon = alertIconHtml(a);
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
@@ -1889,7 +1900,8 @@ function _renderRemovedCard(a) {
     <div class="card-body">
       <div class="card-labels"><span class="card-src">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
-      <div class="card-meta">${meta}</div>
+      <div class="card-meta">${dateLine}</div>
+      ${reasonPill ? `<div class="card-status-row">${reasonPill}</div>` : ''}
     </div>
   </div>
 </div>`;
@@ -2443,6 +2455,13 @@ function updateRelativeTime() {
   document.getElementById('updated-short').textContent = relativeTime(lastUpdatedAt, true);
 }
 
+function updateFeedDateHeader() {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('feed-date-header').textContent = `${date} · ${time}`;
+}
+
 function tickerShowNext() {
   if (!tickerItems.length) return;
   const wrap = document.getElementById('ticker-wrap');
@@ -2575,9 +2594,7 @@ async function init() {
   document.getElementById('lr-switch').checked = showLongRunning;
   document.getElementById('future-switch').checked = showFutureEvents;
   updateNotifyBtn();
-  const _today = new Date();
-  document.getElementById('feed-date-header').textContent =
-    _today.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  updateFeedDateHeader();
   initMap();
   startRadarPreload();
   maybeShowDisclaimer();
@@ -2616,6 +2633,7 @@ async function init() {
   }, REFRESH_INTERVAL);
 
   setInterval(updateRelativeTime, 30_000);
+  setInterval(updateFeedDateHeader, 30_000);
 
   fetchCurrentWeather();
   setInterval(fetchCurrentWeather, 15 * 60 * 1000);
