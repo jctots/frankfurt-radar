@@ -11,7 +11,7 @@ from typing import Optional
 import feedparser
 import requests
 
-from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS
+from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +41,9 @@ _AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_BIS_ZUM_RE  = re.compile(
     r"^(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+bis\s+zum\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{2}:\d{2})\s+Uhr"
+)
+_AUTOBAHN_VON_BIS_RE  = re.compile(
+    r"^(\d{2}\.\d{2}\.\d{2})\s+von\s+(\d{2}:\d{2})\s+bis\s+(\d{2}:\d{2})\s+Uhr"
 )
 
 
@@ -75,6 +78,28 @@ def _parse_autobahn_bis_zum(desc: list) -> tuple[str | None, str | None]:
                 start = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
                 end   = datetime.strptime(f"{m.group(3)} {m.group(4)}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
                 return start, end
+            except ValueError:
+                pass
+    return None, None
+
+
+def _parse_autobahn_von_bis(desc: list) -> tuple[str | None, str | None]:
+    """Extract (start, end) from 'DD.MM.YY von HH:MM bis HH:MM Uhr.' lines (same-day range).
+
+    End time may be '24:00' (autobahn.de's way of saying midnight / start of next day),
+    which datetime.strptime rejects, so it's handled as a day rollover instead.
+    """
+    for line in desc:
+        m = _AUTOBAHN_VON_BIS_RE.match(line.strip())
+        if m:
+            try:
+                date_str, start_time, end_time = m.group(1), m.group(2), m.group(3)
+                start = datetime.strptime(f"{date_str} {start_time}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN)
+                if end_time == "24:00":
+                    end = datetime.strptime(date_str, "%d.%m.%y").replace(tzinfo=_BERLIN) + timedelta(days=1)
+                else:
+                    end = datetime.strptime(f"{date_str} {end_time}", "%d.%m.%y %H:%M").replace(tzinfo=_BERLIN)
+                return start.astimezone(timezone.utc).isoformat(), end.astimezone(timezone.utc).isoformat()
             except ValueError:
                 pass
     return None, None
@@ -285,10 +310,11 @@ class DWDPoller(BasePoller):
             desc = w.get("description_en") or w.get("description_de", "")
             instruction = w.get("instruction_en") or w.get("instruction_de", "")
             body = "\n\n".join(filter(None, [desc, instruction]))
+            title = w.get("headline_en") or w.get("headline_de", "DWD Warning")
             alerts.append(Alert(
                 id=w.get("alert_id", ""),
                 source="dwd",
-                title=w.get("headline_en") or w.get("headline_de", "DWD Warning"),
+                title=title,
                 body=body,
                 url=None,
                 published_at=w.get("published") or datetime.now(timezone.utc).isoformat(),
@@ -296,6 +322,7 @@ class DWDPoller(BasePoller):
                 valid_until=w.get("expires"),
                 service=None,
                 severity=rank,
+                icon=dwd_alert_icon(title, desc),
             ))
         log.info("DWD: %d warnings at severity >= %d", len(alerts), self.min_severity)
         return alerts
@@ -373,6 +400,8 @@ class AutobahnPoller(BasePoller):
                 bis_from, valid_until = _parse_autobahn_bis_zum(desc)
                 if not valid_from:
                     valid_from = bis_from
+            if not valid_from and not valid_until:
+                valid_from, valid_until = _parse_autobahn_von_bis(desc)
             published_at = datetime.now(timezone.utc).isoformat()
 
             alerts.append(Alert(

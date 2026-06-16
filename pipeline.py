@@ -14,6 +14,30 @@ from translation import translate_alert
 log = logging.getLogger(__name__)
 
 
+def _fmt_alert_status(alert: "Alert") -> str:
+    if not alert.valid_from:
+        return ""
+    try:
+        target = datetime.fromisoformat(alert.valid_from)
+    except ValueError:
+        return ""
+    now = datetime.now(timezone.utc)
+    diff = (target - now).total_seconds()
+    if diff <= 0:
+        return "Ongoing"
+
+    day_diff = (target.date() - now.date()).days
+    if day_diff <= 0:
+        mins = int(diff // 60)
+        if mins < 60:
+            return f"Starts in {mins} min{'s' if mins != 1 else ''}"
+        hours = int(diff // 3600)
+        return f"Starts in {hours} hour{'s' if hours != 1 else ''}"
+    if day_diff == 1:
+        return "Starts tomorrow"
+    return f"Starts in {day_diff} days"
+
+
 def _fmt_event_meta(alert: "Alert") -> str:
     parts = []
     if alert.valid_from and alert.valid_until:
@@ -60,6 +84,9 @@ def _process_poll(alerts: list["Alert"], config: dict) -> None:
     for i, alert in enumerate(notify_alerts):
         en_title, en_body = translate_alert(alert, config)
         emoji = alert_emoji(alert)
+        status = _fmt_alert_status(alert)
+        if status:
+            en_body = f"{status}\n{en_body}".strip()
         if alert.source in ("events", "sports"):
             meta = _fmt_event_meta(alert)
             en_body = f"{meta}\n{en_body}".strip() if meta else en_body

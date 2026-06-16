@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -24,12 +25,35 @@ SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": 
 SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "⚠️", "baustellen": "🛑", "events": "🎉", "sports": "⚽"}
 SPORT_EMOJI: dict[str, str] = {"running": "🏃", "triathlon": "🏊", "cycling": "🚴", "football": "⚽", "american_football": "🏈", "basketball": "🏀"}
 
+# Keyword → emoji for the specific weather event a DWD warning describes (checked in order,
+# first match wins). Falls back to SOURCE_EMOJI["dwd"] when nothing matches.
+DWD_ICON_KEYWORDS: list[tuple[str, str]] = [
+    (r"thunderstorm|gewitter", "⛈️"),
+    (r"\bhail\b|hagel", "🌨️"),
+    (r"\bsnow\b|schnee", "❄️"),
+    (r"\bice\b|gl[äa]tte|glaette|frost", "🧊"),
+    (r"\bfog\b|nebel", "🌫️"),
+    (r"\bwind\b|\bstorm\b|sturm|orkan", "💨"),
+    (r"\bheat\b|hitze", "🌡️"),
+    (r"\brain\b|regen", "🌧️"),
+]
+
+
+def dwd_alert_icon(title: str, body: str = "") -> str:
+    text = f"{title} {body}".lower()
+    for pattern, emoji in DWD_ICON_KEYWORDS:
+        if re.search(pattern, text):
+            return emoji
+    return SOURCE_EMOJI["dwd"]
+
 
 def alert_emoji(alert) -> str:
     if alert.source == "sports":
         return SPORT_EMOJI.get(alert.service or "", SOURCE_EMOJI["sports"])
     if alert.source == "baustellen" and alert.service == "City (Partial)":
         return "🚧"
+    if alert.source == "dwd" and getattr(alert, "icon", None):
+        return alert.icon
     return SOURCE_EMOJI.get(alert.source, "")
 SOURCE_URL: dict[str, Optional[str]] = {
     "rmv":        "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
@@ -60,3 +84,4 @@ class Alert:
     location_label: Optional[str] = None  # human-readable location hint
     image: Optional[str] = None         # direct upload.wikimedia.org thumbnail URL
     stale: bool = False                  # older than stale_after_days — shown in accordion 2
+    icon: Optional[str] = None           # frozen per-alert weather icon; set by DWDPoller

@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS alert_cache (
     image          TEXT,
     cached_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     removed_at     TEXT,
-    stale          INTEGER NOT NULL DEFAULT 0
+    stale          INTEGER NOT NULL DEFAULT 0,
+    icon           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -100,6 +101,10 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN stale INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN icon TEXT")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -194,6 +199,7 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 json.dumps(alert.lines) if alert.lines else None,
                 alert.published_at, alert.valid_from, alert.severity,
                 alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
+                alert.icon,
             ))
         else:
             cached_image, cached_stale = cached[alert.id]
@@ -208,8 +214,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, icon, cached_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
             )
@@ -267,6 +273,7 @@ def get_status_json() -> dict:
             "location_label": r["location_label"],
             "image":          r["image"],
             "stale":          bool(r["stale"]),
+            "icon":           r["icon"],
         }
         if include_removed_at:
             d["removed_at"] = r["removed_at"]

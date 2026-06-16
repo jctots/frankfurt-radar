@@ -138,6 +138,16 @@ class TestDWDPoller:
         alert = DWDPoller(min_severity=1).fetch()[0]
         assert alert.severity == 3  # "severe" → 3
 
+    def test_icon_derived_from_headline(self, mocker):
+        from pollers import DWDPoller
+        fixture = json.loads((FIXTURES_DIR / "dwd_brightsky_response.json").read_text())
+        mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
+
+        alerts = DWDPoller(min_severity=1).fetch()
+        thunderstorm, wind = alerts[0], alerts[1]
+        assert thunderstorm.icon == "⛈️"
+        assert wind.icon == "💨"
+
 
 # ── PolizeiPoller ─────────────────────────────────────────────────────────────
 
@@ -281,6 +291,33 @@ class TestAutobahnPoller:
         assert alert.published_at is not None
         assert alert.valid_until is not None
         assert "2026-06-18" in alert.valid_until
+
+    def test_von_bis_same_day_format_fallback(self, mocker):
+        from pollers import AutobahnPoller
+        fixture = {
+            "closure": [{
+                "identifier": "VON_BIS_001",
+                "title": "A45 | Seligenstädter Dreieck - Kleinostheim",
+                "description": [
+                    "Die Baustelle ist zu folgenden Zeiträumen gültig:",
+                    "16.06.26 von 20:00 bis 24:00 Uhr",
+                    "(Ende der Gesamtmaßnahme: 17.06.26)",
+                ],
+                "point": "50.006,9.023",
+                "startTimestamp": "",
+                "endTimestamp": "",
+            }]
+        }
+        resp = _mock_response(fixture)
+        resp_empty = MagicMock()
+        resp_empty.status_code = 204
+        mocker.patch("pollers.requests.get", side_effect=[resp_empty, resp])
+
+        alert = AutobahnPoller(roads=["A45"]).fetch()[0]
+        assert alert.valid_from is not None
+        assert alert.valid_until is not None
+        assert alert.valid_from == "2026-06-16T18:00:00+00:00"
+        assert alert.valid_until == "2026-06-16T22:00:00+00:00"
 
     def test_204_returns_empty(self, mocker):
         from pollers import AutobahnPoller
