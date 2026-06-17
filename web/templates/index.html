@@ -1313,8 +1313,10 @@ function initMap() {
   clusterGroup.on('clusterclick', (e) => {
     if (map.getZoom() >= 16) {
       e.layer.spiderfy();
-      L.DomEvent.stopPropagation(e.originalEvent);
+    } else {
+      map.fitBounds(e.layer.getBounds(), { maxZoom: 16 });
     }
+    L.DomEvent.stopPropagation(e.originalEvent);
   });
   map.addLayer(clusterGroup);
   const controlsRow = L.DomUtil.create('div', 'map-controls-row');
@@ -2083,7 +2085,7 @@ function selectAlert(id, fromMap = false) {
           if (selectedId !== expectedId) return;
           openRadarView();
           const latest = markers[id];
-          if (latest) openPopup(latest);
+          if (latest) setTimeout(() => openPopup(latest), 100);
         });
         map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
       };
@@ -2104,7 +2106,7 @@ function selectAlert(id, fromMap = false) {
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
         const latest = markers[id];
-        if (latest) openPopup(latest);
+        if (latest) setTimeout(() => openPopup(latest), 100);
       });
       if (map.getZoom() < 14) {
         map.setView(marker.getLatLng(), 14, { animate: true });
