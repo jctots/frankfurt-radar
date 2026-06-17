@@ -357,15 +357,19 @@
       z-index: 10;
     }
 
-    .search-bar {
+    .search-section {
       background: #f1f5f9;
-      padding: 2px 14px 8px;
       border-bottom: 1px solid var(--clr-border);
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+    .dark .search-section { background: #1a2235; }
+    .search-bar {
+      padding: 8px 14px 6px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .dark .search-bar { background: #1a2235; }
     .search-bar input {
       flex: 1;
       border: 1px solid var(--clr-border);
@@ -485,9 +489,7 @@
 
     /* ── Active-section toggles (long-running / ongoing-only) ── */
     .feed-toggle-panel {
-      background: var(--clr-bg);
-      padding: 6px 0;
-      border-left: 3px solid var(--clr-transport);
+      padding: 2px 0 6px;
       flex-shrink: 0;
     }
     .feed-toggle {
@@ -975,7 +977,7 @@
 
 <header>
   <div class="brand" onclick="_track('banner_click'); location.reload()" title="Refresh">📡 Frankfurt Radar</div>
-  <a class="weather-status" id="weather-status" href="https://www.dwd.de/DE/wetter/wetterundklima_vorort/hessen/frankfurt/_node.html" target="_blank" rel="noopener" title="DWD weather warnings" onclick="_track('weather_widget_click')"></a>
+  <a class="weather-status" id="weather-status" href="#" title="DWD weather radar" onclick="openWeatherWidget(event)"></a>
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
@@ -994,6 +996,7 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
+    <div class="search-section">
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1018,6 +1021,7 @@
           <span class="toggle-slider"></span>
         </label>
       </div>
+    </div>
     </div>
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
@@ -1940,6 +1944,24 @@ function renderFeed() {
 // ── Mobile map overlay ────────────────────────────────────────────────────────
 function isMobileView() {
   return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function openWeatherWidget(e) {
+  e.preventDefault();
+  _track('weather_widget_click');
+  if (!radarPreloaded) return;
+  resetState();
+  const doOpen = () => {
+    const c = map.getCenter();
+    const alreadyThere = map.getZoom() === RADAR_ZOOM &&
+      Math.abs(c.lat - FRANKFURT[0]) < 0.0001 &&
+      Math.abs(c.lng - FRANKFURT[1]) < 0.0001;
+    if (alreadyThere) { openRadarView(); return; }
+    map.once('moveend', openRadarView);
+    map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+  };
+  if (isMobileView()) openMobileMap(doOpen);
+  else doOpen();
 }
 
 function openMobileMap(cb) {
