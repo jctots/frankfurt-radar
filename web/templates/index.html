@@ -474,7 +474,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .card-meta { font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
+    .card-meta { display: flex; align-items: baseline; flex-wrap: nowrap; font-size: 11px; color: var(--clr-muted); margin-top: 2px; }
+    .card-meta-spacer { flex: 0 1 0.5em; }
 
     /* ── Feed sections (accordion) ──────────────────────────── */
     .feed-sections { flex: 1; display: grid; grid-template-rows: auto auto; align-content: start; min-height: 0; overflow: hidden; }
@@ -530,18 +531,7 @@
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
     .status-pill.neutral     { background: #e2e8f0; color: #475569; }
 
-    .feed-date-header {
-      padding: 8px 14px 2px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
-      text-align: center;
-      color: var(--clr-muted);
-      background: #f1f5f9;
-      border-top: 1px solid var(--clr-border);
-      border-left: 3px solid transparent;
-      flex-shrink: 0;
-    }
-    .dark .feed-date-header { background: #1a2235; }
-    .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
     .feed-section:not(.open) .section-body { display: none; }
     .section-summary {
       display: flex; align-items: center; gap: 8px;
@@ -1004,11 +994,30 @@
 
 <div class="status-area" id="status">
   <div class="feed-panel">
-    <div id="feed-date-header" class="feed-date-header"></div>
     <div class="search-bar">
       <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
+    </div>
+    <div class="feed-toggle-panel">
+      <div class="feed-toggle">
+        <span class="toggle-icon">⏳</span>
+        <span class="toggle-label">Show long-running disruptions</span>
+        <span class="toggle-count" id="longrunning-count">0</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="lr-switch" onchange="toggleLongRunning()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="feed-toggle">
+        <span class="toggle-icon">📅</span>
+        <span class="toggle-label">Show future events</span>
+        <span class="toggle-count" id="future-count">0</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
     <div class="feed-sections">
       <div class="feed-section open" id="sec-active">
@@ -1018,26 +1027,6 @@
           <span class="section-chevron">▶</span>
         </div>
         <div class="section-body">
-          <div class="feed-toggle-panel">
-            <div class="feed-toggle">
-              <span class="toggle-icon">⏳</span>
-              <span class="toggle-label">Show long-running disruptions</span>
-              <span class="toggle-count" id="longrunning-count">0</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="lr-switch" onchange="toggleLongRunning()">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feed-toggle">
-              <span class="toggle-icon">📅</span>
-              <span class="toggle-label">Show future events</span>
-              <span class="toggle-count" id="future-count">0</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
           <div class="feed" id="feed"><div class="empty-state">Loading…</div></div>
         </div>
       </div>
@@ -1676,7 +1665,6 @@ function applyData(data) {
   if (data.updated_at) {
     lastUpdatedAt = new Date(data.updated_at);
     updateRelativeTime();
-    updateFeedDateHeader();
   }
 
   const dot = document.getElementById('pulse-dot');
@@ -1877,7 +1865,9 @@ function _renderCard(a, opts = {}) {
     dateLine = 'Posted at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
   }
   const statusPill = statusPillHtml(a);
-  const metaHtml = dateLine + (statusPill ? ' ' + statusPill : '');
+  const metaHtml = statusPill
+    ? `<span>${dateLine}</span><span class="card-meta-spacer"></span>${statusPill}`
+    : dateLine;
 
   const icon = alertIconHtml(a);
   return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
@@ -1897,7 +1887,9 @@ function _renderRemovedCard(a) {
   const svc = _renderRoadSvc(a);
   const dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   const reasonPill = clearedPillHtml(a);
-  const metaHtml = dateLine + (reasonPill ? ' ' + reasonPill : '');
+  const metaHtml = reasonPill
+    ? `<span>${dateLine}</span><span class="card-meta-spacer"></span>${reasonPill}`
+    : dateLine;
   const icon = alertIconHtml(a);
   return `<div class="card card-removed src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
@@ -2461,11 +2453,6 @@ function updateRelativeTime() {
   document.getElementById('updated-short').textContent = relativeTime(lastUpdatedAt, true);
 }
 
-function updateFeedDateHeader() {
-  const ref = lastUpdatedAt || new Date();
-  document.getElementById('feed-date-header').textContent =
-    ref.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-}
 
 function tickerShowNext() {
   if (!tickerItems.length) return;
@@ -2599,7 +2586,6 @@ async function init() {
   document.getElementById('lr-switch').checked = showLongRunning;
   document.getElementById('future-switch').checked = showFutureEvents;
   updateNotifyBtn();
-  updateFeedDateHeader();
   initMap();
   startRadarPreload();
   maybeShowDisclaimer();
