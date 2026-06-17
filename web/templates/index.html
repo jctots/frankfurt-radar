@@ -113,6 +113,7 @@
     .ticker-item {
       position: absolute;
       width: 100%;
+      display: flex; align-items: center; gap: 5px;
       font-size: 12px;
       color: rgba(255,255,255,0.7);
       white-space: nowrap;
@@ -361,11 +362,12 @@
       background: #f1f5f9;
       border-bottom: 1px solid var(--clr-border);
       margin-top: 8px;
+      padding: 4px 0;
       flex-shrink: 0;
     }
     .dark .search-section { background: #1a2235; }
     .search-bar {
-      padding: 8px 14px 6px;
+      padding: 4px 14px 4px 12px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -434,13 +436,18 @@
       transition: background 0.1s;
     }
     .card.src-rmv        { border-left-color: var(--clr-transport); }
-    .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .card.src-dwd        { background: #f5f3ff; border-left-color: var(--clr-weather); }
     .card.src-polizei    { border-left-color: var(--clr-police); }
     .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .card.src-baustellen { border-left-color: var(--clr-roads); }
     .card.src-events     { background: #ecfdf5; border-left-color: var(--clr-events); }
     .card.src-sports     { background: #fff7ed; border-left-color: var(--clr-sports); }
     .card:hover              { background: #f8fafc; }
+    .card.src-rmv:hover      { background: #eff6ff; }
+    .card.src-dwd:hover      { background: #ede9fe; }
+    .card.src-polizei:hover  { background: #fef2f2; }
+    .card.src-autobahn:hover { background: #fffbeb; }
+    .card.src-baustellen:hover { background: #fffbeb; }
     .card.src-events:hover   { background: #d1fae5; }
     .card.src-sports:hover   { background: #ffedd5; }
     .card.sel.src-rmv        { background: #bfdbfe; border-left-color: var(--clr-transport); }
@@ -489,12 +496,12 @@
 
     /* ── Active-section toggles (long-running / ongoing-only) ── */
     .feed-toggle-panel {
-      padding: 2px 0 6px;
+      padding: 0;
       flex-shrink: 0;
     }
     .feed-toggle {
       display: flex; align-items: center; gap: 6px;
-      padding: 3px 14px 3px 11px;
+      padding: 4px 14px 4px 12px;
       font-size: 12px;
       color: var(--clr-text);
       flex-shrink: 0;
@@ -877,13 +884,18 @@
       --clr-header:  #020617;
     }
     .dark .card.src-rmv        { border-left-color: var(--clr-transport); }
-    .dark .card.src-dwd        { border-left-color: var(--clr-weather); }
+    .dark .card.src-dwd        { background: #2e1065; border-left-color: var(--clr-weather); }
     .dark .card.src-polizei    { border-left-color: var(--clr-police); }
     .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
     .dark .card.src-events     { background: #022c22; border-left-color: var(--clr-events); }
     .dark .card.src-sports     { background: #431a06; border-left-color: var(--clr-sports); }
     .dark .card:hover              { background: #263348; }
+    .dark .card.src-rmv:hover      { background: #172554; }
+    .dark .card.src-dwd:hover      { background: #3b1878; }
+    .dark .card.src-polizei:hover  { background: #450a0a; }
+    .dark .card.src-autobahn:hover { background: #422006; }
+    .dark .card.src-baustellen:hover { background: #422006; }
     .dark .card.src-events:hover   { background: #033d2e; }
     .dark .card.src-sports:hover   { background: #59220a; }
     .dark .card.sel.src-rmv        { background: #253e7c; border-left-color: var(--clr-transport); }
@@ -932,6 +944,10 @@
     .dark .popup-link                { background: #334155; color: #e2e8f0; }
     .dark .info-section code         { background: #334155; color: #e2e8f0; }
     .dark footer                     { border-color: #334155; }
+    .dark .leaflet-bar               { background: #1e293b; border-color: #334155; box-shadow: 0 1px 5px rgba(0,0,0,0.5); }
+    .dark .leaflet-bar a             { background: #1e293b; color: #e2e8f0; border-bottom-color: #334155; }
+    .dark .leaflet-bar a:hover       { background: #263348; color: #f1f5f9; }
+    .dark .leaflet-bar a.leaflet-disabled { background: #0f172a; color: #475569; }
     .dark footer a                   { color: #94a3b8; }
 
     /* ── Brand as refresh button ────────────────────────────── */
@@ -1957,8 +1973,16 @@ function openWeatherWidget(e) {
       Math.abs(c.lat - FRANKFURT[0]) < 0.0001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.0001;
     if (alreadyThere) { openRadarView(); return; }
-    map.once('moveend', openRadarView);
-    map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+    if (map.getZoom() > 13) {
+      map.once('moveend', () => {
+        map.once('moveend', openRadarView);
+        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+      });
+      map.setView(FRANKFURT, 12, { animate: true });
+    } else {
+      map.once('moveend', openRadarView);
+      map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
+    }
   };
   if (isMobileView()) openMobileMap(doOpen);
   else doOpen();
@@ -2494,11 +2518,12 @@ function updateTicker() {
   wrap.innerHTML = '';
   tickerItems = [];
   tickerCurrent = 0;
-  const tickerAlerts = visible().slice().sort(() => Math.random() - 0.5);
+  const tickerAlerts = visible().filter(isFuture).slice().sort(() => Math.random() - 0.5);
   tickerAlerts.forEach(a => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
-    el.textContent = `${alertEmoji(a)} ${a.title}`;
+    const pill = statusPillHtml(a);
+    el.innerHTML = `<span>${alertIconHtml(a, 14)}</span><span>${esc(a.title)}</span>${pill ? pill : ''}`;
     wrap.appendChild(el);
     tickerItems.push(el);
   });
