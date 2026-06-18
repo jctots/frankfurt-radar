@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -28,6 +30,12 @@ _TG_API = "https://api.telegram.org/bot{token}"
 
 _ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports"]
 _SUBSCRIBER_CAP = int(os.environ.get("SUBSCRIBER_CAP", "25"))
+_RATE_LIMIT = 30
+_RATE_WINDOW = 60
+_rate_hits: dict[int, list[float]] = defaultdict(list)
+_rate_cooldown: dict[int, float] = {}
+_RATE_COOLDOWN = 300
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll"))
 
 _SOURCE_LABELS = {
     "rmv": "🚇 Transport",
@@ -103,6 +111,23 @@ def _inline_kb(buttons: list[list[tuple[str, str]]]) -> dict:
 
 # ── Update handler ──────────────────────────────────────────────────────────
 
+def _check_rate_limit(chat_id: int) -> str:
+    """Returns 'ok', 'cooldown_start' (just triggered), or 'cooldown' (already in)."""
+    now = time.monotonic()
+    cooldown_until = _rate_cooldown.get(chat_id, 0)
+    if now < cooldown_until:
+        return "cooldown"
+    if cooldown_until:
+        del _rate_cooldown[chat_id]
+    hits = _rate_hits[chat_id]
+    hits[:] = [t for t in hits if now - t < _RATE_WINDOW]
+    if len(hits) >= _RATE_LIMIT:
+        _rate_cooldown[chat_id] = now + _RATE_COOLDOWN
+        return "cooldown_start"
+    hits.append(now)
+    return "ok"
+
+
 def handle_update(update: dict, config: dict) -> None:
     if "callback_query" in update:
         _handle_callback(update["callback_query"], config)
@@ -112,6 +137,13 @@ def handle_update(update: dict, config: dict) -> None:
     chat_id = message.get("chat", {}).get("id")
     text = (message.get("text") or "").strip()
     if not chat_id:
+        return
+
+    rate_status = _check_rate_limit(chat_id)
+    if rate_status != "ok":
+        if rate_status == "cooldown_start":
+            _send(chat_id, "Rate limit reached. Please try again in 5 minutes.")
+        log.warning("Rate limited chat_id=%d", chat_id)
         return
 
     cmd = text.split()[0].lower() if text.startswith("/") else ""
@@ -128,9 +160,14 @@ def handle_update(update: dict, config: dict) -> None:
         _cmd_stop(chat_id)
     elif cmd == "/deletedata":
         _cmd_deletedata(chat_id)
-    elif cmd in ("/status", "/alerts", "/visits", "/poll") and _is_admin(chat_id, config):
+    elif cmd in _ADMIN_CMDS and _is_admin(chat_id, config):
         _handle_admin_cmd(cmd, chat_id, config)
-    elif not cmd:
+    elif cmd:
+        sub = get_subscriber_by_chat_id(chat_id)
+        if sub and sub["active"]:
+            _send(chat_id,
+                  "Unknown command. Try /help to see available commands.")
+    else:
         _handle_text_input(chat_id, text, config)
 
 
