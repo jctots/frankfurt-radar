@@ -797,16 +797,31 @@
     .btn-tg {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      padding: 9px 14px;
+      padding: 8px 14px;
       background: #0088cc;
       color: white;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
+      white-space: nowrap;
+      width: 100%;
+      max-width: 150px;
     }
     .btn-tg:hover { opacity: 0.9; }
+
+    .tg-columns { display: flex; gap: 16px; margin-bottom: 16px; }
+    .tg-col {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 12px 8px;
+      border: 1px solid var(--clr-border); border-radius: 12px; background: #f8fafc;
+    }
+    .tg-col-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--clr-muted); margin-bottom: 8px; }
+    .tg-col img { border-radius: 8px; border: 1px solid var(--clr-border); margin-bottom: 10px; }
+    .tg-col .tg-desc { font-size: 11px; color: var(--clr-muted); line-height: 1.5; margin-bottom: 10px; }
+    .dark .tg-col { background: #131921; border-color: #2a3344; }
 
     .btn-kofi-lg {
       display: inline-flex;
@@ -1081,21 +1096,23 @@
 
     {% if telegram_channel_url %}
     <h2>📱 Frankfurt Radar on Telegram</h2>
-    <p>Join the channel for real-time Frankfurt alerts — transit disruptions, weather warnings, and police reports, translated to English.</p>
-    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ telegram_channel_url | urlencode }}" width="120" height="120" alt="QR code" style="border-radius:8px;border:1px solid var(--clr-border)">
-      <div>
-        <a class="btn-tg" href="{{ telegram_channel_url | e }}" target="_blank" rel="noopener">
-          📨 Join on Telegram
-        </a>
-        <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">{{ telegram_channel_url | e }}</p>
+    <p>Get Frankfurt alerts in English via Telegram — choose the channel for all alerts, or the bot for personalized filtered notifications.</p>
+    <div class="tg-columns">
+      <div class="tg-col">
+        <span class="tg-col-label">📢 Channel</span>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{ telegram_channel_url | urlencode }}" width="100" height="100" alt="Channel QR">
+        <p class="tg-desc">All alerts, unfiltered</p>
+        <a class="btn-tg" href="{{ telegram_channel_url | e }}" target="_blank" rel="noopener">📨 Join channel</a>
       </div>
+      {% if telegram_bot_url %}
+      <div class="tg-col">
+        <span class="tg-col-label">🤖 Bot</span>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{ telegram_bot_url | urlencode }}" width="100" height="100" alt="Bot QR">
+        <p class="tg-desc">Filtered alerts for your commute</p>
+        <a class="btn-tg" href="{{ telegram_bot_url | e }}" target="_blank" rel="noopener">✨ Start bot</a>
+      </div>
+      {% endif %}
     </div>
-    {% if telegram_bot_url %}
-    <p class="info-note">✨ <strong>Personalized notifications</strong> — message <a href="{{ telegram_bot_url | e }}" target="_blank" rel="noopener">the bot</a> to set up filtered alerts for your commute.</p>
-    {% else %}
-    <p class="info-note">✨ <strong>Personalized notifications</strong> — message the bot to set up filtered alerts for your commute.</p>
-    {% endif %}
     <hr>
     {% endif %}
 
