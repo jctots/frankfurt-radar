@@ -32,8 +32,6 @@ services:
       - WEBHOOK_PORT=8443
     volumes:
       - radar_data:/app/data
-    ports:
-      - "8443:8443"
     depends_on:
       - poller
     restart: unless-stopped
@@ -51,6 +49,7 @@ services:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - UMAMI_INTERNAL_URL=http://umami:3000
+      - NOTIFIER_INTERNAL_URL=http://notifier:8443
       - STADIA_API_KEY=${STADIA_API_KEY:-}
     volumes:
       - radar_data:/app/data
