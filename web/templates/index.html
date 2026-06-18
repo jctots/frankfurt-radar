@@ -113,7 +113,7 @@
     .ticker-item {
       position: absolute;
       width: 100%;
-      display: flex; align-items: center; justify-content: center; gap: 5px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
       font-size: 12px;
       color: rgba(255,255,255,0.7);
       white-space: nowrap;
@@ -123,6 +123,10 @@
       opacity: 0;
       transform: translateY(6px);
     }
+    .ticker-item .ticker-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; height: 18px; }
+    .ticker-item .ticker-icon img { width: 18px; height: 18px; object-fit: contain; }
+    .ticker-item .ticker-title { overflow: hidden; text-overflow: ellipsis; }
+    .ticker-item .status-pill { flex-shrink: 0; }
     .ticker-item.active { animation: tickerFade 6s forwards; }
     @keyframes tickerFade {
       0%   { opacity: 0; transform: translateY(6px); }
@@ -2531,7 +2535,7 @@ function updateTicker() {
     const el = document.createElement('div');
     el.className = 'ticker-item';
     const pill = statusPillHtml(a);
-    el.innerHTML = `<span>${alertIconHtml(a, 14)}</span><span>${esc(a.title)}</span>${pill ? pill : ''}`;
+    el.innerHTML = `<span class="ticker-icon">${alertIconHtml(a, 18)}</span><span class="ticker-title">${esc(a.title)}</span>${pill ? pill : ''}`;
     wrap.appendChild(el);
     tickerItems.push(el);
   });
