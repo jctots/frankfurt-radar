@@ -1,3 +1,4 @@
+import copy
 import os
 import tempfile
 from pathlib import Path
@@ -48,7 +49,7 @@ def clean_db():
 
 @pytest.fixture
 def config():
-    return dict(_default_config)
+    return copy.deepcopy(_default_config)
 
 
 @pytest.fixture

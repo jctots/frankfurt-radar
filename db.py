@@ -383,3 +383,29 @@ def deactivate_subscriber(chat_id: int) -> None:
     """Called when Telegram returns 403 Forbidden — user blocked the bot."""
     with _conn() as conn:
         conn.execute("UPDATE subscribers SET active = 0 WHERE chat_id = ?", (chat_id,))
+
+
+# ── alert_cache queries (notifier) ──────────────────────────────────────────
+
+def get_alerts_since(since_ts: Optional[str]) -> list[dict]:
+    """Return active, non-stale alert_cache rows cached after *since_ts*."""
+    with _conn() as conn:
+        if since_ts:
+            rows = conn.execute(
+                "SELECT * FROM alert_cache WHERE cached_at > ? AND removed_at IS NULL AND stale = 0 ORDER BY cached_at",
+                (since_ts,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM alert_cache WHERE removed_at IS NULL AND stale = 0 ORDER BY cached_at"
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_active_alerts() -> list[dict]:
+    """Return all active (non-removed) alert_cache rows for daily summary."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM alert_cache WHERE removed_at IS NULL ORDER BY cached_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
