@@ -1,6 +1,6 @@
 # Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-06-12
+**Last updated:** 2026-06-18
 
 ## Who we are
 
@@ -23,15 +23,19 @@ Browser notification permission is stored locally in your browser only — it is
 
 Subscribing to the public channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.
 
-### Telegram bot (@FrankfurtRadarBot) — coming soon
+### Telegram bot (@FrankfurtRadarBot)
 
 When you send `/start` to the bot, we store:
 
 - Your Telegram **chat ID** (a pseudonymous numeric identifier — not your name or username)
-- Your **alert preferences** (selected sources, schedule)
+- Your **alert preferences** (selected sources, filters, quiet hours configuration)
 - A **subscription timestamp**
+- **Alert delivery history** — which alerts were sent to you (for deduplication)
+- **Conversation state** (temporary — only during onboarding, cleared on completion)
 
 We do not store your name, username, phone number, or any message content.
+
+You can view your stored preferences at any time by sending `/mystatus` to the bot.
 
 ## Why we collect it
 
