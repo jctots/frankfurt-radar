@@ -89,8 +89,7 @@ class TestPollEndpoint:
 
         mock_run.assert_called_once()
         args = mock_run.call_args.args[0]
-        assert "--mode" in args
-        assert "poll" in args
+        assert str(web_app.MAIN_PY) in args[1]
 
     def test_subprocess_failure_returns_500(self, mocker):
         _write_config(allow_poll=True)
@@ -111,91 +110,3 @@ class TestIndexPage:
         resp = _client.get("/")
         assert b'id="search-input"' in resp.data
         assert b'id="search-clear"' in resp.data
-
-
-class TestUmamiVisits:
-    def _write_web_config(self, **extra):
-        cfg = {"web": {"umami_website_id": "site-123", **extra}}
-        _data_dir.mkdir(parents=True, exist_ok=True)
-        (_data_dir / "config.yaml").write_text(yaml.dump(cfg))
-
-    def test_not_configured_without_credentials(self, mocker):
-        self._write_web_config()
-        mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")
-        mocker.patch.object(web_app, "UMAMI_USERNAME", "")
-        mocker.patch.object(web_app, "UMAMI_PASSWORD", "")
-
-        result = web_app._cmd_visits()
-        assert "not configured" in result
-        assert "UMAMI_USERNAME" in result
-
-    def test_logs_in_with_username_password(self, mocker):
-        self._write_web_config()
-        mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")
-        mocker.patch.object(web_app, "UMAMI_USERNAME", "admin")
-        mocker.patch.object(web_app, "UMAMI_PASSWORD", "secret")
-        mocker.patch.object(web_app, "_umami_token", None)
-
-        login_resp = MagicMock(status_code=200)
-        login_resp.json.return_value = {"token": "abc123"}
-        stats_resp = MagicMock(status_code=200)
-        stats_resp.json.return_value = {"visits": {"value": 10}, "visitors": {"value": 5}}
-        active_resp = MagicMock(status_code=200)
-        active_resp.json.return_value = [{"x": 2}]
-
-        mock_post = mocker.patch("app.http_requests.post", return_value=login_resp)
-        mocker.patch("app.http_requests.get", side_effect=[stats_resp, active_resp])
-
-        result = web_app._cmd_visits()
-
-        mock_post.assert_called_once_with(
-            "http://umami:3000/api/auth/login",
-            json={"username": "admin", "password": "secret"},
-            timeout=10,
-        )
-        assert "Visits: 10" in result
-        assert "Unique visitors: 5" in result
-        assert "Active now: 2" in result
-
-    def test_handles_flat_stats_response_shape(self, mocker):
-        # Self-hosted Umami (Prisma/v2 backend) returns bare numbers instead
-        # of the older {"value": N} nesting — confirmed against a live
-        # instance: {"pageviews":109,"visitors":13,"visits":63,...}.
-        self._write_web_config()
-        mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")
-        mocker.patch.object(web_app, "UMAMI_USERNAME", "admin")
-        mocker.patch.object(web_app, "UMAMI_PASSWORD", "secret")
-        mocker.patch.object(web_app, "_umami_token", "cached-token")
-
-        stats_resp = MagicMock(status_code=200)
-        stats_resp.json.return_value = {"pageviews": 109, "visitors": 13, "visits": 63, "bounces": 37, "totaltime": 21955}
-        active_resp = MagicMock(status_code=200)
-        active_resp.json.return_value = []
-
-        mocker.patch("app.http_requests.get", side_effect=[stats_resp, active_resp])
-
-        result = web_app._cmd_visits()
-        assert "Visits: 63" in result
-        assert "Unique visitors: 13" in result
-
-    def test_retries_login_on_401(self, mocker):
-        self._write_web_config()
-        mocker.patch.object(web_app, "UMAMI_INTERNAL_URL", "http://umami:3000")
-        mocker.patch.object(web_app, "UMAMI_USERNAME", "admin")
-        mocker.patch.object(web_app, "UMAMI_PASSWORD", "secret")
-        mocker.patch.object(web_app, "_umami_token", "stale-token")
-
-        login_resp = MagicMock(status_code=200)
-        login_resp.json.return_value = {"token": "fresh-token"}
-        mocker.patch("app.http_requests.post", return_value=login_resp)
-
-        unauthorized = MagicMock(status_code=401)
-        ok_resp = MagicMock(status_code=200)
-        ok_resp.json.return_value = {"visits": {"value": 1}, "visitors": {"value": 1}}
-        active_ok = MagicMock(status_code=200)
-        active_ok.json.return_value = []
-
-        mocker.patch("app.http_requests.get", side_effect=[unauthorized, ok_resp, active_ok])
-
-        result = web_app._cmd_visits()
-        assert "Visits: 1" in result

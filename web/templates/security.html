@@ -69,7 +69,7 @@
 
 <main>
   <h1>Security Policy</h1>
-  <p class="meta">Last updated: 2026-06-08</p>
+  <p class="meta">Last updated: 2026-06-18</p>
 
   <h2>Supported Versions</h2>
   <p>Only the latest release on <code>main</code> is actively maintained. Older releases do not receive security fixes.</p>
@@ -116,6 +116,9 @@
     <li>Administrative endpoints disabled in production</li>
     <li>Security response headers: <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code></li>
     <li>No user input accepted on the public status page</li>
+    <li>Bot webhook endpoint validated via <code>X-Telegram-Bot-Api-Secret-Token</code> header</li>
+    <li>User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained</li>
+    <li>Admin bot commands (<code>/status</code>, <code>/alerts</code>, <code>/poll</code>) gated by <code>chat_id</code> allowlist</li>
     <li>Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan</li>
   </ul>
 
@@ -129,7 +132,7 @@
 
   <h2>Data Handling</h2>
   <p>The public status page is read-only and stores no personal data. Anonymous, cookie-free usage analytics are collected via a self-hosted <a href="https://umami.is/" target="_blank" rel="noopener">Umami</a> instance (no cookies, no IP storage, no cross-site tracking) — see the <a href="/privacy">Privacy Policy</a> for details.</p>
-  <p>If Telegram bot features are enabled (per-user alerts — not yet publicly launched): only Telegram <code>chat_id</code> is stored. No name, email, or other personal data is collected. A <code>/deletedata</code> command will be available before public launch.</p>
+  <p>The Telegram bot stores only the subscriber's <code>chat_id</code>, alert preferences, and delivery history. No name, email, or other personal data is collected. Subscribers can delete all stored data at any time via the <code>/deletedata</code> command.</p>
   <p>See <a href="/privacy">Privacy Policy</a> for full details.</p>
 
   <div class="footer">

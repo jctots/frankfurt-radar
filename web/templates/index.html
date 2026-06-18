@@ -1062,7 +1062,7 @@
       </div>
       <div class="feed-section" id="sec-removed">
         <div class="section-summary" onclick="toggleSection('sec-removed')">
-          ✅ Cleared
+          ✅ Recently Cleared
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1092,7 +1092,11 @@
         <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">{{ telegram_channel_url | e }}</p>
       </div>
     </div>
-    <p class="info-note">✨ <strong>Personalized notifications</strong> (filter by source, choose your schedule) — coming soon.</p>
+    {% if telegram_bot_url %}
+    <p class="info-note">✨ <strong>Personalized notifications</strong> — message <a href="{{ telegram_bot_url | e }}" target="_blank" rel="noopener">the bot</a> to set up filtered alerts for your commute.</p>
+    {% else %}
+    <p class="info-note">✨ <strong>Personalized notifications</strong> — message the bot to set up filtered alerts for your commute.</p>
+    {% endif %}
     <hr>
     {% endif %}
 
@@ -1966,7 +1970,7 @@ function renderFeed() {
   const clearedList = _sortByDate(removedAlerts.filter(a => passesFilters(a)), 'removed_at');
   document.getElementById('removed-count').textContent = clearedList.length || '0';
   document.getElementById('removed-feed').innerHTML = clearedList.map(_renderRemovedCard).join('')
-    || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
+    || '<div class="empty-state" style="padding:24px 16px">No recently cleared alerts.</div>';
 
   renderMarkers();
 

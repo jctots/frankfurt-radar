@@ -1,3 +1,4 @@
+import copy
 import os
 import tempfile
 from pathlib import Path
@@ -42,13 +43,14 @@ def clean_db():
         conn.execute("DELETE FROM alert_cache")
         conn.execute("DELETE FROM subscribers")
         conn.execute("DELETE FROM sent_alerts")
+        conn.execute("DELETE FROM quiet_buffer")
         conn.execute("DELETE FROM meta")
     yield
 
 
 @pytest.fixture
 def config():
-    return dict(_default_config)
+    return copy.deepcopy(_default_config)
 
 
 @pytest.fixture

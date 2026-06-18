@@ -1,6 +1,6 @@
 # Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-06-12
+**Last updated:** 2026-06-18
 
 ## Who we are
 
@@ -19,19 +19,23 @@ Anonymous, cookie-free usage analytics are collected via a self-hosted [Umami](h
 
 Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.
 
-### Telegram channel (@FrankfurtRadar)
+### Telegram channel
 
 Subscribing to the public channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.
 
-### Telegram bot (@FrankfurtRadarBot) — coming soon
+### Telegram bot
 
 When you send `/start` to the bot, we store:
 
 - Your Telegram **chat ID** (a pseudonymous numeric identifier — not your name or username)
-- Your **alert preferences** (selected sources, schedule)
+- Your **alert preferences** (selected sources, filters, quiet hours configuration)
 - A **subscription timestamp**
+- **Alert delivery history** — which alerts were sent to you (for deduplication)
+- **Conversation state** (temporary — only during onboarding, cleared on completion)
 
 We do not store your name, username, phone number, or any message content.
+
+You can view your stored preferences at any time by sending `/mystatus` to the bot.
 
 ## Why we collect it
 
@@ -47,7 +51,7 @@ Until you send `/deletedata` to the bot, which permanently deletes all stored da
 
 You have the right to access, correct, and erase your data.
 
-- **To delete all stored data:** send `/deletedata` to @FrankfurtRadarBot
+- **To delete all stored data:** send `/deletedata` to the Telegram bot
 - **For all other requests:** see [/legal](/legal#impressum) for the operator's contact details
 
 We will respond within 30 days.

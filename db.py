@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS sent_alerts (
     sent_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (subscriber_id, alert_id)
 );
+
+CREATE TABLE IF NOT EXISTS quiet_buffer (
+    subscriber_id INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+    alert_id      TEXT NOT NULL,
+    buffered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (subscriber_id, alert_id)
+);
 """
 
 
@@ -107,6 +114,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN icon TEXT")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN conversation_state TEXT")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -127,7 +138,8 @@ def get_unseen_alerts(alerts: list) -> list:
 def mark_seen(alert: "Alert") -> None:
     with _conn() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)",
+            """INSERT INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)
+               ON CONFLICT(alert_id) DO UPDATE SET valid_until = excluded.valid_until""",
             (alert.id, alert.source, alert.valid_until),
         )
 
@@ -137,7 +149,8 @@ def mark_seen_batch(alerts: list) -> None:
         return
     with _conn() as conn:
         conn.executemany(
-            "INSERT OR IGNORE INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)",
+            """INSERT INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)
+               ON CONFLICT(alert_id) DO UPDATE SET valid_until = excluded.valid_until""",
             [(a.id, a.source, a.valid_until) for a in alerts],
         )
 
@@ -181,14 +194,15 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
-        cached = {r["alert_id"]: (r["image"], r["stale"]) for r in conn.execute(
-            f"SELECT alert_id, image, stale FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+        cached = {r["alert_id"]: (r["image"], r["stale"], r["valid_until"], r["valid_from"]) for r in conn.execute(
+            f"SELECT alert_id, image, stale, valid_until, valid_from FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
     to_insert = []
     to_update_image = []
     to_update_stale = []
+    to_update_content = []
     for alert in alerts:
         stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
@@ -202,11 +216,20 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.icon,
             ))
         else:
-            cached_image, cached_stale = cached[alert.id]
-            if cached_image != alert.image:
-                to_update_image.append((alert.image, alert.id))
-            if cached_stale != stale_int:
-                to_update_stale.append((stale_int, alert.id))
+            cached_image, cached_stale, cached_valid_until, cached_valid_from = cached[alert.id]
+            if cached_valid_until != alert.valid_until or cached_valid_from != alert.valid_from:
+                en_title, en_body = translate_alert(alert, config)
+                to_update_content.append((
+                    en_title, en_body, alert.url, alert.valid_until,
+                    alert.valid_from, alert.image, stale_int, alert.icon,
+                    alert.id,
+                ))
+                log.info("alert_cache: updated %s (dates changed)", alert.id)
+            else:
+                if cached_image != alert.image:
+                    to_update_image.append((alert.image, alert.id))
+                if cached_stale != stale_int:
+                    to_update_stale.append((stale_int, alert.id))
 
     # Batch write: insert new + refresh changed images/stale + remove gone alerts
     with _conn() as conn:
@@ -224,6 +247,14 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 "UPDATE alert_cache SET image = ? WHERE alert_id = ?",
                 to_update_image,
             )
+        if to_update_content:
+            conn.executemany(
+                """UPDATE alert_cache SET title_en = ?, body_en = ?, url = ?,
+                   valid_until = ?, valid_from = ?, image = ?, stale = ?, icon = ?,
+                   cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                   WHERE alert_id = ?""",
+                to_update_content,
+            )
         if to_update_stale:
             conn.executemany(
                 "UPDATE alert_cache SET stale = ? WHERE alert_id = ?",
@@ -240,8 +271,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
 
-    log.info("alert_cache: %d total (%d cached, %d translated, %d image updated, %d stale updated)",
-             len(alerts), len(cached), len(to_insert), len(to_update_image), len(to_update_stale))
+    log.info("alert_cache: %d total (%d cached, %d translated, %d updated, %d image updated, %d stale updated)",
+             len(alerts), len(cached), len(to_insert), len(to_update_content), len(to_update_image), len(to_update_stale))
 
 
 def get_status_json() -> dict:
@@ -347,7 +378,8 @@ def get_meta(key: str) -> Optional[str]:
 
 def add_subscriber(chat_id: int, preferences: Optional[dict] = None) -> bool:
     """Returns True if newly added, False if already exists."""
-    prefs = json.dumps(preferences or {"rmv": True, "dwd": True, "polizei": True})
+    from notifier.preferences import default_preferences
+    prefs = json.dumps(preferences or default_preferences())
     with _conn() as conn:
         try:
             conn.execute(
@@ -383,3 +415,107 @@ def deactivate_subscriber(chat_id: int) -> None:
     """Called when Telegram returns 403 Forbidden — user blocked the bot."""
     with _conn() as conn:
         conn.execute("UPDATE subscribers SET active = 0 WHERE chat_id = ?", (chat_id,))
+
+
+def get_subscriber_by_chat_id(chat_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, chat_id, preferences, active, conversation_state FROM subscribers WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    r["preferences"] = json.loads(r["preferences"])
+    if r["conversation_state"]:
+        r["conversation_state"] = json.loads(r["conversation_state"])
+    return r
+
+
+def update_subscriber_preferences(chat_id: int, preferences: dict) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET preferences = ? WHERE chat_id = ?",
+            (json.dumps(preferences), chat_id),
+        )
+
+
+def set_conversation_state(chat_id: int, state: Optional[dict]) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET conversation_state = ? WHERE chat_id = ?",
+            (json.dumps(state) if state else None, chat_id),
+        )
+
+
+def reactivate_subscriber(chat_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE subscribers SET active = 1 WHERE chat_id = ?", (chat_id,))
+
+
+def record_sent_alert(subscriber_id: int, alert_id: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO sent_alerts (subscriber_id, alert_id) VALUES (?, ?)",
+            (subscriber_id, alert_id),
+        )
+
+
+def get_unsent_for_subscriber(subscriber_id: int, alert_ids: list[str]) -> list[str]:
+    if not alert_ids:
+        return []
+    ph = ",".join("?" * len(alert_ids))
+    with _conn() as conn:
+        sent = {r[0] for r in conn.execute(
+            f"SELECT alert_id FROM sent_alerts WHERE subscriber_id = ? AND alert_id IN ({ph})",
+            [subscriber_id] + alert_ids,
+        )}
+    return [aid for aid in alert_ids if aid not in sent]
+
+
+def buffer_quiet_alert(subscriber_id: int, alert_id: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO quiet_buffer (subscriber_id, alert_id) VALUES (?, ?)",
+            (subscriber_id, alert_id),
+        )
+
+
+def flush_quiet_buffer(subscriber_id: int) -> list[str]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT alert_id FROM quiet_buffer WHERE subscriber_id = ? ORDER BY buffered_at",
+            (subscriber_id,),
+        ).fetchall()
+        if rows:
+            conn.execute(
+                "DELETE FROM quiet_buffer WHERE subscriber_id = ?",
+                (subscriber_id,),
+            )
+    return [r[0] for r in rows]
+
+
+# ── alert_cache queries (notifier) ──────────────────────────────────────────
+
+def get_alerts_since(since_ts: Optional[str]) -> list[dict]:
+    """Return active, non-stale alert_cache rows cached after *since_ts*."""
+    with _conn() as conn:
+        if since_ts:
+            rows = conn.execute(
+                "SELECT * FROM alert_cache WHERE cached_at > ? AND removed_at IS NULL AND stale = 0 ORDER BY cached_at",
+                (since_ts,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM alert_cache WHERE removed_at IS NULL AND stale = 0 ORDER BY cached_at"
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_active_alerts() -> list[dict]:
+    """Return all active (non-removed) alert_cache rows for daily summary."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM alert_cache WHERE removed_at IS NULL ORDER BY cached_at"
+        ).fetchall()
+    return [dict(r) for r in rows]

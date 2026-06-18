@@ -66,7 +66,7 @@
 
 <main>
   <h1>Privacy Policy</h1>
-  <p class="meta">Last updated: 2026-06-12</p>
+  <p class="meta">Last updated: 2026-06-18</p>
 
   <h2>Who we are</h2>
   <p>Frankfurt Radar is operated by {{ controller | e }} ({{ contact | e }}).<br>
@@ -85,14 +85,17 @@
   <h3>Telegram channel</h3>
   <p>Subscribing to the public Telegram channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.</p>
 
-  <h3>Telegram bot — coming soon</h3>
+  <h3>Telegram bot</h3>
   <p>When you send <code>/start</code> to the bot, we store:</p>
   <ul>
     <li>Your Telegram <strong>chat ID</strong> (a pseudonymous numeric identifier — not your name or username)</li>
-    <li>Your <strong>alert preferences</strong> (selected sources, schedule)</li>
+    <li>Your <strong>alert preferences</strong> (selected sources, filters, quiet hours configuration)</li>
     <li>A <strong>subscription timestamp</strong></li>
+    <li><strong>Alert delivery history</strong> — which alerts were sent to you (for deduplication)</li>
+    <li><strong>Conversation state</strong> (temporary — only during onboarding, cleared on completion)</li>
   </ul>
   <p>We do not store your name, username, phone number, or any message content.</p>
+  <p>You can view your stored preferences at any time by sending <code>/mystatus</code> to the bot.</p>
 
   <hr>
 

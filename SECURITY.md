@@ -39,6 +39,9 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - Administrative endpoints disabled in production
 - Security response headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
 - No user input accepted on the public status page
+- Bot webhook endpoint validated via `X-Telegram-Bot-Api-Secret-Token` header
+- User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained
+- Admin bot commands (`/status`, `/alerts`, `/poll`) gated by `chat_id` allowlist
 - Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan
 
 **Supply chain**
@@ -49,6 +52,6 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 
 The public status page is read-only and stores no personal data. Anonymous, cookie-free usage analytics are collected via a self-hosted Umami instance (no cookies, no IP storage, no cross-site tracking) — see [PRIVACY.md](PRIVACY.md) for details.
 
-If Telegram bot features are enabled (per-user alerts — not yet publicly launched): only Telegram `chat_id` is stored. No name, email, or other personal data is collected. A `/deletedata` command will be available before public launch.
+The Telegram bot stores only the subscriber's `chat_id`, alert preferences, and delivery history. No name, email, or other personal data is collected. Subscribers can delete all stored data at any time via the `/deletedata` command.
 
 See [PRIVACY.md](PRIVACY.md) for full details.

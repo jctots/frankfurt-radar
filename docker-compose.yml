@@ -6,8 +6,6 @@ services:
     environment:
       - TZ=Europe/Berlin
       - RMV_API_KEY=${RMV_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_ADMIN_BOT_TOKEN=${TELEGRAM_ADMIN_BOT_TOKEN:-}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
@@ -21,6 +19,30 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  notifier:
+    image: ghcr.io/jctots/frankfurt-radar-notifier:${RADAR_TAG:-latest}
+    container_name: frankfurt-radar-notifier
+    init: true
+    environment:
+      - TZ=Europe/Berlin
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
+      - POLLER_TRIGGER_URL=http://poller:8888/poll
+      - WEBHOOK_PORT=8443
+    volumes:
+      - radar_data:/app/data
+    ports:
+      - "8443:8443"
+    depends_on:
+      - poller
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
   web:
     image: ghcr.io/jctots/frankfurt-radar-web:${RADAR_TAG:-latest}
     container_name: frankfurt-radar-web
@@ -29,10 +51,6 @@ services:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - UMAMI_INTERNAL_URL=http://umami:3000
-      - UMAMI_USERNAME=${UMAMI_USERNAME:-}
-      - UMAMI_PASSWORD=${UMAMI_PASSWORD:-}
-      - TELEGRAM_ADMIN_BOT_TOKEN=${TELEGRAM_ADMIN_BOT_TOKEN:-}
-      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       - STADIA_API_KEY=${STADIA_API_KEY:-}
     volumes:
       - radar_data:/app/data
@@ -104,6 +122,6 @@ services:
           memory: 256M
 
 volumes:
-  radar_data:   # shared SQLite DB (radar.db) between poller and web containers
+  radar_data:   # shared SQLite DB (radar.db) between poller, notifier, and web containers
   ntfy_data:
   umami_data:
