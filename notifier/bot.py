@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import psutil
 import requests
 
 from db import (
@@ -264,8 +265,28 @@ def _admin_status(chat_id: int) -> None:
         lines.append("🟢 " + " · ".join(healthy))
     if failing:
         lines.append("🔴 " + " · ".join(failing))
+
+    mem = psutil.virtual_memory()
+    try:
+        load1, _, _ = psutil.getloadavg()
+    except AttributeError:
+        load1 = 0.0
+    cpu_count = psutil.cpu_count() or 1
+    lines.append(f"\nRAM: {mem.percent:.0f}%")
+    lines.append(f"Load: {load1:.1f}/{cpu_count}")
+
     if last_polled:
-        lines.append(f"\nLast polled: {last_polled}")
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
+            lines.append(f"Last poll: {int(age.total_seconds() / 60)} min ago")
+        except ValueError:
+            pass
+
+    boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
+    delta = datetime.now(timezone.utc) - boot
+    hours, rem = divmod(int(delta.total_seconds()), 3600)
+    mins = rem // 60
+    lines.append(f"Uptime: {hours}h {mins}m")
     _send(chat_id, "\n".join(lines))
 
 
