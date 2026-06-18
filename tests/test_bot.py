@@ -400,23 +400,22 @@ class TestAdminCommands:
 
     def test_admin_visits(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
-        mock_get = mocker.patch("notifier.bot.requests.get")
         bot_config["web"] = {"umami_website_id": "test-id"}
         mocker.patch.dict("os.environ", {
             "UMAMI_INTERNAL_URL": "http://umami:3000",
-            "UMAMI_API_KEY": "test-key",
+            "UMAMI_USERNAME": "admin",
+            "UMAMI_PASSWORD": "secret",
         })
-        month_resp = mocker.MagicMock()
-        month_resp.json.return_value = {
-            "visits": {"value": 100}, "visitors": {"value": 50},
-        }
-        day_resp = mocker.MagicMock()
-        day_resp.json.return_value = {
-            "visits": {"value": 10}, "visitors": {"value": 5},
-        }
-        active_resp = mocker.MagicMock()
+        import notifier.bot as bot_mod
+        mocker.patch.object(bot_mod, "_umami_token", "cached-token")
+
+        month_resp = mocker.MagicMock(status_code=200)
+        month_resp.json.return_value = {"visits": 100, "visitors": 50}
+        day_resp = mocker.MagicMock(status_code=200)
+        day_resp.json.return_value = {"visits": 10, "visitors": 5}
+        active_resp = mocker.MagicMock(status_code=200)
         active_resp.json.return_value = [{"x": 2}]
-        mock_get.side_effect = [month_resp, day_resp, active_resp]
+        mocker.patch("notifier.bot.requests.get", side_effect=[month_resp, day_resp, active_resp])
 
         handle_update(_msg_update(999, "/visits"), bot_config)
 

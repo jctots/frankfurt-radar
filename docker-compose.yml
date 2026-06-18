@@ -29,7 +29,8 @@ services:
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - UMAMI_INTERNAL_URL=http://umami:3000
-      - UMAMI_API_KEY=${UMAMI_API_KEY:-}
+      - UMAMI_USERNAME=${UMAMI_USERNAME:-}
+      - UMAMI_PASSWORD=${UMAMI_PASSWORD:-}
       - WEBHOOK_PORT=8443
     volumes:
       - radar_data:/app/data

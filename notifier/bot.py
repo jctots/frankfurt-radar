@@ -282,15 +282,56 @@ def _admin_alerts(chat_id: int) -> None:
     _send(chat_id, "\n".join(lines))
 
 
+_umami_token: str | None = None
+
+
+def _stat_value(v) -> int:
+    if isinstance(v, dict):
+        return v.get("value", 0)
+    return v or 0
+
+
+def _umami_login() -> str | None:
+    global _umami_token
+    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
+    username = os.environ.get("UMAMI_USERNAME", "")
+    password = os.environ.get("UMAMI_PASSWORD", "")
+    try:
+        resp = requests.post(
+            f"{umami_url}/api/auth/login",
+            json={"username": username, "password": password},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        _umami_token = resp.json().get("token")
+    except requests.RequestException:
+        _umami_token = None
+    return _umami_token
+
+
+def _umami_get(url: str, params: dict | None = None):
+    global _umami_token
+    if not _umami_token and not _umami_login():
+        raise requests.RequestException("Umami login failed")
+
+    resp = requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
+    if resp.status_code == 401:
+        if not _umami_login():
+            raise requests.RequestException("Umami login failed")
+        resp = requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
+    resp.raise_for_status()
+    return resp
+
+
 def _admin_visits(chat_id: int, config: dict) -> None:
     umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
-    api_key = os.environ.get("UMAMI_API_KEY", "")
+    username = os.environ.get("UMAMI_USERNAME", "")
+    password = os.environ.get("UMAMI_PASSWORD", "")
     website_id = config.get("web", {}).get("umami_website_id", "")
-    if not umami_url or not api_key or not website_id:
-        _send(chat_id, "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_API_KEY, umami_website_id)")
+    if not umami_url or not username or not password or not website_id:
+        _send(chat_id, "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_USERNAME, UMAMI_PASSWORD, umami_website_id)")
         return
 
-    headers = {"x-umami-api-key": api_key}
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -299,28 +340,15 @@ def _admin_visits(chat_id: int, config: dict) -> None:
     end_ms = int(now.timestamp() * 1000)
 
     try:
-        month_resp = requests.get(
+        month = _umami_get(
             f"{umami_url}/api/websites/{website_id}/stats",
             params={"startAt": month_start_ms, "endAt": end_ms},
-            headers=headers, timeout=10,
-        )
-        month_resp.raise_for_status()
-        month = month_resp.json()
-
-        day_resp = requests.get(
+        ).json()
+        day = _umami_get(
             f"{umami_url}/api/websites/{website_id}/stats",
             params={"startAt": day_start_ms, "endAt": end_ms},
-            headers=headers, timeout=10,
-        )
-        day_resp.raise_for_status()
-        day = day_resp.json()
-
-        active_resp = requests.get(
-            f"{umami_url}/api/websites/{website_id}/active",
-            headers=headers, timeout=10,
-        )
-        active_resp.raise_for_status()
-        active = active_resp.json()
+        ).json()
+        active = _umami_get(f"{umami_url}/api/websites/{website_id}/active").json()
     except requests.RequestException as e:
         _send(chat_id, f"❌ Umami query failed: {e}")
         return
@@ -330,11 +358,11 @@ def _admin_visits(chat_id: int, config: dict) -> None:
     _send(chat_id, (
         "<b>📊 Visits</b>\n\n"
         f"<b>Today</b>\n"
-        f"Visits: {day.get('visits', {}).get('value', 0)}\n"
-        f"Unique: {day.get('visitors', {}).get('value', 0)}\n\n"
+        f"Visits: {_stat_value(day.get('visits'))}\n"
+        f"Unique: {_stat_value(day.get('visitors'))}\n\n"
         f"<b>This month</b>\n"
-        f"Visits: {month.get('visits', {}).get('value', 0)}\n"
-        f"Unique: {month.get('visitors', {}).get('value', 0)}\n\n"
+        f"Visits: {_stat_value(month.get('visits'))}\n"
+        f"Unique: {_stat_value(month.get('visitors'))}\n\n"
         f"Active now: {active_now}"
     ))
 
