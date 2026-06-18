@@ -365,8 +365,7 @@
     .search-section {
       background: #f1f5f9;
       border-bottom: 1px solid var(--clr-border);
-      margin-top: 8px;
-      padding: 0 0 4px 0;
+      padding: 4px 0 4px 0;
       flex-shrink: 0;
     }
     .dark .search-section { background: #192030; }
@@ -374,7 +373,7 @@
       padding: 4px 14px 4px 12px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     .search-bar input {
       flex: 1;
@@ -1024,7 +1023,7 @@
   <div class="feed-panel">
     <div class="search-section">
     <div class="search-bar">
-      <span style="font-size:14px;color:var(--clr-muted)">🔍</span>
+      <span style="font-size:13px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
