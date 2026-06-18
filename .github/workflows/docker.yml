@@ -94,3 +94,24 @@ jobs:
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           build-args: BUILD_VERSION=${{ steps.version.outputs.value }}
+
+  cleanup:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    strategy:
+      matrix:
+        package:
+          - frankfurt-radar-poller
+          - frankfurt-radar-notifier
+          - frankfurt-radar-web
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          delete-only-untagged-versions: true
+          min-versions-to-keep: 0
