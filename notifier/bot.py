@@ -14,6 +14,7 @@ from db import (
     get_meta,
     get_status_json,
     get_subscriber_by_chat_id,
+    get_subscriber_counts,
     reactivate_subscriber,
     remove_subscriber,
     set_conversation_state,
@@ -26,6 +27,7 @@ log = logging.getLogger(__name__)
 _TG_API = "https://api.telegram.org/bot{token}"
 
 _ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports"]
+_SUBSCRIBER_CAP = int(os.environ.get("SUBSCRIBER_CAP", "25"))
 
 _SOURCE_LABELS = {
     "rmv": "🚇 Transport",
@@ -137,6 +139,15 @@ def handle_update(update: dict, config: dict) -> None:
 def _cmd_start(chat_id: int, config: dict) -> None:
     sub = get_subscriber_by_chat_id(chat_id)
     if sub is None:
+        counts = get_subscriber_counts()
+        if counts["total"] >= _SUBSCRIBER_CAP:
+            log.warning("Subscriber cap reached (%d/%d), rejecting chat_id=%d",
+                        counts["total"], _SUBSCRIBER_CAP, chat_id)
+            _send(chat_id,
+                  "Thanks for your interest in Frankfurt Radar!\n\n"
+                  "We're currently at capacity while we test the service. "
+                  "Please try again later — we'll be opening up more spots soon.")
+            return
         add_subscriber(chat_id)
         sub = get_subscriber_by_chat_id(chat_id)
         _enter_onboarding(chat_id, sub)
@@ -303,6 +314,9 @@ def _admin_status(chat_id: int) -> None:
             lines.append(f"Last poll: {int(age.total_seconds() / 60)} min ago")
         except ValueError:
             pass
+
+    counts = get_subscriber_counts()
+    lines.append(f"Subscribers: {counts['active']}/{counts['total']} (cap {_SUBSCRIBER_CAP})")
 
     boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
     delta = datetime.now(timezone.utc) - boot

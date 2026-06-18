@@ -411,6 +411,13 @@ def get_active_subscribers() -> list[dict]:
     return result
 
 
+def get_subscriber_counts() -> dict:
+    with _conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM subscribers").fetchone()[0]
+        active = conn.execute("SELECT COUNT(*) FROM subscribers WHERE active = 1").fetchone()[0]
+    return {"total": total, "active": active}
+
+
 def deactivate_subscriber(chat_id: int) -> None:
     """Called when Telegram returns 403 Forbidden — user blocked the bot."""
     with _conn() as conn:
