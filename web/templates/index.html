@@ -1062,7 +1062,7 @@
       </div>
       <div class="feed-section" id="sec-removed">
         <div class="section-summary" onclick="toggleSection('sec-removed')">
-          ✅ Cleared
+          ✅ Recently Cleared
           <span class="feed-count" id="removed-count">0</span>
           <span class="section-chevron">▶</span>
         </div>
@@ -1970,7 +1970,7 @@ function renderFeed() {
   const clearedList = _sortByDate(removedAlerts.filter(a => passesFilters(a)), 'removed_at');
   document.getElementById('removed-count').textContent = clearedList.length || '0';
   document.getElementById('removed-feed').innerHTML = clearedList.map(_renderRemovedCard).join('')
-    || '<div class="empty-state" style="padding:24px 16px">No cleared alerts.</div>';
+    || '<div class="empty-state" style="padding:24px 16px">No recently cleared alerts.</div>';
 
   renderMarkers();
 
