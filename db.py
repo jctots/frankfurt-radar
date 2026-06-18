@@ -138,7 +138,8 @@ def get_unseen_alerts(alerts: list) -> list:
 def mark_seen(alert: "Alert") -> None:
     with _conn() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)",
+            """INSERT INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)
+               ON CONFLICT(alert_id) DO UPDATE SET valid_until = excluded.valid_until""",
             (alert.id, alert.source, alert.valid_until),
         )
 
@@ -148,7 +149,8 @@ def mark_seen_batch(alerts: list) -> None:
         return
     with _conn() as conn:
         conn.executemany(
-            "INSERT OR IGNORE INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)",
+            """INSERT INTO processed_alerts (alert_id, source, valid_until) VALUES (?, ?, ?)
+               ON CONFLICT(alert_id) DO UPDATE SET valid_until = excluded.valid_until""",
             [(a.id, a.source, a.valid_until) for a in alerts],
         )
 
@@ -192,14 +194,15 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
-        cached = {r["alert_id"]: (r["image"], r["stale"]) for r in conn.execute(
-            f"SELECT alert_id, image, stale FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+        cached = {r["alert_id"]: (r["image"], r["stale"], r["valid_until"], r["valid_from"]) for r in conn.execute(
+            f"SELECT alert_id, image, stale, valid_until, valid_from FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
     to_insert = []
     to_update_image = []
     to_update_stale = []
+    to_update_content = []
     for alert in alerts:
         stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
@@ -213,11 +216,20 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.icon,
             ))
         else:
-            cached_image, cached_stale = cached[alert.id]
-            if cached_image != alert.image:
-                to_update_image.append((alert.image, alert.id))
-            if cached_stale != stale_int:
-                to_update_stale.append((stale_int, alert.id))
+            cached_image, cached_stale, cached_valid_until, cached_valid_from = cached[alert.id]
+            if cached_valid_until != alert.valid_until or cached_valid_from != alert.valid_from:
+                en_title, en_body = translate_alert(alert, config)
+                to_update_content.append((
+                    en_title, en_body, alert.url, alert.valid_until,
+                    alert.valid_from, alert.image, stale_int, alert.icon,
+                    alert.id,
+                ))
+                log.info("alert_cache: updated %s (dates changed)", alert.id)
+            else:
+                if cached_image != alert.image:
+                    to_update_image.append((alert.image, alert.id))
+                if cached_stale != stale_int:
+                    to_update_stale.append((stale_int, alert.id))
 
     # Batch write: insert new + refresh changed images/stale + remove gone alerts
     with _conn() as conn:
@@ -235,6 +247,14 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 "UPDATE alert_cache SET image = ? WHERE alert_id = ?",
                 to_update_image,
             )
+        if to_update_content:
+            conn.executemany(
+                """UPDATE alert_cache SET title_en = ?, body_en = ?, url = ?,
+                   valid_until = ?, valid_from = ?, image = ?, stale = ?, icon = ?,
+                   cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                   WHERE alert_id = ?""",
+                to_update_content,
+            )
         if to_update_stale:
             conn.executemany(
                 "UPDATE alert_cache SET stale = ? WHERE alert_id = ?",
@@ -251,8 +271,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
 
-    log.info("alert_cache: %d total (%d cached, %d translated, %d image updated, %d stale updated)",
-             len(alerts), len(cached), len(to_insert), len(to_update_image), len(to_update_stale))
+    log.info("alert_cache: %d total (%d cached, %d translated, %d updated, %d image updated, %d stale updated)",
+             len(alerts), len(cached), len(to_insert), len(to_update_content), len(to_update_image), len(to_update_stale))
 
 
 def get_status_json() -> dict:
