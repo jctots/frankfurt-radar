@@ -1,17 +1,14 @@
-import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
-import psutil
 import requests as http_requests
 import yaml
 from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from db import get_meta, get_status_json, init_db
+from db import get_status_json, init_db
 
 app = Flask(__name__)
 
@@ -22,12 +19,6 @@ BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
-UMAMI_USERNAME       = os.getenv("UMAMI_USERNAME", "")
-UMAMI_PASSWORD       = os.getenv("UMAMI_PASSWORD", "")
-
-_umami_token: str | None = None
-
-_TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 init_db()
 
@@ -129,7 +120,7 @@ def api_poll():
     else:
         try:
             result = subprocess.run(
-                [sys.executable, str(MAIN_PY), "--mode", "poll"],
+                [sys.executable, str(MAIN_PY)],
                 capture_output=True,
                 text=True,
                 timeout=90,
@@ -140,36 +131,6 @@ def api_poll():
         if result.returncode != 0:
             return jsonify({"error": result.stderr[-500:]}), 500
     return jsonify(get_status_json())
-
-
-@app.route("/telegram/webhook", methods=["POST"])
-def telegram_webhook():
-    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
-    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token") != secret:
-        abort(403)
-
-    data = request.get_json(silent=True) or {}
-    message = data.get("message") or data.get("edited_message") or {}
-    chat_id = message.get("chat", {}).get("id")
-    text = (message.get("text") or "").strip()
-
-    if not chat_id or str(chat_id) != _admin_chat_id():
-        return "", 200
-
-    cmd = text.split()[0].lower() if text else ""
-    if cmd == "/status":
-        reply = _cmd_status()
-    elif cmd == "/alerts":
-        reply = _cmd_alerts()
-    elif cmd == "/visits":
-        reply = _cmd_visits()
-    elif cmd == "/poll":
-        reply = _cmd_poll()
-    else:
-        reply = "Available: /status /alerts /visits /poll"
-
-    _tg_reply(chat_id, reply)
-    return "", 200
 
 
 @app.route("/radar-test")
@@ -205,201 +166,16 @@ def api_radar_forecast(filename):
 def _web_config() -> dict | None:
     try:
         cfg = yaml.safe_load(CONFIG_FILE.read_text())
-        return cfg.get("web")  # None when section is absent
+        return cfg.get("web")
     except Exception:
         return None
-
 
 
 def _allow_manual_poll() -> bool:
     web = _web_config()
     if web is None:
-        return True   # no web: section → self-hosted, poll always available
+        return True
     return bool(web.get("allow_manual_poll", False))
-
-
-def _admin_chat_id() -> str:
-    try:
-        cfg = yaml.safe_load(CONFIG_FILE.read_text())
-        return str(cfg.get("admin_health_notifier", {}).get("telegram_chat_id", ""))
-    except Exception:
-        return ""
-
-
-def _tg_reply(chat_id, text: str) -> None:
-    token = os.environ.get("TELEGRAM_ADMIN_BOT_TOKEN", "")
-    if not token:
-        return
-    try:
-        http_requests.post(
-            _TG_API.format(token=token),
-            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
-            timeout=10,
-        )
-    except http_requests.RequestException:
-        pass
-
-
-def _cmd_status() -> str:
-    health_raw = get_meta("admin_health")
-    health: dict = json.loads(health_raw) if health_raw else {}
-    last_polled = get_meta("last_polled_at")
-
-    label_overrides = {"translator": "Translator", "poll_schedule": "Cron", "ram": "RAM", "load": "Load"}
-    named = {
-        label_overrides.get(k, k.replace("Poller", "")): ok
-        for k, ok in health.items()
-    }
-    healthy = [name for name, ok in named.items() if ok]
-    failing = [name for name, ok in named.items() if not ok]
-
-    lines = ["<b>📡 Frankfurt Radar — Status</b>", ""]
-    if healthy:
-        lines.append("🟢 " + " · ".join(healthy))
-    if failing:
-        lines.append("🔴 " + " · ".join(failing))
-    if healthy or failing:
-        lines.append("")
-
-    if "ram" in health or "load" in health:
-        mem = psutil.virtual_memory()
-        try:
-            load1, _, _ = psutil.getloadavg()
-        except AttributeError:
-            load1 = 0.0
-        cpu_count = psutil.cpu_count() or 1
-        lines.append(f"RAM: {mem.percent:.0f}%")
-        lines.append(f"Load: {load1:.1f}/{cpu_count}")
-
-    if last_polled:
-        try:
-            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_polled)
-            lines.append(f"Last poll: {int(age.total_seconds() / 60)} min ago")
-        except ValueError:
-            pass
-
-    boot = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
-    delta = datetime.now(timezone.utc) - boot
-    hours, rem = divmod(int(delta.total_seconds()), 3600)
-    mins = rem // 60
-    lines.append(f"Server uptime: {hours}h {mins}m")
-
-    return "\n".join(lines)
-
-
-_ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports"]
-
-
-def _cmd_alerts() -> str:
-    alerts = get_status_json().get("alerts", [])
-    counts: dict[str, int] = {src: 0 for src in _ALL_SOURCES}
-    for a in alerts:
-        src = a.get("source", "")
-        if src in counts:
-            counts[src] += 1
-    lines = ["<b>📋 Active Alerts</b>", ""]
-    lines += [f"• {src}: {n}" for src, n in counts.items()]
-    total = sum(counts.values())
-    lines.append(f"\nTotal: {total}")
-    return "\n".join(lines)
-
-
-def _stat_value(v) -> int:
-    """Umami's stats response shape has changed across versions — v1-style
-    nests each metric as {"value": N}, v2 (e.g. self-hosted with Prisma)
-    returns the bare number directly. Handle both."""
-    if isinstance(v, dict):
-        return v.get("value", 0)
-    return v or 0
-
-
-def _umami_login() -> str | None:
-    """Self-hosted Umami has no API-key feature (that's Cloud-only) — log in
-    with username/password to get a JWT instead. Token is cached in memory
-    and only refreshed when a request comes back 401."""
-    global _umami_token
-    try:
-        resp = http_requests.post(
-            f"{UMAMI_INTERNAL_URL}/api/auth/login",
-            json={"username": UMAMI_USERNAME, "password": UMAMI_PASSWORD},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        _umami_token = resp.json().get("token")
-    except http_requests.RequestException:
-        _umami_token = None
-    return _umami_token
-
-
-def _umami_get(url: str, params: dict | None = None):
-    """GET against the Umami API, logging in lazily and retrying once on 401
-    (cached token expired/invalid)."""
-    global _umami_token
-    if not _umami_token and not _umami_login():
-        raise http_requests.RequestException("Umami login failed")
-
-    resp = http_requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
-    if resp.status_code == 401:
-        if not _umami_login():
-            raise http_requests.RequestException("Umami login failed")
-        resp = http_requests.get(url, params=params, headers={"Authorization": f"Bearer {_umami_token}"}, timeout=10)
-    resp.raise_for_status()
-    return resp
-
-
-def _cmd_visits() -> str:
-    website_id = (_web_config() or {}).get("umami_website_id") or ""
-    if not UMAMI_INTERNAL_URL or not UMAMI_USERNAME or not UMAMI_PASSWORD or not website_id:
-        return "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_USERNAME, UMAMI_PASSWORD, umami_website_id)"
-
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    start_ms = int(month_start.timestamp() * 1000)
-    end_ms = int(now.timestamp() * 1000)
-
-    try:
-        stats = _umami_get(
-            f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/stats",
-            params={"startAt": start_ms, "endAt": end_ms},
-        ).json()
-        active = _umami_get(f"{UMAMI_INTERNAL_URL}/api/websites/{website_id}/active").json()
-    except http_requests.RequestException as e:
-        return f"❌ Umami query failed: {e}"
-
-    visits = _stat_value(stats.get("visits"))
-    visitors = _stat_value(stats.get("visitors"))
-    active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
-
-    return (
-        "<b>📊 Visits — this month</b>\n\n"
-        f"Visits: {visits}\n"
-        f"Unique visitors: {visitors}\n"
-        f"Active now: {active_now}"
-    )
-
-
-def _cmd_poll() -> str:
-    if not _allow_manual_poll():
-        return "⛔ Manual poll is disabled in config"
-    if POLLER_TRIGGER_URL:
-        try:
-            resp = http_requests.post(POLLER_TRIGGER_URL, timeout=95)
-            if resp.status_code != 200:
-                return f"❌ Poll failed: {resp.text[-200:]}"
-        except http_requests.RequestException as e:
-            return f"❌ Poll error: {e}"
-    else:
-        try:
-            result = subprocess.run(
-                [sys.executable, str(MAIN_PY), "--mode", "poll"],
-                capture_output=True, text=True, timeout=90,
-                cwd=str(MAIN_PY.parent),
-            )
-        except subprocess.TimeoutExpired:
-            return "❌ Poll timed out after 90s"
-        if result.returncode != 0:
-            return f"❌ Poll failed:\n{result.stderr[-200:]}"
-    return "✅ Poll complete"
 
 
 if __name__ == "__main__":

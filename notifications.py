@@ -95,10 +95,10 @@ def _notify_admin_ntfy(title: str, body: str, cfg: dict) -> None:
 
 
 def _notify_admin_telegram(title: str, body: str, cfg: dict) -> None:
-    token = os.environ.get("TELEGRAM_ADMIN_BOT_TOKEN", "")
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = cfg.get("telegram_chat_id", "")
     if not token or not chat_id:
-        log.warning("Admin health notifier: TELEGRAM_ADMIN_BOT_TOKEN or telegram_chat_id not configured")
+        log.warning("Admin health notifier: TELEGRAM_BOT_TOKEN or telegram_chat_id not configured")
         return
     text = f"<b>{html_lib.escape(title)}</b>"
     if body:
