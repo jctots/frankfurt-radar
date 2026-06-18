@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
@@ -122,7 +123,7 @@ def handle_update(update: dict, config: dict) -> None:
         _cmd_stop(chat_id)
     elif cmd == "/deletedata":
         _cmd_deletedata(chat_id)
-    elif cmd in ("/status", "/alerts", "/poll") and _is_admin(chat_id, config):
+    elif cmd in ("/status", "/alerts", "/visits", "/poll") and _is_admin(chat_id, config):
         _handle_admin_cmd(cmd, chat_id, config)
     elif not cmd:
         _handle_text_input(chat_id, text, config)
@@ -236,6 +237,8 @@ def _handle_admin_cmd(cmd: str, chat_id: int, config: dict) -> None:
         _admin_status(chat_id)
     elif cmd == "/alerts":
         _admin_alerts(chat_id)
+    elif cmd == "/visits":
+        _admin_visits(chat_id, config)
     elif cmd == "/poll":
         _admin_poll(chat_id, config)
 
@@ -277,6 +280,63 @@ def _admin_alerts(chat_id: int) -> None:
     lines += [f"• {src}: {n}" for src, n in counts.items()]
     lines.append(f"\nTotal: {sum(counts.values())}")
     _send(chat_id, "\n".join(lines))
+
+
+def _admin_visits(chat_id: int, config: dict) -> None:
+    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
+    api_key = os.environ.get("UMAMI_API_KEY", "")
+    website_id = config.get("web", {}).get("umami_website_id", "")
+    if not umami_url or not api_key or not website_id:
+        _send(chat_id, "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_API_KEY, umami_website_id)")
+        return
+
+    headers = {"x-umami-api-key": api_key}
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start_ms = int(month_start.timestamp() * 1000)
+    day_start_ms = int(day_start.timestamp() * 1000)
+    end_ms = int(now.timestamp() * 1000)
+
+    try:
+        month_resp = requests.get(
+            f"{umami_url}/api/websites/{website_id}/stats",
+            params={"startAt": month_start_ms, "endAt": end_ms},
+            headers=headers, timeout=10,
+        )
+        month_resp.raise_for_status()
+        month = month_resp.json()
+
+        day_resp = requests.get(
+            f"{umami_url}/api/websites/{website_id}/stats",
+            params={"startAt": day_start_ms, "endAt": end_ms},
+            headers=headers, timeout=10,
+        )
+        day_resp.raise_for_status()
+        day = day_resp.json()
+
+        active_resp = requests.get(
+            f"{umami_url}/api/websites/{website_id}/active",
+            headers=headers, timeout=10,
+        )
+        active_resp.raise_for_status()
+        active = active_resp.json()
+    except requests.RequestException as e:
+        _send(chat_id, f"❌ Umami query failed: {e}")
+        return
+
+    active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
+
+    _send(chat_id, (
+        "<b>📊 Visits</b>\n\n"
+        f"<b>Today</b>\n"
+        f"Visits: {day.get('visits', {}).get('value', 0)}\n"
+        f"Unique: {day.get('visitors', {}).get('value', 0)}\n\n"
+        f"<b>This month</b>\n"
+        f"Visits: {month.get('visits', {}).get('value', 0)}\n"
+        f"Unique: {month.get('visitors', {}).get('value', 0)}\n\n"
+        f"Active now: {active_now}"
+    ))
 
 
 def _admin_poll(chat_id: int, config: dict) -> None:

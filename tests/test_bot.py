@@ -398,6 +398,35 @@ class TestAdminCommands:
         text = mock_send.call_args.args[1]
         assert "complete" in text.lower()
 
+    def test_admin_visits(self, mocker, bot_config):
+        mock_send = mocker.patch("notifier.bot._send")
+        mock_get = mocker.patch("notifier.bot.requests.get")
+        bot_config["web"] = {"umami_website_id": "test-id"}
+        mocker.patch.dict("os.environ", {
+            "UMAMI_INTERNAL_URL": "http://umami:3000",
+            "UMAMI_API_KEY": "test-key",
+        })
+        month_resp = mocker.MagicMock()
+        month_resp.json.return_value = {
+            "visits": {"value": 100}, "visitors": {"value": 50},
+        }
+        day_resp = mocker.MagicMock()
+        day_resp.json.return_value = {
+            "visits": {"value": 10}, "visitors": {"value": 5},
+        }
+        active_resp = mocker.MagicMock()
+        active_resp.json.return_value = [{"x": 2}]
+        mock_get.side_effect = [month_resp, day_resp, active_resp]
+
+        handle_update(_msg_update(999, "/visits"), bot_config)
+
+        text = mock_send.call_args.args[1]
+        assert "100" in text
+        assert "50" in text
+        assert "10" in text
+        assert "5" in text
+        assert "2" in text
+
     def test_non_admin_cant_use_admin_commands(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
 
