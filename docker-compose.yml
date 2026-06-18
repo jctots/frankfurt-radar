@@ -27,7 +27,6 @@ services:
       - TZ=Europe/Berlin
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
-      - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - WEBHOOK_PORT=8443
     volumes:

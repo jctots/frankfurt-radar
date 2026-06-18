@@ -13,7 +13,7 @@ env_block = "\n".join([
     f"TZ={os.environ.get('TZ', 'Europe/Berlin')}",
     f"DATA_DIR={os.environ.get('DATA_DIR', '/app/data')}",
     f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
-    f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
+
     f"POLLER_TRIGGER_URL={os.environ.get('POLLER_TRIGGER_URL', '')}",
 ])
 
