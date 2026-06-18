@@ -1,4 +1,3 @@
-import argparse
 import logging
 import os
 import sys
@@ -12,7 +11,6 @@ import yaml
 from dotenv import load_dotenv
 
 from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
-from notifications import notify_admin_health
 from pipeline import process_alerts
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
 from translation import reset_translation_health, translation_ok
@@ -71,15 +69,6 @@ def _system_metrics() -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="frankfurt-radar poller")
-    parser.add_argument(
-        "--mode",
-        choices=["poll", "daily"],
-        default="poll",
-        help="poll: new disruptions only; daily: morning summary grouped by service",
-    )
-    args = parser.parse_args()
-
     api_key = os.getenv("RMV_API_KEY", "")
     if not api_key:
         log.error("RMV_API_KEY not set in environment")
@@ -187,7 +176,7 @@ def main() -> None:
 
     sync_alert_cache(all_alerts, config)
     expire_processed_alerts()
-    process_alerts(all_alerts, mode=args.mode, config=config)
+    process_alerts(all_alerts, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     if health_cfg:
@@ -200,34 +189,6 @@ def main() -> None:
             current_health["poll_schedule"] = poll_fresh
         current_health["ram"] = metrics["ram_pct"] <= ram_warn_pct
         current_health["load"] = metrics["load1"] <= metrics["cpu_count"]
-
-        prev_raw = get_meta("admin_health")
-        prev_health: dict[str, bool] = json.loads(prev_raw) if prev_raw else {}
-
-        _display = {
-            "translator": "Translator",
-            "poll_schedule": "Cron schedule",
-            "ram": f"RAM ({metrics['ram_pct']:.0f}%)",
-            "load": f"Load ({metrics['load1']:.1f}/{metrics['cpu_count']})",
-        }
-
-        def _fmt(keys: list[str]) -> str:
-            return ", ".join(_display.get(k, k.replace("Poller", "")) for k in keys)
-
-        metrics_line = (
-            f"CPU: {metrics['cpu_pct']:.0f}% · "
-            f"Load: {metrics['load1']:.1f}/{metrics['cpu_count']} · "
-            f"RAM: {metrics['ram_used_gb']:.1f}/{metrics['ram_total_gb']:.1f} GB ({metrics['ram_pct']:.0f}%) · "
-            f"Swap: {metrics['swap_used_mb']:.0f} MB"
-        )
-
-        degraded = [k for k, ok in current_health.items() if not ok and prev_health.get(k, True)]
-        recovered = [k for k, ok in current_health.items() if ok and k in prev_health and not prev_health[k]]
-
-        if degraded:
-            notify_admin_health("🔴 Frankfurt Radar — health alert", f"Failing: {_fmt(degraded)}\n\n{metrics_line}", config)
-        if recovered:
-            notify_admin_health("🟢 Frankfurt Radar — recovered", f"Recovered: {_fmt(recovered)}\n\n{metrics_line}", config)
 
         set_meta("admin_health", json.dumps(current_health))
 
