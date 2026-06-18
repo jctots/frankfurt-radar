@@ -420,6 +420,19 @@ def update_subscriber_preferences(chat_id: int, preferences: dict) -> None:
         )
 
 
+def set_conversation_state(chat_id: int, state: Optional[dict]) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET conversation_state = ? WHERE chat_id = ?",
+            (json.dumps(state) if state else None, chat_id),
+        )
+
+
+def reactivate_subscriber(chat_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("UPDATE subscribers SET active = 1 WHERE chat_id = ?", (chat_id,))
+
+
 def record_sent_alert(subscriber_id: int, alert_id: str) -> None:
     with _conn() as conn:
         conn.execute(

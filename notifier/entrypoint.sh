@@ -32,4 +32,6 @@ os.chmod("/etc/cron.d/notifier", 0o644)
 print("Crontab: poll every 2 min, daily at 07:00 CET")
 PYEOF
 
-exec cron -f
+# Start cron in background, webhook server as main process
+cron
+exec python -m notifier.main --mode webhook
