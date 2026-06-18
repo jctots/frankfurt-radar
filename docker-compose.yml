@@ -33,6 +33,7 @@ services:
       - UMAMI_PASSWORD=${UMAMI_PASSWORD:-}
       - TELEGRAM_ADMIN_BOT_TOKEN=${TELEGRAM_ADMIN_BOT_TOKEN:-}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - STADIA_API_KEY=${STADIA_API_KEY:-}
     volumes:
       - radar_data:/app/data
     ports:

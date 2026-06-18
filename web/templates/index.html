@@ -1254,15 +1254,21 @@ const DISTRICT_COORDS = {
 // Injected by Flask
 const ALLOW_POLL = {{ allow_poll | tojson }};
 
+const STADIA_API_KEY = {{ stadia_api_key | tojson }};
 const TILES = {
   light: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   },
-  dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
-  },
+  dark: STADIA_API_KEY
+    ? {
+        url: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${STADIA_API_KEY}`,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://stadiamaps.com/">Stadia Maps</a>',
+      }
+    : {
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
 };
 
 // ── State ────────────────────────────────────────────────────────────────────

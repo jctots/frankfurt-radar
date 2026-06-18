@@ -56,6 +56,7 @@ def index():
         site_url=(web_cfg.get("site_url") or "").rstrip("/"),
         umami_website_id=web_cfg.get("umami_website_id") or "",
         website_disabled_default=web_cfg.get("disabled_default_sources") or [],
+        stadia_api_key=os.getenv("STADIA_API_KEY", ""),
     )
 
 
