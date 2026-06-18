@@ -67,7 +67,7 @@ class TestStartCommand:
         assert "alert sources" in text.lower()
 
     def test_start_reactivates_stopped_subscriber(self, mocker, bot_config):
-        mocker.patch("notifier.bot._send")
+        mock_send = mocker.patch("notifier.bot._send")
         db.add_subscriber(1003)
         db.deactivate_subscriber(1003)
         assert db.get_subscriber_by_chat_id(1003)["active"] == 0
@@ -76,13 +76,26 @@ class TestStartCommand:
 
         sub = db.get_subscriber_by_chat_id(1003)
         assert sub["active"] == 1
+        text = mock_send.call_args.args[1]
+        assert "welcome back" in text.lower()
+        assert sub["conversation_state"] is None
 
-    def test_settings_alias(self, mocker, bot_config):
+    def test_start_already_active(self, mocker, bot_config):
+        mock_send = mocker.patch("notifier.bot._send")
+        db.add_subscriber(1005)
+
+        handle_update(_msg_update(1005, "/start"), bot_config)
+
+        text = mock_send.call_args.args[1]
+        assert "already subscribed" in text.lower()
+
+    def test_settings_enters_onboarding(self, mocker, bot_config):
         mocker.patch("notifier.bot._send")
         handle_update(_msg_update(1004, "/settings"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(1004)
         assert sub is not None
+        assert sub["conversation_state"]["step"] == "sources"
 
 
 class TestStopCommand:

@@ -114,8 +114,10 @@ def handle_update(update: dict, config: dict) -> None:
 
     cmd = text.split()[0].lower() if text.startswith("/") else ""
 
-    if cmd in ("/start", "/settings"):
+    if cmd == "/start":
         _cmd_start(chat_id, config)
+    elif cmd == "/settings":
+        _cmd_settings(chat_id, config)
     elif cmd == "/mystatus":
         _cmd_mystatus(chat_id)
     elif cmd == "/help":
@@ -137,10 +139,30 @@ def _cmd_start(chat_id: int, config: dict) -> None:
     if sub is None:
         add_subscriber(chat_id)
         sub = get_subscriber_by_chat_id(chat_id)
+        _enter_onboarding(chat_id, sub)
+    elif not sub["active"]:
+        reactivate_subscriber(chat_id)
+        _send(chat_id,
+              "Welcome back! Your alerts are active again.\n\n"
+              "Use /mystatus to see your preferences, /settings to change them.")
+    else:
+        _send(chat_id,
+              "You're already subscribed and active.\n\n"
+              "Use /mystatus to see your preferences, /settings to change them.")
+
+
+def _cmd_settings(chat_id: int, config: dict) -> None:
+    sub = get_subscriber_by_chat_id(chat_id)
+    if sub is None:
+        add_subscriber(chat_id)
+        sub = get_subscriber_by_chat_id(chat_id)
     elif not sub["active"]:
         reactivate_subscriber(chat_id)
         sub = get_subscriber_by_chat_id(chat_id)
+    _enter_onboarding(chat_id, sub)
 
+
+def _enter_onboarding(chat_id: int, sub: dict) -> None:
     prefs = sub["preferences"]
     state = {"step": "sources", "prefs": prefs}
     set_conversation_state(chat_id, state)
@@ -199,8 +221,8 @@ def _cmd_mystatus(chat_id: int) -> None:
 def _cmd_help(chat_id: int) -> None:
     _send(chat_id, (
         "<b>Frankfurt Radar Bot</b>\n\n"
-        "/start — Set up or change your alert preferences\n"
-        "/settings — Same as /start\n"
+        "/start — Subscribe to alerts\n"
+        "/settings — Change your alert preferences\n"
         "/mystatus — Show your current preferences\n"
         "/stop — Pause alerts (keeps your settings)\n"
         "/deletedata — Delete all your data (GDPR)\n"
@@ -454,7 +476,7 @@ def _handle_text_input(chat_id: int, text: str, config: dict) -> None:
     prefs = state.get("prefs", default_preferences())
     lines = [l.strip() for l in text.replace(";", ",").split(",") if l.strip()]
     if not lines:
-        _send(chat_id, "Please enter line names separated by commas (e.g. S3, S5, Bus 32):")
+        _send(chat_id, _lines_input_prompt(prefs))
         return
 
     prefs["sources"]["rmv"]["lines"] = lines
@@ -596,6 +618,15 @@ def _cb_rmv_services(chat_id: int, msg_id: int, cq_id: str,
     _answer_cb(cq_id)
 
 
+def _lines_input_prompt(prefs: dict) -> str:
+    current = prefs.get("sources", {}).get("rmv", {}).get("lines", [])
+    prompt = "Enter line identifiers separated by commas (e.g. <b>S3, S5, 11</b>).\n"
+    prompt += "Use the line number only — not the service type (e.g. <b>11</b> not Tram 11)."
+    if current:
+        prompt += f"\n\nCurrent: <b>{', '.join(current)}</b>"
+    return prompt
+
+
 # ── RMV line filter ─────────────────────────────────────────────────────────
 
 def _goto_rmv_lines_choice(chat_id: int, prefs: dict, state: dict) -> None:
@@ -616,7 +647,7 @@ def _cb_rmv_lines_choice(chat_id: int, msg_id: int, cq_id: str,
     elif data == "rl:pick":
         state["step"] = "rmv_lines_input"
         set_conversation_state(chat_id, state)
-        _send(chat_id, "Enter line names separated by commas (e.g. <b>S3, S5, Bus 32</b>):")
+        _send(chat_id, _lines_input_prompt(prefs))
 
 
 def _cb_rmv_lines_confirm(chat_id: int, msg_id: int, cq_id: str,
@@ -627,7 +658,7 @@ def _cb_rmv_lines_confirm(chat_id: int, msg_id: int, cq_id: str,
     elif data == "rl:redo":
         state["step"] = "rmv_lines_input"
         set_conversation_state(chat_id, state)
-        _send(chat_id, "Enter line names separated by commas (e.g. <b>S3, S5, Bus 32</b>):")
+        _send(chat_id, _lines_input_prompt(prefs))
 
 
 def _advance_after_rmv(chat_id: int, prefs: dict, state: dict) -> None:
