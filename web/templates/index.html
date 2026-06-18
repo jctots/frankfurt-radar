@@ -799,12 +799,12 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 8px 14px;
+      padding: 9px 14px;
       background: #0088cc;
       color: white;
       border-radius: 8px;
       text-decoration: none;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 500;
       white-space: nowrap;
       width: 100%;
@@ -1108,7 +1108,7 @@
       <div class="tg-col">
         <span class="tg-col-label">🤖 Bot</span>
         <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{ telegram_bot_url | urlencode }}" width="100" height="100" alt="Bot QR">
-        <p class="tg-desc">Filtered alerts for your commute</p>
+        <p class="tg-desc">Personalized alerts</p>
         <a class="btn-tg" href="{{ telegram_bot_url | e }}" target="_blank" rel="noopener">✨ Start bot</a>
       </div>
       {% endif %}
