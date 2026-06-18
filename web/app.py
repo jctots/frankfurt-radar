@@ -40,6 +40,7 @@ def index():
         allow_poll=_allow_manual_poll(),
         version=BUILD_VERSION,
         telegram_channel_url=web_cfg.get("telegram_channel_url") or "",
+        telegram_bot_url=web_cfg.get("telegram_bot_url") or "",
         kofi_url=web_cfg.get("kofi_url") or "",
         sponsor_url=web_cfg.get("sponsor_url") or "",
         github_url=web_cfg.get("github_url") or "",

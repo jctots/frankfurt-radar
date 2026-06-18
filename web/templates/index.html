@@ -1092,7 +1092,11 @@
         <p style="margin-top:8px;margin-bottom:0;font-size:12px;color:var(--clr-muted)">{{ telegram_channel_url | e }}</p>
       </div>
     </div>
-    <p class="info-note">✨ <strong>Personalized notifications</strong> — message <a href="https://t.me/FrankfurtRadarBot" target="_blank" rel="noopener">@FrankfurtRadarBot</a> to set up filtered alerts for your commute.</p>
+    {% if telegram_bot_url %}
+    <p class="info-note">✨ <strong>Personalized notifications</strong> — message <a href="{{ telegram_bot_url | e }}" target="_blank" rel="noopener">the bot</a> to set up filtered alerts for your commute.</p>
+    {% else %}
+    <p class="info-note">✨ <strong>Personalized notifications</strong> — message the bot to set up filtered alerts for your commute.</p>
+    {% endif %}
     <hr>
     {% endif %}
 

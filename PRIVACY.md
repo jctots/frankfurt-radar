@@ -19,11 +19,11 @@ Anonymous, cookie-free usage analytics are collected via a self-hosted [Umami](h
 
 Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.
 
-### Telegram channel (@FrankfurtRadar)
+### Telegram channel
 
 Subscribing to the public channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.
 
-### Telegram bot (@FrankfurtRadarBot)
+### Telegram bot
 
 When you send `/start` to the bot, we store:
 
@@ -51,7 +51,7 @@ Until you send `/deletedata` to the bot, which permanently deletes all stored da
 
 You have the right to access, correct, and erase your data.
 
-- **To delete all stored data:** send `/deletedata` to @FrankfurtRadarBot
+- **To delete all stored data:** send `/deletedata` to the Telegram bot
 - **For all other requests:** see [/legal](/legal#impressum) for the operator's contact details
 
 We will respond within 30 days.
