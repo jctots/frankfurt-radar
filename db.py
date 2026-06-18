@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS sent_alerts (
     sent_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (subscriber_id, alert_id)
 );
+
+CREATE TABLE IF NOT EXISTS quiet_buffer (
+    subscriber_id INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+    alert_id      TEXT NOT NULL,
+    buffered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (subscriber_id, alert_id)
+);
 """
 
 
@@ -105,6 +112,10 @@ def init_db() -> None:
             pass
         try:
             conn.execute("ALTER TABLE alert_cache ADD COLUMN icon TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN conversation_state TEXT")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -347,7 +358,8 @@ def get_meta(key: str) -> Optional[str]:
 
 def add_subscriber(chat_id: int, preferences: Optional[dict] = None) -> bool:
     """Returns True if newly added, False if already exists."""
-    prefs = json.dumps(preferences or {"rmv": True, "dwd": True, "polizei": True})
+    from notifier.preferences import default_preferences
+    prefs = json.dumps(preferences or default_preferences())
     with _conn() as conn:
         try:
             conn.execute(
@@ -383,6 +395,71 @@ def deactivate_subscriber(chat_id: int) -> None:
     """Called when Telegram returns 403 Forbidden — user blocked the bot."""
     with _conn() as conn:
         conn.execute("UPDATE subscribers SET active = 0 WHERE chat_id = ?", (chat_id,))
+
+
+def get_subscriber_by_chat_id(chat_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, chat_id, preferences, active, conversation_state FROM subscribers WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    r["preferences"] = json.loads(r["preferences"])
+    if r["conversation_state"]:
+        r["conversation_state"] = json.loads(r["conversation_state"])
+    return r
+
+
+def update_subscriber_preferences(chat_id: int, preferences: dict) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET preferences = ? WHERE chat_id = ?",
+            (json.dumps(preferences), chat_id),
+        )
+
+
+def record_sent_alert(subscriber_id: int, alert_id: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO sent_alerts (subscriber_id, alert_id) VALUES (?, ?)",
+            (subscriber_id, alert_id),
+        )
+
+
+def get_unsent_for_subscriber(subscriber_id: int, alert_ids: list[str]) -> list[str]:
+    if not alert_ids:
+        return []
+    ph = ",".join("?" * len(alert_ids))
+    with _conn() as conn:
+        sent = {r[0] for r in conn.execute(
+            f"SELECT alert_id FROM sent_alerts WHERE subscriber_id = ? AND alert_id IN ({ph})",
+            [subscriber_id] + alert_ids,
+        )}
+    return [aid for aid in alert_ids if aid not in sent]
+
+
+def buffer_quiet_alert(subscriber_id: int, alert_id: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO quiet_buffer (subscriber_id, alert_id) VALUES (?, ?)",
+            (subscriber_id, alert_id),
+        )
+
+
+def flush_quiet_buffer(subscriber_id: int) -> list[str]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT alert_id FROM quiet_buffer WHERE subscriber_id = ? ORDER BY buffered_at",
+            (subscriber_id,),
+        ).fetchall()
+        if rows:
+            conn.execute(
+                "DELETE FROM quiet_buffer WHERE subscriber_id = ?",
+                (subscriber_id,),
+            )
+    return [r[0] for r in rows]
 
 
 # ── alert_cache queries (notifier) ──────────────────────────────────────────
