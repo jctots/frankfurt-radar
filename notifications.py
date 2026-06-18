@@ -69,6 +69,43 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
         log.error("Telegram send failed: %s", e)
 
 
+def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, config: dict, source: str = "") -> bool:
+    """Send a DM to an individual subscriber. Returns False on 403 (blocked)."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        log.warning("Telegram: TELEGRAM_BOT_TOKEN not configured")
+        return True
+
+    parts = [f"<b>{html_lib.escape(title)}</b>"]
+    if body:
+        truncated = body[:800] + ("…" if len(body) > 800 else "")
+        parts.append(html_lib.escape(truncated))
+    link = url or SOURCE_URL.get(source, "")
+    if link:
+        parts.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
+
+    try:
+        resp = requests.post(
+            _TG_API.format(token=token),
+            json={
+                "chat_id": chat_id,
+                "text": "\n\n".join(parts),
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=10,
+        )
+        if resp.status_code == 403:
+            log.warning("Telegram DM: subscriber %d blocked the bot", chat_id)
+            return False
+        resp.raise_for_status()
+        log.info("Telegram DM: sent '%s' to %d", title, chat_id)
+        return True
+    except requests.RequestException as e:
+        log.error("Telegram DM send failed for %d: %s", chat_id, e)
+        return True
+
+
 def notify_admin_health(title: str, body: str, config: dict) -> None:
     cfg = config.get("admin_health_notifier", {})
     if not cfg:

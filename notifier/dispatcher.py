@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from db import get_alerts_since, get_all_active_alerts, get_meta, set_meta
 from models import SOURCE_EMOJI, SPORT_EMOJI, alert_emoji
 from notifications import notify
+from notifier.subscriber_dispatch import dispatch_to_subscribers
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +108,10 @@ def dispatch_new_alerts(config: dict) -> int:
 
     max_cached = max(r["cached_at"] for r in rows)
     set_meta("last_notified_at", max_cached)
-    log.info("Dispatched %d notifications", dispatched)
+    log.info("Dispatched %d channel notifications", dispatched)
+
+    dispatch_to_subscribers(rows, config)
+
     return dispatched
 
 

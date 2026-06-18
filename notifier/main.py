@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from db import init_db
 from notifier.dispatcher import dispatch_daily_summary, dispatch_new_alerts
 from notifier.health import check_and_notify_health
+from notifier.subscriber_dispatch import flush_quiet_buffers
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -43,6 +44,7 @@ def main() -> None:
         dispatch_daily_summary(config)
     else:
         dispatch_new_alerts(config)
+        flush_quiet_buffers(config)
         check_and_notify_health(config)
 
 
