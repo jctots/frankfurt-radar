@@ -5,7 +5,7 @@ from pathlib import Path
 
 import requests as http_requests
 import yaml
-from flask import Flask, Response, abort, jsonify, render_template, request, send_file
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db import get_status_json, init_db
@@ -51,6 +51,11 @@ def index():
         website_disabled_default=web_cfg.get("disabled_default_sources") or [],
         stadia_api_key=os.getenv("STADIA_API_KEY", ""),
     )
+
+
+@app.route("/alert/<alert_id>")
+def alert_detail(alert_id):
+    return redirect(f"/?alert={alert_id}")
 
 
 @app.route("/legal")

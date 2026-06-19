@@ -220,7 +220,7 @@ def handle_update(update: dict, config: dict) -> None:
         _cmd_mystatus(chat_id)
     elif cmd == "/search":
         _track_command("search", config)
-        _cmd_search(chat_id, text)
+        _cmd_search(chat_id, text, config)
     elif cmd == "/help":
         _track_command("help", config)
         _cmd_help(chat_id)
@@ -367,7 +367,7 @@ def _cmd_deletedata(chat_id: int) -> None:
         _send(chat_id, "No data found for your account.")
 
 
-def _cmd_search(chat_id: int, text: str) -> None:
+def _cmd_search(chat_id: int, text: str, config: dict | None = None) -> None:
     query = text[len("/search"):].strip()
     if not query:
         _send(chat_id, "Usage: <code>/search tram 12</code>\n\nSearch active alerts by keyword.")
@@ -376,12 +376,17 @@ def _cmd_search(chat_id: int, text: str) -> None:
     if not results:
         _send(chat_id, f"🔍 No active alerts matching <b>{_esc(query)}</b>.\n\nThat's good news! 🎉")
         return
-    _send_search_page(chat_id, results, query, 0)
+    _send_search_page(chat_id, results, query, 0, config=config)
 
 
 def _send_search_page(chat_id: int, results: list[dict], query: str,
-                       offset: int, message_id: int | None = None) -> None:
+                       offset: int, message_id: int | None = None,
+                       config: dict | None = None) -> None:
     from models import _row_emoji, SOURCE_LABEL
+
+    site_url = ""
+    if config:
+        site_url = (config.get("web", {}).get("site_url") or "").rstrip("/")
 
     total = len(results)
     page = results[offset:offset + _SEARCH_PAGE_SIZE]
@@ -394,15 +399,12 @@ def _send_search_page(chat_id: int, results: list[dict], query: str,
         emoji = _row_emoji(row)
         source = SOURCE_LABEL.get(row.get("source", ""), row.get("source", ""))
         title = row.get("title_en", "")
-        body = (row.get("body_en") or "")[:120]
-        if len(row.get("body_en") or "") > 120:
-            body += "…"
-        validity = ""
-        if row.get("valid_until"):
-            validity = f"\nValid until: {_fmt_date(row['valid_until'])}"
-        elif row.get("valid_from"):
-            validity = f"\nFrom: {_fmt_date(row['valid_from'])}"
-        lines.append(f"{emoji} <b>{_esc(title)}</b>\n{_esc(body)}{validity}\n<i>{source}</i>\n")
+        alert_id = row.get("alert_id", "")
+        if site_url and alert_id:
+            title_html = f'<a href="{site_url}/alert/{alert_id}">{_esc(title)}</a>'
+        else:
+            title_html = f"<b>{_esc(title)}</b>"
+        lines.append(f"{emoji} {title_html}\n<i>{source}</i>\n")
 
     buttons: list[list[tuple[str, str]]] = []
     nav_row: list[tuple[str, str]] = []
@@ -720,7 +722,7 @@ def _cb_search(chat_id: int, message_id: int, cq_id: str, data: str) -> None:
         _edit(chat_id, message_id, f"🔍 No active alerts matching <b>{_esc(query)}</b>.\n\nThat's good news! 🎉")
         return
     offset = max(0, min(offset, len(results) - 1))
-    _send_search_page(chat_id, results, query, offset, message_id=message_id)
+    _send_search_page(chat_id, results, query, offset, message_id=message_id, config=_webhook_config)
 
 
 # ── Text input handler (for RMV line entry) ────────────────────────────────
