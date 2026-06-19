@@ -2,7 +2,7 @@
 
 ## 🔭 Overview
 
-Frankfurt Radar runs as three independently deployable containers — a **poller**, a **notifier**, and a **web server** — sharing a single SQLite database via a Docker volume.
+Frankfurt Radar runs as independently deployable containers — a **poller**, a **notifier**, a **web server**, and an optional **MCP server** — sharing a single SQLite database via a Docker volume.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -37,6 +37,8 @@ Frankfurt Radar runs as three independently deployable containers — a **poller
 ```
 
 The containers share no direct communication — the database is the only coupling point.
+
+An optional **MCP server** container (profile: `mcp`) provides read-only access to the alert database for AI assistants via the Model Context Protocol (SSE transport on port 8811). It imports `db.py` and `models.py` directly — no API layer between it and SQLite.
 
 ---
 
@@ -231,6 +233,24 @@ Single-page app with no build step:
 - Rotating ticker: animated headline bar on desktop
 - Dark mode and filter state persisted in `localStorage`
 - Browser notifications via Web Push API (opt-in)
+
+---
+
+## 🤖 MCP server container (optional)
+
+Read-only MCP server exposing alert data to AI assistants (Claude Code, etc.) via SSE transport. Enabled with `--profile mcp`.
+
+### 🔧 Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_active_alerts(source?)` | List active alerts, optional source filter |
+| `search_alerts(query)` | Token-based AND keyword search |
+| `get_alert_details(alert_id)` | Single alert by ID |
+| `get_system_status()` | Last poll time, source health, counts |
+| `get_alert_stats()` | Summary by source and severity |
+
+The server reuses `db.py` query functions (`get_all_active_alerts`, `search_active_alerts`, `get_status_json`) and `models.py` formatters. No API keys required — it only reads from the shared SQLite database.
 
 ---
 

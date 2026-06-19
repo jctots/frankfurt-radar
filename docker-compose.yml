@@ -73,6 +73,26 @@ services:
       - ntfy_data:/var/lib/ntfy
     restart: unless-stopped
 
+  mcp:
+    image: ghcr.io/jctots/frankfurt-radar-mcp:${RADAR_TAG:-latest}
+    container_name: frankfurt-radar-mcp
+    profiles: [mcp]
+    init: true
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - radar_data:/app/data
+    ports:
+      - "${MCP_PORT:-8811}:8811"
+    depends_on:
+      - poller
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
     profiles: [analytics]
