@@ -12,9 +12,13 @@ import models
 
 log = logging.getLogger(__name__)
 
+port = int(os.getenv("MCP_PORT", "8811"))
+
 mcp = FastMCP(
     "Frankfurt Radar",
-    description="Real-time Frankfurt alerts: transit, weather, police, roads, events",
+    instructions="Real-time Frankfurt alerts: transit, weather, police, roads, events",
+    host="0.0.0.0",
+    port=port,
 )
 
 VALID_SOURCES = list(models.SOURCE_LABEL.keys())
@@ -108,5 +112,4 @@ def get_alert_stats() -> dict:
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("MCP_PORT", "8811"))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="sse")
