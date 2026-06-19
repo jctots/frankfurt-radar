@@ -40,6 +40,7 @@ def dispatch_new_alerts(config: dict) -> int:
             url=row.get("url"),
             config=config,
             source=row["source"],
+            alert_id=row["alert_id"],
         )
         dispatched += 1
 

@@ -50,6 +50,7 @@ def dispatch_to_subscribers(alert_rows: list[dict], config: dict) -> int:
                 url=row.get("url"),
                 config=config,
                 source=row["source"],
+                alert_id=row["alert_id"],
             )
             if not ok:
                 deactivate_subscriber(sub["chat_id"])

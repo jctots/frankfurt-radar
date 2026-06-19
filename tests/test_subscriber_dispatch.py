@@ -274,10 +274,13 @@ class TestFlushQuietBuffers:
         _make_subscriber(307, prefs)
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        already_sent = mocker.patch("notifier.subscriber_dispatch._briefing_already_sent")
+        already_sent.return_value = False
 
         flush_quiet_buffers(config)
         assert mock_dm.call_count == 1
 
+        already_sent.return_value = True
         flush_quiet_buffers(config)
         assert mock_dm.call_count == 1
 
