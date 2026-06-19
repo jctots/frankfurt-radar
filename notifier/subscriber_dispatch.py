@@ -84,7 +84,13 @@ def flush_quiet_buffers(config: dict) -> int:
         missed_rows = _get_buffered_alerts(buffered_ids) if buffered_ids else []
         sections.append(_fmt_missed_section(missed_rows, qh))
 
-        future_rows = [r for r in get_future_alerts() if matches_preferences(r, prefs)]
+        tz = ZoneInfo(qh.get("timezone", "Europe/Berlin"))
+        today = datetime.now(tz).date()
+        future_rows = [
+            r for r in get_future_alerts()
+            if matches_preferences(r, prefs)
+            and _is_today(r.get("valid_from"), today, tz)
+        ]
         sections.append(_fmt_upcoming_section(future_rows))
 
         body = "\n\n".join(sections)
@@ -124,6 +130,16 @@ def _briefing_already_sent(sub: dict, qh: dict) -> bool:
     return last_dt >= today_end
 
 
+def _is_today(valid_from: str | None, today, tz) -> bool:
+    if not valid_from:
+        return False
+    try:
+        dt = datetime.fromisoformat(valid_from).astimezone(tz)
+        return dt.date() == today
+    except ValueError:
+        return False
+
+
 def _parse_time_minutes(t: str) -> int:
     parts = t.split(":")
     return int(parts[0]) * 60 + int(parts[1])
@@ -140,9 +156,9 @@ def _fmt_missed_section(rows: list[dict], qh: dict) -> str:
 
 
 def _fmt_upcoming_section(rows: list[dict]) -> str:
-    header = "\U0001f4c5 Upcoming Events"
+    header = "\U0001f4c5 Upcoming Today"
     if not rows:
-        return f"{header}\nNo upcoming events matching your filters."
+        return f"{header}\nNo events matching your filters today."
     lines = []
     for r in rows:
         title = r["title_en"]

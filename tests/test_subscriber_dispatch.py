@@ -289,10 +289,13 @@ class TestFlushQuietBuffers:
         prefs["quiet_hours"]["end"] = "07:00"
         _make_subscriber(308, prefs)
 
-        future = "2099-12-31T18:00:00Z"
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        berlin = ZoneInfo("Europe/Berlin")
+        later_today = datetime.now(berlin).replace(hour=23, minute=0, second=0).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
         _insert_alert("F1", source="events", title="Frankfurt Marathon")
         with db._conn() as conn:
-            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (future,))
+            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (later_today,))
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
 
@@ -300,7 +303,7 @@ class TestFlushQuietBuffers:
 
         body = mock_dm.call_args.kwargs["body"]
         assert "Frankfurt Marathon" in body
-        assert "Upcoming Events" in body
+        assert "Upcoming Today" in body
 
     def test_upcoming_filtered_by_preferences(self, mocker, config):
         mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
@@ -322,7 +325,7 @@ class TestFlushQuietBuffers:
 
         body = mock_dm.call_args.kwargs["body"]
         assert "Concert" not in body
-        assert "No upcoming events" in body
+        assert "No events matching your filters today" in body
 
     def test_last_briefing_at_updated(self, mocker, config):
         mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
