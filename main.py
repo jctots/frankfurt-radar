@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 
 import psutil
+import requests
 import yaml
 from dotenv import load_dotenv
 
@@ -178,6 +179,14 @@ def main() -> None:
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+    notifier_url = os.environ.get("NOTIFIER_DISPATCH_URL")
+    if notifier_url:
+        try:
+            resp = requests.post(notifier_url, timeout=30)
+            log.info("Notifier dispatch triggered: %s", resp.status_code)
+        except requests.RequestException as e:
+            log.warning("Notifier dispatch failed: %s", e)
 
     if health_cfg:
         metrics = _system_metrics()

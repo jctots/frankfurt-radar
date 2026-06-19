@@ -292,12 +292,19 @@ class TestFlushQuietBuffers:
         from datetime import datetime
         from zoneinfo import ZoneInfo
         berlin = ZoneInfo("Europe/Berlin")
-        later_today = datetime.now(berlin).replace(hour=23, minute=0, second=0).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+        today_berlin = datetime.now(berlin)
+        event_time = today_berlin.replace(hour=18, minute=0, second=0, microsecond=0)
+        valid_from = event_time.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
         _insert_alert("F1", source="events", title="Frankfurt Marathon")
         with db._conn() as conn:
-            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (later_today,))
+            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (valid_from,))
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        mocker.patch("notifier.subscriber_dispatch.get_future_alerts", return_value=[
+            {"alert_id": "F1", "source": "events", "title_en": "Frankfurt Marathon",
+             "valid_from": valid_from, "severity": None, "affected_lines": None,
+             "affected_roads": None, "removed_at": None},
+        ])
 
         flush_quiet_buffers(config)
 

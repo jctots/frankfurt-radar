@@ -18,8 +18,8 @@ env_block = "\n".join([
 ])
 
 job_block = "\n".join([
-    "# Dispatch new alerts every 2 minutes",
-    "*/2 * * * * root cd /app && python -m notifier.main --mode poll >> /proc/1/fd/1 2>&1",
+    "# Flush quiet-hour buffers and health check every 10 minutes",
+    "*/10 * * * * root cd /app && python -m notifier.main --mode flush >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 
@@ -27,7 +27,7 @@ with open("/etc/cron.d/notifier", "w") as f:
     f.write(env_block + "\n\n" + job_block)
 
 os.chmod("/etc/cron.d/notifier", 0o644)
-print("Crontab: poll every 2 min, daily at 07:00 CET")
+print("Crontab: flush + health every 10 min (dispatch is trigger-driven)")
 PYEOF
 
 # Start cron in background, webhook server as main process

@@ -1105,6 +1105,10 @@ _webhook_config: dict = {}
 
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if self.path == "/dispatch":
+            self._handle_dispatch()
+            return
+
         if self.path != "/bot/webhook":
             self.send_response(404)
             self.end_headers()
@@ -1132,6 +1136,28 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.end_headers()
+
+    def _handle_dispatch(self):
+        from notifier.dispatcher import dispatch_new_alerts
+        from notifier.health import check_and_notify_health
+        from notifier.subscriber_dispatch import flush_quiet_buffers
+
+        log.info("Dispatch triggered by poller")
+        try:
+            dispatched = dispatch_new_alerts(_webhook_config)
+            flush_quiet_buffers(_webhook_config)
+            check_and_notify_health(_webhook_config)
+        except Exception:
+            log.exception("Error during dispatch")
+            self.send_response(500)
+            self.end_headers()
+            return
+        body = json.dumps({"status": "ok", "dispatched": dispatched}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, format, *args):
         log.info(format, *args)

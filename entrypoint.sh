@@ -23,6 +23,7 @@ env_block = "\n".join([
     f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
     f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
     f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
+    f"NOTIFIER_DISPATCH_URL={os.environ.get('NOTIFIER_DISPATCH_URL', '')}",
 ])
 
 job_block = "\n".join([
