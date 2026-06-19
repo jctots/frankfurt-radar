@@ -10,8 +10,6 @@ services:
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
       - radar_data:/app/data
-    depends_on:
-      - ntfy
     restart: unless-stopped
     deploy:
       resources:
@@ -66,6 +64,7 @@ services:
 
   ntfy:
     image: binwiederhier/ntfy:latest
+    profiles: [ntfy]
     init: true
     ports:
       - "80:80"
@@ -84,8 +83,6 @@ services:
       - radar_data:/app/data
     ports:
       - "${MCP_PORT:-8811}:8811"
-    depends_on:
-      - poller
     restart: unless-stopped
     deploy:
       resources:

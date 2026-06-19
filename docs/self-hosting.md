@@ -263,7 +263,13 @@ docker compose --profile mcp up -d
 **AI-only deployment** (poller + MCP server, no web/Telegram/ntfy):
 
 ```bash
-docker compose -f docker-compose.mcp.yml up -d
+docker compose up -d poller mcp
+```
+
+**MCP-only** (if you already have a `radar.db` from another source):
+
+```bash
+docker compose up -d mcp
 ```
 
 Configure your MCP client (e.g. Claude Code) to connect via SSE:
@@ -289,7 +295,9 @@ Available tools:
 | `get_system_status` | Last poll time, source health, alert counts |
 | `get_alert_stats` | Summary statistics by source and severity |
 
-The MCP server requires no API keys — it reads from the shared database populated by the poller.
+The MCP server requires no API keys -- it reads from the shared database populated by the poller.
+
+**Timestamps:** The server returns all timestamps in UTC. MCP clients should convert to `Europe/Berlin` (CET/CEST) for display. The web and notifier containers handle their own UTC-to-Frankfurt conversion independently.
 
 ## ➕ Adding a new alert source
 
