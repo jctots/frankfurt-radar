@@ -58,7 +58,7 @@ No cookies, no accounts, no personal data collected. Anonymous usage analytics v
 
 ### 🤖 Telegram bot — personalized alerts
 
-[@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) — a bot that delivers filtered alerts directly to your DMs, tailored to your commute and interests.
+[@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) — a bot that delivers filtered alerts directly to your DMs, tailored to your commute and interests. You can also search active alerts interactively using `/search`.
 
 **Personalization options:**
 
@@ -77,6 +77,7 @@ No cookies, no accounts, no personal data collected. Anonymous usage analytics v
 | `/start` | Set up or update personalized alerts |
 | `/settings` | Edit your alert preferences |
 | `/mystatus` | View your current settings and subscription status |
+| `/search` | Search active alerts by keyword (e.g. `/search tram 12`) |
 | `/help` | Usage guide and available commands |
 | `/stop` | Pause alerts (keeps your settings) |
 | `/deletedata` | Permanently delete all your data (GDPR) |

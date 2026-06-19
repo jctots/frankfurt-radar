@@ -151,6 +151,7 @@ Alert status indicators: **🟢** = ongoing, **⌛** = future (with date/time).
 | `/start` | Set up or update your alert preferences. Your current settings are pre-selected so you can adjust without starting from scratch. |
 | `/settings` | Same as `/start` — opens the preference wizard. |
 | `/mystatus` | View your current preferences and subscription status. |
+| `/search` | Search active alerts by keyword (e.g. `/search tram 12`). Results are paginated with Previous/Next buttons. |
 | `/help` | Quick reference of commands, preferences, and quiet hours. |
 | `/stop` | Pause alerts. Your preferences are saved — send `/start` to resume. |
 | `/deletedata` | Permanently delete all your data (chat ID, preferences, alert history). Cannot be undone. |

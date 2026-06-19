@@ -19,9 +19,12 @@ from db import (
     get_subscriber_counts,
     reactivate_subscriber,
     remove_subscriber,
+    search_active_alerts,
     set_conversation_state,
+    set_meta,
     update_subscriber_preferences,
 )
+from notifications import notify_admin_health
 from notifier.preferences import default_preferences
 
 log = logging.getLogger(__name__)
@@ -35,7 +38,9 @@ _RATE_WINDOW = 60
 _rate_hits: dict[int, list[float]] = defaultdict(list)
 _rate_cooldown: dict[int, float] = {}
 _RATE_COOLDOWN = 300
-_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll"))
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban"))
+_SEARCH_PAGE_SIZE = 3
+_ban_notified: set[int] = set()
 
 _SOURCE_LABELS = {
     "rmv": "🚇 Transport",
@@ -109,6 +114,51 @@ def _inline_kb(buttons: list[list[tuple[str, str]]]) -> dict:
     ]}
 
 
+# ── Ban list ───────────────────────────────────────────────────────────────
+
+def _get_banned() -> set[int]:
+    raw = get_meta("banned_chat_ids")
+    if not raw:
+        return set()
+    return set(json.loads(raw))
+
+
+def _set_banned(ids: set[int]) -> None:
+    set_meta("banned_chat_ids", json.dumps(sorted(ids)))
+
+
+def _is_banned(chat_id: int) -> bool:
+    return chat_id in _get_banned()
+
+
+# ── Umami event tracking ───────────────────────────────────────────────────
+
+def _track_command(command: str, config: dict) -> None:
+    """Fire a bot_command event to Umami (best-effort, non-blocking)."""
+    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
+    website_id = config.get("web", {}).get("umami_website_id", "")
+    if not umami_url or not website_id:
+        return
+    try:
+        requests.post(
+            f"{umami_url}/api/send",
+            json={
+                "payload": {
+                    "hostname": "telegram-bot",
+                    "language": "en",
+                    "url": f"/bot/{command}",
+                    "website": website_id,
+                    "name": "bot_command",
+                    "data": {"command": command},
+                },
+                "type": "event",
+            },
+            timeout=3,
+        )
+    except requests.RequestException:
+        pass
+
+
 # ── Update handler ──────────────────────────────────────────────────────────
 
 def _check_rate_limit(chat_id: int) -> str:
@@ -139,29 +189,49 @@ def handle_update(update: dict, config: dict) -> None:
     if not chat_id:
         return
 
+    if _is_banned(chat_id):
+        if chat_id not in _ban_notified:
+            _send(chat_id, "Your access has been restricted. Contact the admin if you believe this is an error.")
+            _ban_notified.add(chat_id)
+        return
+
     rate_status = _check_rate_limit(chat_id)
     if rate_status != "ok":
         if rate_status == "cooldown_start":
             _send(chat_id, "Rate limit reached. Please try again in 5 minutes.")
+            notify_admin_health(
+                "⚠️ Rate limit triggered",
+                f"chat_id: {chat_id}",
+                _webhook_config,
+            )
         log.warning("Rate limited chat_id=%d", chat_id)
         return
 
     cmd = text.split()[0].lower() if text.startswith("/") else ""
 
     if cmd == "/start":
+        _track_command("start", config)
         _cmd_start(chat_id, config)
     elif cmd == "/settings":
+        _track_command("settings", config)
         _cmd_settings(chat_id, config)
     elif cmd == "/mystatus":
+        _track_command("mystatus", config)
         _cmd_mystatus(chat_id)
+    elif cmd == "/search":
+        _track_command("search", config)
+        _cmd_search(chat_id, text)
     elif cmd == "/help":
+        _track_command("help", config)
         _cmd_help(chat_id)
     elif cmd == "/stop":
+        _track_command("stop", config)
         _cmd_stop(chat_id)
     elif cmd == "/deletedata":
+        _track_command("deletedata", config)
         _cmd_deletedata(chat_id)
     elif cmd in _ADMIN_CMDS and _is_admin(chat_id, config):
-        _handle_admin_cmd(cmd, chat_id, config)
+        _handle_admin_cmd(cmd, text, chat_id, config)
     elif cmd:
         sub = get_subscriber_by_chat_id(chat_id)
         if sub and sub["active"]:
@@ -272,6 +342,7 @@ def _cmd_help(chat_id: int) -> None:
         "/start — Subscribe to alerts\n"
         "/settings — Change your alert preferences\n"
         "/mystatus — Show your current preferences\n"
+        "/search — Search active alerts (e.g. /search tram 12)\n"
         "/stop — Pause alerts (keeps your settings)\n"
         "/deletedata — Delete all your data (GDPR)\n"
         "/help — This message"
@@ -296,6 +367,74 @@ def _cmd_deletedata(chat_id: int) -> None:
         _send(chat_id, "No data found for your account.")
 
 
+def _cmd_search(chat_id: int, text: str) -> None:
+    query = text[len("/search"):].strip()
+    if not query:
+        _send(chat_id, "Usage: <code>/search tram 12</code>\n\nSearch active alerts by keyword.")
+        return
+    results = search_active_alerts(query)
+    if not results:
+        _send(chat_id, f"🔍 No active alerts matching <b>{_esc(query)}</b>.\n\nThat's good news! 🎉")
+        return
+    _send_search_page(chat_id, results, query, 0)
+
+
+def _send_search_page(chat_id: int, results: list[dict], query: str,
+                       offset: int, message_id: int | None = None) -> None:
+    from models import _row_emoji, SOURCE_LABEL
+
+    total = len(results)
+    page = results[offset:offset + _SEARCH_PAGE_SIZE]
+    page_num = offset // _SEARCH_PAGE_SIZE + 1
+    total_pages = (total + _SEARCH_PAGE_SIZE - 1) // _SEARCH_PAGE_SIZE
+
+    lines = [f"🔍 <b>{_esc(query)}</b> — {total} result{'s' if total != 1 else ''}\n"]
+
+    for row in page:
+        emoji = _row_emoji(row)
+        source = SOURCE_LABEL.get(row.get("source", ""), row.get("source", ""))
+        title = row.get("title_en", "")
+        body = (row.get("body_en") or "")[:120]
+        if len(row.get("body_en") or "") > 120:
+            body += "…"
+        validity = ""
+        if row.get("valid_until"):
+            validity = f"\nValid until: {_fmt_date(row['valid_until'])}"
+        elif row.get("valid_from"):
+            validity = f"\nFrom: {_fmt_date(row['valid_from'])}"
+        lines.append(f"{emoji} <b>{_esc(title)}</b>\n{_esc(body)}{validity}\n<i>{source}</i>\n")
+
+    buttons: list[list[tuple[str, str]]] = []
+    nav_row: list[tuple[str, str]] = []
+    q_trunc = query[:50]
+    if offset > 0:
+        nav_row.append(("◀ Previous", f"sr:{offset - _SEARCH_PAGE_SIZE}:{q_trunc}"))
+    if offset + _SEARCH_PAGE_SIZE < total:
+        nav_row.append(("Next ▶", f"sr:{offset + _SEARCH_PAGE_SIZE}:{q_trunc}"))
+    if nav_row:
+        buttons.append(nav_row)
+        lines.append(f"Page {page_num}/{total_pages}")
+
+    markup = _inline_kb(buttons) if buttons else None
+
+    if message_id:
+        _edit(chat_id, message_id, "\n".join(lines), markup)
+    else:
+        _send(chat_id, "\n".join(lines), markup)
+
+
+def _esc(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _fmt_date(iso: str) -> str:
+    try:
+        dt = datetime.fromisoformat(iso)
+        return dt.strftime("%d %b %Y %H:%M")
+    except ValueError:
+        return iso
+
+
 # ── Admin commands ──────────────────────────────────────────────────────────
 
 def _is_admin(chat_id: int, config: dict) -> bool:
@@ -303,7 +442,7 @@ def _is_admin(chat_id: int, config: dict) -> bool:
     return admin_id is not None and int(admin_id) == chat_id
 
 
-def _handle_admin_cmd(cmd: str, chat_id: int, config: dict) -> None:
+def _handle_admin_cmd(cmd: str, text: str, chat_id: int, config: dict) -> None:
     if cmd == "/status":
         _admin_status(chat_id)
     elif cmd == "/alerts":
@@ -312,6 +451,10 @@ def _handle_admin_cmd(cmd: str, chat_id: int, config: dict) -> None:
         _admin_visits(chat_id, config)
     elif cmd == "/poll":
         _admin_poll(chat_id, config)
+    elif cmd == "/ban":
+        _admin_ban(chat_id, text)
+    elif cmd == "/unban":
+        _admin_unban(chat_id, text)
 
 
 def _admin_status(chat_id: int) -> None:
@@ -476,6 +619,51 @@ def _admin_poll(chat_id: int, config: dict) -> None:
         _send(chat_id, f"❌ Poll error: {e}")
 
 
+def _admin_ban(chat_id: int, text: str) -> None:
+    parts = text.split()
+    if len(parts) < 2:
+        banned = _get_banned()
+        if banned:
+            _send(chat_id, f"<b>Banned IDs:</b>\n" + "\n".join(str(i) for i in sorted(banned)))
+        else:
+            _send(chat_id, "No banned users.\n\nUsage: <code>/ban 123456789</code>")
+        return
+    try:
+        target = int(parts[1])
+    except ValueError:
+        _send(chat_id, "Invalid chat_id. Usage: <code>/ban 123456789</code>")
+        return
+    banned = _get_banned()
+    if target in banned:
+        _send(chat_id, f"chat_id {target} is already banned.")
+        return
+    banned.add(target)
+    _set_banned(banned)
+    log.info("Admin banned chat_id=%d", target)
+    _send(chat_id, f"✅ Banned chat_id {target}")
+
+
+def _admin_unban(chat_id: int, text: str) -> None:
+    parts = text.split()
+    if len(parts) < 2:
+        _send(chat_id, "Usage: <code>/unban 123456789</code>")
+        return
+    try:
+        target = int(parts[1])
+    except ValueError:
+        _send(chat_id, "Invalid chat_id. Usage: <code>/unban 123456789</code>")
+        return
+    banned = _get_banned()
+    if target not in banned:
+        _send(chat_id, f"chat_id {target} is not banned.")
+        return
+    banned.discard(target)
+    _set_banned(banned)
+    _ban_notified.discard(target)
+    log.info("Admin unbanned chat_id=%d", target)
+    _send(chat_id, f"✅ Unbanned chat_id {target}")
+
+
 # ── Callback handler ────────────────────────────────────────────────────────
 
 def _handle_callback(cq: dict, config: dict) -> None:
@@ -483,6 +671,10 @@ def _handle_callback(cq: dict, config: dict) -> None:
     chat_id = cq["message"]["chat"]["id"]
     message_id = cq["message"]["message_id"]
     cq_id = cq["id"]
+
+    if data.startswith("sr:"):
+        _cb_search(chat_id, message_id, cq_id, data)
+        return
 
     sub = get_subscriber_by_chat_id(chat_id)
     if not sub or not sub.get("conversation_state"):
@@ -511,6 +703,24 @@ def _handle_callback(cq: dict, config: dict) -> None:
         _cb_quiet_hours(chat_id, message_id, cq_id, data, prefs, state)
     else:
         _answer_cb(cq_id)
+
+
+def _cb_search(chat_id: int, message_id: int, cq_id: str, data: str) -> None:
+    _answer_cb(cq_id)
+    parts = data.split(":", 2)
+    if len(parts) < 3:
+        return
+    try:
+        offset = int(parts[1])
+    except ValueError:
+        return
+    query = parts[2]
+    results = search_active_alerts(query)
+    if not results:
+        _edit(chat_id, message_id, f"🔍 No active alerts matching <b>{_esc(query)}</b>.\n\nThat's good news! 🎉")
+        return
+    offset = max(0, min(offset, len(results) - 1))
+    _send_search_page(chat_id, results, query, offset, message_id=message_id)
 
 
 # ── Text input handler (for RMV line entry) ────────────────────────────────

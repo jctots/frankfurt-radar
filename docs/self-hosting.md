@@ -237,7 +237,7 @@ curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 ### 3️⃣ Set the admin chat ID
 
-Admin commands (`/status`, `/alerts`, `/visits`, `/poll`) are gated by chat ID:
+Admin commands (`/status`, `/alerts`, `/visits`, `/poll`, `/ban`, `/unban`) are gated by chat ID:
 
 ```yaml
 admin_health_notifier:

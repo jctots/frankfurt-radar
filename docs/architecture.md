@@ -18,9 +18,12 @@ Frankfurt Radar runs as three independently deployable containers — a **poller
 │  │  ├── notifications.py │  │  ├── /help        │  │  GET /legal        │  │
 │  │  └── db.py (write)    │  │  ├── /stop        │  │  GET /privacy      │  │
 │  │                       │  │  ├── /deletedata  │  │  GET /security     │  │
+│  │                       │  │  ├── /search      │  │                    │  │
 │  │                       │  │  ├── /status (a)  │  │                    │  │
 │  │                       │  │  ├── /alerts (a)  │  │  db.py (read)      │  │
 │  │                       │  │  ├── /visits (a)  │  │                    │  │
+│  │                       │  │  ├── /ban    (a)  │  │                    │  │
+│  │                       │  │  ├── /unban  (a)  │  │                    │  │
 │  │                       │  │  └── /poll   (a)  │  │                    │  │
 │  └──────────┬────────────┘  └────────┬─────────┘  └─────────┬──────────┘  │
 │             │                        │                      │              │

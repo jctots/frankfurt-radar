@@ -558,3 +558,22 @@ def get_all_active_alerts() -> list[dict]:
             "SELECT * FROM alert_cache WHERE removed_at IS NULL ORDER BY cached_at"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def search_active_alerts(query: str) -> list[dict]:
+    """Token-based search across active alerts — matches title_en, body_en, service, location_label."""
+    tokens = query.lower().split()
+    if not tokens:
+        return []
+    all_alerts = get_all_active_alerts()
+    results = []
+    for row in all_alerts:
+        hay = " ".join(
+            (row.get("title_en") or "", row.get("body_en") or "",
+             row.get("service") or "", row.get("location_label") or "")
+        ).lower()
+        if all(t in hay for t in tokens):
+            results.append(row)
+    sev_order = {4: 0, 3: 1, 2: 2, 1: 3}
+    results.sort(key=lambda r: (sev_order.get(r.get("severity") or 0, 4), r.get("cached_at") or ""), reverse=False)
+    return results
