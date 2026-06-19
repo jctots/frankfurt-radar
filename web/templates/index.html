@@ -432,6 +432,7 @@
     }
 
     .card {
+      position: relative;
       padding: 10px 14px;
       border-bottom: 1px solid var(--clr-border);
       border-left: 3px solid transparent;
@@ -448,6 +449,7 @@
     .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
     .card.card-pinned.src-sports { background: #fff7ed; }
+    .pin-badge { position: absolute; top: 4px; right: 6px; font-size: 12px; opacity: 0.45; line-height: 1; pointer-events: none; }
     .card:hover              { background: #f8fafc; }
     .card.src-rmv:hover      { background: #eff6ff; }
     .card.src-dwd:hover      { background: #ede9fe; }
@@ -1949,8 +1951,9 @@ function _renderCard(a, opts = {}) {
 
   const icon = alertIconHtml(a);
   const pinnedCls = opts.pinned ? ' card-pinned' : '';
+  const pinBadge = opts.pinned ? '<span class="pin-badge">📌</span>' : '';
   return `<div class="card src-${a.source}${pinnedCls}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
-  <div class="card-inner">
+  ${pinBadge}<div class="card-inner">
     <span class="card-icon">${icon}</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
