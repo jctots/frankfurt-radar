@@ -20,8 +20,6 @@ env_block = "\n".join([
 job_block = "\n".join([
     "# Dispatch new alerts every 2 minutes",
     "*/2 * * * * root cd /app && python -m notifier.main --mode poll >> /proc/1/fd/1 2>&1",
-    "# Daily summary at 07:00 CET",
-    "0 7 * * * root cd /app && python -m notifier.main --mode daily >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 

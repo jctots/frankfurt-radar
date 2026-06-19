@@ -118,6 +118,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE subscribers ADD COLUMN conversation_state TEXT")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN last_briefing_at TEXT")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -401,7 +405,7 @@ def remove_subscriber(chat_id: int) -> bool:
 def get_active_subscribers() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, chat_id, preferences FROM subscribers WHERE active = 1"
+            "SELECT id, chat_id, preferences, last_briefing_at FROM subscribers WHERE active = 1"
         ).fetchall()
     result = []
     for row in rows:
@@ -409,6 +413,26 @@ def get_active_subscribers() -> list[dict]:
         r["preferences"] = json.loads(r["preferences"])
         result.append(r)
     return result
+
+
+def update_last_briefing(subscriber_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET last_briefing_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            (subscriber_id,),
+        )
+
+
+def get_future_alerts() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM alert_cache
+               WHERE removed_at IS NULL
+                 AND valid_from IS NOT NULL
+                 AND valid_from > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+               ORDER BY valid_from""",
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_subscriber_counts() -> dict:
@@ -427,7 +451,7 @@ def deactivate_subscriber(chat_id: int) -> None:
 def get_subscriber_by_chat_id(chat_id: int) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute(
-            "SELECT id, chat_id, preferences, active, conversation_state FROM subscribers WHERE chat_id = ?",
+            "SELECT id, chat_id, preferences, active, conversation_state, last_briefing_at FROM subscribers WHERE chat_id = ?",
             (chat_id,),
         ).fetchone()
     if not row:

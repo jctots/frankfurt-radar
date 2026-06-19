@@ -8,7 +8,7 @@ import yaml
 from dotenv import load_dotenv
 
 from db import init_db
-from notifier.dispatcher import dispatch_daily_summary, dispatch_new_alerts
+from notifier.dispatcher import dispatch_new_alerts
 from notifier.health import check_and_notify_health
 from notifier.subscriber_dispatch import flush_quiet_buffers
 
@@ -31,18 +31,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="frankfurt-radar notifier")
     parser.add_argument(
         "--mode",
-        choices=["poll", "daily", "webhook"],
+        choices=["poll", "webhook"],
         default="poll",
-        help="poll: dispatch new alerts + health check; daily: grouped morning summary; webhook: bot HTTP server",
+        help="poll: dispatch new alerts + health check; webhook: bot HTTP server",
     )
     args = parser.parse_args()
 
     init_db()
     config = load_config()
 
-    if args.mode == "daily":
-        dispatch_daily_summary(config)
-    elif args.mode == "webhook":
+    if args.mode == "webhook":
         from notifier.bot import run_webhook
         run_webhook(config, port=int(os.environ.get("WEBHOOK_PORT", "8443")))
     else:

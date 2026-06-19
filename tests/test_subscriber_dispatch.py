@@ -149,7 +149,7 @@ class TestDispatchToSubscribers:
 
 
 class TestFlushQuietBuffers:
-    def test_flush_sends_briefing(self, mocker, config):
+    def test_briefing_with_missed_alerts(self, mocker, config):
         mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
         prefs = default_preferences()
         prefs["quiet_hours"]["enabled"] = True
@@ -166,9 +166,12 @@ class TestFlushQuietBuffers:
 
         count = flush_quiet_buffers(config)
 
-        assert count == 2
+        assert count == 1
         mock_dm.assert_called_once()
-        assert "while you were away" in mock_dm.call_args.kwargs["title"].lower()
+        assert "morning briefing" in mock_dm.call_args.kwargs["title"].lower()
+        body = mock_dm.call_args.kwargs["body"]
+        assert "S-Bahn delay" in body
+        assert "Storm warning" in body
 
     def test_still_in_quiet_hours_no_flush(self, mocker, config):
         mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
@@ -194,7 +197,7 @@ class TestFlushQuietBuffers:
         assert count == 0
         mock_dm.assert_not_called()
 
-    def test_empty_buffer_no_dm(self, mocker, config):
+    def test_empty_buffer_still_sends_briefing(self, mocker, config):
         mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
         prefs = default_preferences()
         prefs["quiet_hours"]["enabled"] = True
@@ -206,8 +209,10 @@ class TestFlushQuietBuffers:
 
         count = flush_quiet_buffers(config)
 
-        assert count == 0
-        mock_dm.assert_not_called()
+        assert count == 1
+        mock_dm.assert_called_once()
+        body = mock_dm.call_args.kwargs["body"]
+        assert "No alerts matching your filters" in body
 
     def test_blocked_on_flush_deactivates(self, mocker, config):
         mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=False)
@@ -215,10 +220,7 @@ class TestFlushQuietBuffers:
         prefs["quiet_hours"]["enabled"] = True
         prefs["quiet_hours"]["start"] = "22:00"
         prefs["quiet_hours"]["end"] = "07:00"
-        sub = _make_subscriber(304, prefs)
-
-        _insert_alert("B4", source="rmv", title="Delay")
-        db.buffer_quiet_alert(sub["id"], "B4")
+        _make_subscriber(304, prefs)
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
 
@@ -262,3 +264,77 @@ class TestFlushQuietBuffers:
 
         remaining = db.flush_quiet_buffer(sub["id"])
         assert remaining == []
+
+    def test_briefing_not_resent_same_day(self, mocker, config):
+        mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
+        prefs = default_preferences()
+        prefs["quiet_hours"]["enabled"] = True
+        prefs["quiet_hours"]["start"] = "22:00"
+        prefs["quiet_hours"]["end"] = "07:00"
+        _make_subscriber(307, prefs)
+
+        mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+
+        flush_quiet_buffers(config)
+        assert mock_dm.call_count == 1
+
+        flush_quiet_buffers(config)
+        assert mock_dm.call_count == 1
+
+    def test_briefing_includes_upcoming_events(self, mocker, config):
+        mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
+        prefs = default_preferences()
+        prefs["quiet_hours"]["enabled"] = True
+        prefs["quiet_hours"]["start"] = "22:00"
+        prefs["quiet_hours"]["end"] = "07:00"
+        _make_subscriber(308, prefs)
+
+        future = "2099-12-31T18:00:00Z"
+        _insert_alert("F1", source="events", title="Frankfurt Marathon")
+        with db._conn() as conn:
+            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (future,))
+
+        mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+
+        flush_quiet_buffers(config)
+
+        body = mock_dm.call_args.kwargs["body"]
+        assert "Frankfurt Marathon" in body
+        assert "Upcoming Events" in body
+
+    def test_upcoming_filtered_by_preferences(self, mocker, config):
+        mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
+        prefs = default_preferences()
+        prefs["quiet_hours"]["enabled"] = True
+        prefs["quiet_hours"]["start"] = "22:00"
+        prefs["quiet_hours"]["end"] = "07:00"
+        prefs["sources"]["events"]["enabled"] = False
+        _make_subscriber(309, prefs)
+
+        future = "2099-12-31T18:00:00Z"
+        _insert_alert("F2", source="events", title="Concert")
+        with db._conn() as conn:
+            conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F2'", (future,))
+
+        mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+
+        flush_quiet_buffers(config)
+
+        body = mock_dm.call_args.kwargs["body"]
+        assert "Concert" not in body
+        assert "No upcoming events" in body
+
+    def test_last_briefing_at_updated(self, mocker, config):
+        mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
+        prefs = default_preferences()
+        prefs["quiet_hours"]["enabled"] = True
+        prefs["quiet_hours"]["start"] = "22:00"
+        prefs["quiet_hours"]["end"] = "07:00"
+        sub = _make_subscriber(310, prefs)
+
+        mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+
+        flush_quiet_buffers(config)
+
+        updated = db.get_subscriber_by_chat_id(310)
+        assert updated["last_briefing_at"] is not None

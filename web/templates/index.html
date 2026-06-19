@@ -615,10 +615,12 @@
     #radar-hud {
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
       z-index: 1000; background: rgba(255,255,255,0.93); color: #1e293b;
-      border-radius: 10px; padding: 10px 16px; min-width: 320px; max-width: 80%;
+      border-radius: 10px; padding: 6px 12px; min-width: 320px; max-width: 80%;
       border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.10); pointer-events: auto;
     }
     .dark #radar-hud { background: rgba(19,25,33,0.92); color: #d1d5db; border-color: #2a3344; box-shadow: none; }
+    #hud-title { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; margin-bottom: 6px; }
+    .dark #hud-title { color: #3a4456; }
     #hud-section-labels { display: flex; font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
     .dark #hud-section-labels { color: #3a4456; }
     #lbl-obs { flex: 18; text-align: center; border-right: 1px solid #cbd5e1; padding-right: 4px; }
@@ -1402,6 +1404,7 @@ function initMap() {
   hudEl.id = 'radar-hud';
   hudEl.style.display = 'none';
   hudEl.innerHTML =
+    '<div id="hud-title">Precipitation Radar</div>' +
     '<div id="hud-section-labels"><span id="lbl-obs">Observation</span><span id="lbl-fc">Forecast</span></div>' +
     '<div class="radar-dots" id="radar-dots"></div>' +
     '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>';

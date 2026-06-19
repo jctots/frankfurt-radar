@@ -9,8 +9,10 @@ from db import (
     flush_quiet_buffer,
     get_active_subscribers,
     get_alerts_since,
+    get_future_alerts,
     get_unsent_for_subscriber,
     record_sent_alert,
+    update_last_briefing,
 )
 from notifications import notify_subscriber_dm
 from notifier.preferences import is_quiet_hours, matches_preferences
@@ -63,37 +65,30 @@ def flush_quiet_buffers(config: dict) -> int:
     if not subscribers:
         return 0
 
-    total_flushed = 0
+    total_sent = 0
     for sub in subscribers:
         prefs = sub["preferences"]
-        if is_quiet_hours(prefs):
-            continue
-
         qh = prefs.get("quiet_hours", {})
         if not qh.get("enabled", False):
             continue
-
-        buffered_ids = flush_quiet_buffer(sub["id"])
-        if not buffered_ids:
+        if is_quiet_hours(prefs):
             continue
-
-        alert_rows = _get_buffered_alerts(buffered_ids)
-        if not alert_rows:
+        if _briefing_already_sent(sub, qh):
             continue
-
-        grouped: dict[str, list[dict]] = {}
-        for row in alert_rows:
-            grouped.setdefault(row["source"], []).append(row)
 
         sections = []
-        for source, rows in grouped.items():
-            titles = [f"• {r['title_en']}" for r in rows]
-            sections.append("\n".join(titles))
+
+        buffered_ids = flush_quiet_buffer(sub["id"])
+        missed_rows = _get_buffered_alerts(buffered_ids) if buffered_ids else []
+        sections.append(_fmt_missed_section(missed_rows, qh))
+
+        future_rows = [r for r in get_future_alerts() if matches_preferences(r, prefs)]
+        sections.append(_fmt_upcoming_section(future_rows))
 
         body = "\n\n".join(sections)
         ok = notify_subscriber_dm(
             chat_id=sub["chat_id"],
-            title="Alerts while you were away",
+            title="\U0001f305 Morning Briefing",
             body=body,
             url=None,
             config=config,
@@ -104,11 +99,62 @@ def flush_quiet_buffers(config: dict) -> int:
 
         for aid in buffered_ids:
             record_sent_alert(sub["id"], aid)
-        total_flushed += len(buffered_ids)
+        update_last_briefing(sub["id"])
+        total_sent += 1
 
-    if total_flushed:
-        log.info("Quiet buffer flush: %d alerts sent as briefings", total_flushed)
-    return total_flushed
+    if total_sent:
+        log.info("Morning briefings sent to %d subscribers", total_sent)
+    return total_sent
+
+
+def _briefing_already_sent(sub: dict, qh: dict) -> bool:
+    last = sub.get("last_briefing_at")
+    if not last:
+        return False
+    tz_name = qh.get("timezone", "Europe/Berlin")
+    tz = ZoneInfo(tz_name)
+    last_dt = datetime.fromisoformat(last).astimezone(tz)
+    now_local = datetime.now(tz)
+    end_minutes = _parse_time_minutes(qh.get("end", "07:00"))
+    today_end = now_local.replace(
+        hour=end_minutes // 60, minute=end_minutes % 60, second=0, microsecond=0,
+    )
+    return last_dt >= today_end
+
+
+def _parse_time_minutes(t: str) -> int:
+    parts = t.split(":")
+    return int(parts[0]) * 60 + int(parts[1])
+
+
+def _fmt_missed_section(rows: list[dict], qh: dict) -> str:
+    start = qh.get("start", "22:00")
+    end = qh.get("end", "07:00")
+    header = f"\U0001f4ec Missed Alerts ({start}–{end})"
+    if not rows:
+        return f"{header}\nNo alerts matching your filters during quiet hours."
+    lines = [f"• {r['title_en']}" for r in rows]
+    return f"{header}\n" + "\n".join(lines)
+
+
+def _fmt_upcoming_section(rows: list[dict]) -> str:
+    header = "\U0001f4c5 Upcoming Events"
+    if not rows:
+        return f"{header}\nNo upcoming events matching your filters."
+    lines = []
+    for r in rows:
+        title = r["title_en"]
+        vf = r.get("valid_from")
+        if vf:
+            try:
+                dt = datetime.fromisoformat(vf)
+                date_str = f"{dt.day} {dt.strftime('%b')} {dt.strftime('%H:%M')}"
+                lines.append(f"• {title} — {date_str}")
+            except ValueError:
+                lines.append(f"• {title}")
+        else:
+            lines.append(f"• {title}")
+    return f"{header}\n" + "\n".join(lines)
 
 
 def _get_buffered_alerts(alert_ids: list[str]) -> list[dict]:
