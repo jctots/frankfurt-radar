@@ -439,12 +439,15 @@
       transition: background 0.1s;
     }
     .card.src-rmv        { border-left-color: var(--clr-transport); }
-    .card.src-dwd        { background: #f5f3ff; border-left-color: var(--clr-weather); }
+    .card.src-dwd        { border-left-color: var(--clr-weather); }
     .card.src-polizei    { border-left-color: var(--clr-police); }
     .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .card.src-baustellen { border-left-color: var(--clr-roads); }
-    .card.src-events     { background: #ecfdf5; border-left-color: var(--clr-events); }
-    .card.src-sports     { background: #fff7ed; border-left-color: var(--clr-sports); }
+    .card.src-events     { border-left-color: var(--clr-events); }
+    .card.src-sports     { border-left-color: var(--clr-sports); }
+    .card.card-pinned.src-dwd    { background: #f5f3ff; }
+    .card.card-pinned.src-events { background: #ecfdf5; }
+    .card.card-pinned.src-sports { background: #fff7ed; }
     .card:hover              { background: #f8fafc; }
     .card.src-rmv:hover      { background: #eff6ff; }
     .card.src-dwd:hover      { background: #ede9fe; }
@@ -1931,7 +1934,8 @@ function _renderCard(a, opts = {}) {
     : dateLine;
 
   const icon = alertIconHtml(a);
-  return `<div class="card src-${a.source}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
+  const pinnedCls = opts.pinned ? ' card-pinned' : '';
+  return `<div class="card src-${a.source}${pinnedCls}" data-id="${esc(a.id)}" onclick="selectAlert('${esc(a.id)}')">
   <div class="card-inner">
     <span class="card-icon">${icon}</span>
     <div class="card-body">
@@ -1971,8 +1975,10 @@ function renderFeed() {
   const recentAll = visible();
   const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
   const _pinnableSrc = s => s === 'events' || s === 'sports' || s === 'dwd';
-  const pinned  = recent.filter(a => _pinnableSrc(a.source) && !isFuture(a));
-  const regular = recent.filter(a => !_pinnableSrc(a.source) || isFuture(a));
+  const _isToday = a => a.valid_from && new Date(a.valid_from).toDateString() === new Date().toDateString();
+  const _shouldPin = a => _pinnableSrc(a.source) && (!isFuture(a) || _isToday(a));
+  const pinned  = recent.filter(_shouldPin);
+  const regular = recent.filter(a => !_shouldPin(a));
   const longList = showLongRunning ? _sortByDate(visibleLongRunning(), 'published_at') : [];
 
   document.getElementById('feed-count').textContent = (recent.length + longList.length) || '0';
