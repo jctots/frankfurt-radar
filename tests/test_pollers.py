@@ -255,7 +255,7 @@ class TestAutobahnPoller:
         assert alerts[0].valid_until is not None
         assert "2026-06-08" in alerts[0].valid_until
 
-    def test_published_at_is_set_to_poll_time(self, mocker):
+    def test_published_at_is_none_from_poller(self, mocker):
         from pollers import AutobahnPoller
         fixture = json.loads((FIXTURES_DIR / "autobahn_warning.json").read_text())
         resp_warn = _mock_response(fixture)
@@ -264,7 +264,7 @@ class TestAutobahnPoller:
         mocker.patch("pollers.requests.get", side_effect=[resp_warn, resp_empty])
 
         alert = AutobahnPoller(roads=["A5"]).fetch()[0]
-        assert alert.published_at is not None
+        assert alert.published_at is None
 
     def test_bis_zum_format_fallback(self, mocker):
         from pollers import AutobahnPoller
@@ -288,7 +288,7 @@ class TestAutobahnPoller:
         mocker.patch("pollers.requests.get", side_effect=[resp, resp_empty])
 
         alert = AutobahnPoller(roads=["A3"]).fetch()[0]
-        assert alert.published_at is not None
+        assert alert.published_at is None
         assert alert.valid_until is not None
         assert "2026-06-18" in alert.valid_until
 
