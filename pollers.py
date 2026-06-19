@@ -317,7 +317,7 @@ class DWDPoller(BasePoller):
                 title=title,
                 body=body,
                 url=None,
-                published_at=w.get("published") or datetime.now(timezone.utc).isoformat(),
+                published_at=w.get("published"),
                 valid_from=w.get("onset"),
                 valid_until=w.get("expires"),
                 service=None,
@@ -402,7 +402,7 @@ class AutobahnPoller(BasePoller):
                     valid_from = bis_from
             if not valid_from and not valid_until:
                 valid_from, valid_until = _parse_autobahn_von_bis(desc)
-            published_at = datetime.now(timezone.utc).isoformat()
+            published_at = None
 
             alerts.append(Alert(
                 id=alert_id,

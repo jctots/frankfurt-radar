@@ -221,13 +221,16 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             ))
         else:
             cached_image, cached_stale, cached_valid_until, cached_valid_from, cached_published = cached[alert.id]
+            published_changed = (alert.published_at is not None
+                                 and cached_published != alert.published_at)
             if (cached_valid_until != alert.valid_until
                     or cached_valid_from != alert.valid_from
-                    or cached_published != alert.published_at):
+                    or published_changed):
                 en_title, en_body = translate_alert(alert, config)
+                effective_published = alert.published_at if alert.published_at is not None else cached_published
                 to_update_content.append((
                     en_title, en_body, alert.url, alert.valid_until,
-                    alert.valid_from, alert.published_at, alert.image, stale_int, alert.icon,
+                    alert.valid_from, effective_published, alert.image, stale_int, alert.icon,
                     alert.id,
                 ))
                 log.info("alert_cache: updated %s (content changed)", alert.id)
@@ -244,7 +247,9 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
                     lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, icon, cached_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+                           COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                           ?, ?, ?, ?, ?, ?, ?, ?,
                            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
                 to_insert,
             )
