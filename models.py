@@ -81,6 +81,16 @@ def _fmt_alert_status(row: dict) -> str:
     now = datetime.now(timezone.utc)
     diff = (target - now).total_seconds()
     if diff <= 0:
+        from zoneinfo import ZoneInfo
+        valid_until = row.get("valid_until")
+        if valid_until:
+            try:
+                end = datetime.fromisoformat(valid_until)
+                end_local = end.astimezone(ZoneInfo("Europe/Berlin"))
+                end_str = f"{end_local.day} {end_local.strftime('%b %H:%M')}"
+                return f"\U0001f7e2 Ongoing (ends {end_str})"
+            except ValueError:
+                pass
         return "\U0001f7e2 Ongoing"
 
     from zoneinfo import ZoneInfo
