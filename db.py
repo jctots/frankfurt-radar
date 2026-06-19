@@ -262,9 +262,9 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 to_update_content,
             )
             updated_ids = [row[-1] for row in to_update_content]
-            ph = ",".join("?" * len(updated_ids))
+            uph = ",".join("?" * len(updated_ids))
             conn.execute(
-                f"DELETE FROM sent_alerts WHERE alert_id IN ({ph})",
+                f"DELETE FROM sent_alerts WHERE alert_id IN ({uph})",
                 updated_ids,
             )
         if to_update_stale:
