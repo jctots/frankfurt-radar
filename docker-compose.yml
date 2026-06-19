@@ -10,8 +10,6 @@ services:
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
     volumes:
       - radar_data:/app/data
-    depends_on:
-      - ntfy
     restart: unless-stopped
     deploy:
       resources:
@@ -66,12 +64,31 @@ services:
 
   ntfy:
     image: binwiederhier/ntfy:latest
+    profiles: [ntfy]
     init: true
     ports:
       - "80:80"
     volumes:
       - ntfy_data:/var/lib/ntfy
     restart: unless-stopped
+
+  mcp:
+    image: ghcr.io/jctots/frankfurt-radar-mcp:${RADAR_TAG:-latest}
+    container_name: frankfurt-radar-mcp
+    profiles: [mcp]
+    init: true
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - radar_data:/app/data
+    ports:
+      - "${MCP_PORT:-8811}:8811"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
 
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest

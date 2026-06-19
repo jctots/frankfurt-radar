@@ -34,6 +34,7 @@ Optional services (enabled via Docker Compose profiles):
 |---------|---------|------|
 | **ntfy** | `ntfy` | Push notifications via [ntfy.sh](https://ntfy.sh) |
 | **umami** + **umami-db** | `analytics` | Self-hosted, cookie-free usage analytics |
+| **mcp** | `mcp` | MCP server for AI assistant integration (Claude Code, etc.) |
 
 Enable profiles:
 
@@ -55,6 +56,7 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `TICKETMASTER_API_KEY` | No | Ticketmaster Discovery API key (for Deutsche Bank Park events) |
 | `STADIA_API_KEY` | No | Stadia Maps API key (dark mode map tiles) |
 | `RADAR_TAG` | No | Container image tag for version pinning |
+| `MCP_PORT` | No | Host port for MCP server (default: 8811) |
 
 Analytics profile variables (only needed with `--profile analytics`):
 
@@ -247,6 +249,55 @@ admin_health_notifier:
 Find your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
 
 See [docs/telegram-bot-setup.md](telegram-bot-setup.md) for the full deployment guide.
+
+## 🤖 MCP server (AI integration)
+
+The MCP server exposes Frankfurt Radar alerts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/). It provides read-only access to active alerts, search, and system status.
+
+**Add to the full stack:**
+
+```bash
+docker compose --profile mcp up -d
+```
+
+**AI-only deployment** (poller + MCP server, no web/Telegram/ntfy):
+
+```bash
+docker compose up -d poller mcp
+```
+
+**MCP-only** (if you already have a `radar.db` from another source):
+
+```bash
+docker compose up -d mcp
+```
+
+Configure your MCP client (e.g. Claude Code) to connect via SSE:
+
+```json
+{
+  "mcpServers": {
+    "frankfurt-radar": {
+      "type": "sse",
+      "url": "http://<host>:8811/sse"
+    }
+  }
+}
+```
+
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `get_active_alerts` | List active alerts, optionally filtered by source |
+| `search_alerts` | Keyword search across alert fields |
+| `get_alert_details` | Full details for a single alert by ID |
+| `get_system_status` | Last poll time, source health, alert counts |
+| `get_alert_stats` | Summary statistics by source and severity |
+
+The MCP server requires no API keys -- it reads from the shared database populated by the poller.
+
+**Timestamps:** The server returns all timestamps in UTC. MCP clients should convert to `Europe/Berlin` (CET/CEST) for display. The web and notifier containers handle their own UTC-to-Frankfurt conversion independently.
 
 ## ➕ Adding a new alert source
 

@@ -97,7 +97,7 @@ DWD weather warnings arrive pre-translated from BrightSky and skip the translati
 
 ## 🏗️ Architecture
 
-Frankfurt Radar runs as three Docker containers sharing a SQLite database via a named volume.
+Frankfurt Radar runs as Docker containers sharing a SQLite database via a named volume. An optional MCP server provides AI assistant integration.
 
 ```
 poller (cron)              notifier (webhook)        web (Flask/gunicorn)
@@ -120,7 +120,7 @@ main.py                    bot.py                    app.py
   (Google / LibreTranslate)
 ```
 
-The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys.
+The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The optional MCP server (enabled with `--profile mcp`) exposes alerts to AI assistants like Claude Code via SSE.
 
 See [docs/architecture.md](docs/architecture.md) for the full technical breakdown: database schema, alert pipeline, data flow, and configuration system.
 
