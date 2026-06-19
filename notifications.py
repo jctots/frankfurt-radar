@@ -12,22 +12,32 @@ log = logging.getLogger(__name__)
 _TG_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
-def notify(title: str, body: str, url: Optional[str], config: dict, source: str = "") -> None:
+def _map_link(config: dict, alert_id: str) -> str:
+    site_url = (config.get("web", {}).get("site_url") or "").rstrip("/")
+    if site_url and alert_id:
+        return f'{site_url}/alert/{alert_id}'
+    return ""
+
+
+def notify(title: str, body: str, url: Optional[str], config: dict, source: str = "", alert_id: str = "") -> None:
     backend = config.get("notifier", {}).get("backend", "ntfy").lower()
     if backend == "ntfy":
-        _notify_ntfy(title, body, url, config)
+        _notify_ntfy(title, body, url, config, alert_id=alert_id)
     elif backend == "telegram":
-        _notify_telegram_channel(title, body, url, config, source)
+        _notify_telegram_channel(title, body, url, config, source, alert_id=alert_id)
     else:
         log.warning("Unknown notifier backend '%s'", backend)
 
 
-def _notify_ntfy(title: str, body: str, url: Optional[str], config: dict) -> None:
+def _notify_ntfy(title: str, body: str, url: Optional[str], config: dict, alert_id: str = "") -> None:
     ntfy_cfg = config.get("notifier", {})
     ntfy_url = ntfy_cfg.get("ntfy_url", "http://ntfy:80").rstrip("/")
     topic = ntfy_cfg.get("ntfy_topic", "rmv-disruptions")
+    map_url = _map_link(config, alert_id)
     payload: dict = {"topic": topic, "title": title, "message": body}
-    if url:
+    if map_url:
+        payload["click"] = map_url
+    elif url:
         payload["click"] = url
     try:
         resp = requests.post(ntfy_url, json=payload, timeout=10)
@@ -37,7 +47,7 @@ def _notify_ntfy(title: str, body: str, url: Optional[str], config: dict) -> Non
         log.error("ntfy send failed: %s", e)
 
 
-def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: dict, source: str = "") -> None:
+def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: dict, source: str = "", alert_id: str = "") -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     channel = config.get("notifier", {}).get("telegram_channel", "")
     if not token or not channel:
@@ -48,9 +58,15 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
     if body:
         truncated = body[:800] + ("…" if len(body) > 800 else "")
         parts.append(html_lib.escape(truncated))
+    links = []
     link = url or SOURCE_URL.get(source, "")
     if link:
-        parts.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
+        links.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
+    map_url = _map_link(config, alert_id)
+    if map_url:
+        links.append(f'<a href="{html_lib.escape(map_url)}">View on map 🗺️</a>')
+    if links:
+        parts.append(" · ".join(links))
 
     try:
         resp = requests.post(
@@ -69,7 +85,7 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
         log.error("Telegram send failed: %s", e)
 
 
-def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, config: dict, source: str = "") -> bool:
+def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, config: dict, source: str = "", alert_id: str = "") -> bool:
     """Send a DM to an individual subscriber. Returns False on 403 (blocked)."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -80,9 +96,15 @@ def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, c
     if body:
         truncated = body[:800] + ("…" if len(body) > 800 else "")
         parts.append(html_lib.escape(truncated))
+    links = []
     link = url or SOURCE_URL.get(source, "")
     if link:
-        parts.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
+        links.append(f'<a href="{html_lib.escape(link)}">Details ↗</a>')
+    map_url = _map_link(config, alert_id)
+    if map_url:
+        links.append(f'<a href="{html_lib.escape(map_url)}">View on map 🗺️</a>')
+    if links:
+        parts.append(" · ".join(links))
 
     try:
         resp = requests.post(

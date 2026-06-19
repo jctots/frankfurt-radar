@@ -208,5 +208,12 @@ def _allow_manual_poll() -> bool:
     return bool(web.get("allow_manual_poll", False))
 
 
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "not found"}), 404
+    return render_template("404.html"), 404
+
+
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)
