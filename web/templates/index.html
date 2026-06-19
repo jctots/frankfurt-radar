@@ -1970,8 +1970,9 @@ function renderFeed() {
   // ── Active Alerts (recent + optional long-running, optional future hidden) ──
   const recentAll = visible();
   const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
-  const pinned  = recent.filter(a => a.source === 'events' || a.source === 'sports' || a.source === 'dwd');
-  const regular = recent.filter(a => a.source !== 'events' && a.source !== 'sports' && a.source !== 'dwd');
+  const _pinnableSrc = s => s === 'events' || s === 'sports' || s === 'dwd';
+  const pinned  = recent.filter(a => _pinnableSrc(a.source) && !isFuture(a));
+  const regular = recent.filter(a => !_pinnableSrc(a.source) || isFuture(a));
   const longList = showLongRunning ? _sortByDate(visibleLongRunning(), 'published_at') : [];
 
   document.getElementById('feed-count').textContent = (recent.length + longList.length) || '0';
