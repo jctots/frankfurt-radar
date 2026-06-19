@@ -1310,6 +1310,7 @@ let inRadarView  = false;
 let radarHiddenMarkers = [];
 let policeCircles = {}; // id → L.Circle, shown when police marker is expanded
 let seenIds        = new Set(JSON.parse(localStorage.getItem('fr_seen') || '[]'));
+let _contentKeys   = {}; // id → fingerprint string for content-change detection
 let _initialLoad   = true;
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
@@ -1520,15 +1521,19 @@ function renderMarkers() {
     }
   });
 
-  // Add markers for newly visible alerts (events/sports need coords)
+  // Add or update markers for visible alerts
   list.forEach(a => {
     if ((a.source === 'events' || a.source === 'sports') && (a.lat == null || a.lon == null)) return;
-    if (markers[a.id]) return;
+    if (markers[a.id]) {
+      const m = markers[a.id];
+      if (m.getPopup()) m.setPopupContent(buildPopupHtml(a));
+      if (policeCircles[a.id]?.getPopup()) policeCircles[a.id].setPopupContent(buildPopupHtml(a));
+      return;
+    }
     if (policeCircles[a.id]) return; // circle is showing — marker was temporarily removed
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a) });
     if (a.source === 'polizei') {
-      // Police: clicking replaces the pin with an area circle to show location is approximate
       m.on('click', () => selectAlert(a.id, true));
     } else {
       m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
@@ -1716,9 +1721,17 @@ function applyData(data) {
   alerts = data.alerts || [];
   removedAlerts = data.removed_alerts || [];
 
-  alerts.filter(a => !seenIds.has(a.id)).forEach(a => {
-    seenIds.add(a.id);
-    if (!_initialLoad && !a.stale) fireNotification(a);
+  const changedIds = [];
+  alerts.forEach(a => {
+    const key = contentKey(a);
+    if (!seenIds.has(a.id)) {
+      seenIds.add(a.id);
+      if (!_initialLoad && !a.stale) fireNotification(a);
+    } else if (_contentKeys[a.id] && _contentKeys[a.id] !== key) {
+      if (!_initialLoad && !a.stale) fireNotification(a);
+      changedIds.push(a.id);
+    }
+    _contentKeys[a.id] = key;
   });
   _initialLoad = false;
 
@@ -1750,10 +1763,11 @@ function applyData(data) {
   const inFocusNew = !wasInitialLoad && !document.hidden
     ? alerts.filter(a => !a.stale && !prevIds.has(a.id)).map(a => a.id)
     : [];
+  const blinkIds = [...inFocusNew, ...changedIds.filter(id => !document.hidden)];
 
   buildFilterBar();
   renderFeed();
-  if (inFocusNew.length) setTimeout(() => blinkAlertCards(inFocusNew), 50);
+  if (blinkIds.length) setTimeout(() => blinkAlertCards(blinkIds), 50);
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -2583,6 +2597,10 @@ function updateTicker() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function contentKey(a) {
+  return `${a.title}\0${a.body}\0${a.valid_from}\0${a.valid_until}\0${a.published_at}`;
+}
+
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
