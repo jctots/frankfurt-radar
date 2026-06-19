@@ -1,15 +1,15 @@
-# Self-Hosting Guide
+# 🏠 Self-Hosting Guide
 
 Frankfurt Radar is designed to be self-hosted via Docker Compose. This guide covers setup, configuration, and Telegram bot deployment.
 
-## Prerequisites
+## 📋 Prerequisites
 
 - Docker and Docker Compose
 - An RMV API key ([register at opendata.rmv.de](https://opendata.rmv.de/))
 - A Telegram bot token (if using Telegram notifications) — see [Telegram bot setup](#telegram-bot-setup) below
 - A Google Cloud Translation API key (if using Google Translate) — LibreTranslate works without one
 
-## Quick start
+## 🚀 Quick start
 
 ```bash
 git clone https://github.com/jctots/frankfurt-radar
@@ -20,7 +20,7 @@ docker compose up -d
 
 On first start, `config.yaml` is seeded to the `data/` volume. Edit it at `data/config.yaml` — no container rebuild needed for most changes.
 
-## Docker services
+## 🐳 Docker services
 
 | Service | Role | Port | Resources |
 |---------|------|------|-----------|
@@ -41,7 +41,7 @@ Enable profiles:
 docker compose --profile analytics --profile ntfy up -d
 ```
 
-## Environment variables
+## 🔑 Environment variables
 
 Set these in your `.env` file. Only secrets belong here — all other configuration goes in `config.yaml`.
 
@@ -65,18 +65,18 @@ Analytics profile variables (only needed with `--profile analytics`):
 | `UMAMI_USERNAME` | Umami admin username |
 | `UMAMI_PASSWORD` | Umami admin password |
 
-## Configuration reference
+## ⚙️ Configuration reference
 
 `data/config.yaml` is the single non-secret configuration source. Changes to poll schedule or quiet hours require a container restart; all other keys are read fresh on each poll cycle.
 
-### Polling
+### 🔄 Polling
 
 ```yaml
 polling:
   interval_minutes: 10       # Poll frequency (2–60 min)
 ```
 
-### Data sources
+### 📊 Data sources
 
 Each source can be independently enabled/disabled.
 
@@ -116,14 +116,14 @@ sports:
   advance_days: 7
 ```
 
-### Location
+### 📍 Location
 
 ```yaml
 location:
   radius_km: 50              # Search radius for location-aware pollers
 ```
 
-### Translation
+### 🌐 Translation
 
 ```yaml
 translator:
@@ -131,7 +131,7 @@ translator:
   libretranslate_url: http://libretranslate:5000
 ```
 
-### Notifications
+### 📬 Notifications
 
 ```yaml
 notifier:
@@ -144,14 +144,14 @@ notifier:
   disabled_sources: []                 # Sources to exclude from notifications
 ```
 
-### Alert display
+### 🖥️ Alert display
 
 ```yaml
 stale_after_days: 30          # Move alerts to "Long-running" accordion on the status page
 cleared_retention_days: 7     # Keep cleared alerts visible for this many days
 ```
 
-### Admin health notifications
+### 🏥 Admin health notifications
 
 ```yaml
 admin_health_notifier:
@@ -161,7 +161,7 @@ admin_health_notifier:
   ram_warn_pct: 85             # Alert if RAM usage exceeds this percentage
 ```
 
-### Web
+### 🌍 Web
 
 ```yaml
 web:
@@ -179,16 +179,16 @@ web:
   operator_contact: "..."
 ```
 
-### Static events
+### 🎉 Static events
 
-City events and sports fixtures can be defined in YAML files:
+Festivals and sports fixtures can be defined in YAML files:
 
 - `data/city_events.yaml` — local events with dates, location (lat/lon), images, and details
 - `data/sports_events.yaml` — static sports events (supplements OpenLigaDB and Ticketmaster)
 
-## Telegram bot setup
+## 🤖 Telegram bot setup
 
-### 1. Create the bot
+### 1️⃣ Create the bot
 
 1. Message [@BotFather](https://t.me/BotFather) on Telegram
 2. Send `/newbot` and follow the prompts — the username must end in `Bot`
@@ -204,7 +204,7 @@ stop - Pause notifications
 deletedata - Delete all your data (GDPR)
 ```
 
-### 2. Configure the webhook
+### 2️⃣ Configure the webhook
 
 After deploying, register the webhook URL with Telegram:
 
@@ -235,7 +235,7 @@ Verify with:
 curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 ```
 
-### 3. Set the admin chat ID
+### 3️⃣ Set the admin chat ID
 
 Admin commands (`/status`, `/alerts`, `/visits`, `/poll`) are gated by chat ID:
 
@@ -248,7 +248,7 @@ Find your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
 
 See [docs/telegram-bot-setup.md](telegram-bot-setup.md) for the full deployment guide.
 
-## Adding a new alert source
+## ➕ Adding a new alert source
 
 1. Subclass `BasePoller` in `pollers.py`
 2. Implement `fetch() -> list[Alert]` — return normalized `Alert` objects

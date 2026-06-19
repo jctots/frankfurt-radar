@@ -1,6 +1,6 @@
-# Contributing to Frankfurt Radar
+# 🤝 Contributing to Frankfurt Radar
 
-## Running locally
+## 🖥️ Running locally
 
 ```bash
 python -m venv .venv
@@ -18,7 +18,7 @@ pip install -r requirements.txt
 flask --app app run --port 8080
 ```
 
-## Project structure
+## 📁 Project structure
 
 | File | Purpose |
 |------|---------|
@@ -36,7 +36,7 @@ flask --app app run --port 8080
 | `city_events.yaml` | Static city event definitions |
 | `sports_events.yaml` | Static sports event definitions |
 
-## Adding a new alert source
+## ➕ Adding a new alert source
 
 1. Subclass `BasePoller` in `pollers.py`
 2. Implement `fetch() -> list[Alert]` — return normalized `Alert` objects
@@ -46,7 +46,7 @@ flask --app app run --port 8080
 
 The rest of the pipeline (translation, caching, deduplication, notification) is source-agnostic.
 
-## Pull requests
+## 🔀 Pull requests
 
 - One logical change per PR
 - Run `python main.py --mode poll` locally and confirm no exceptions before submitting

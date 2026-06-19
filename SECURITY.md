@@ -1,6 +1,6 @@
-# Security Policy
+# 🛡️ Security Policy
 
-## Supported Versions
+## 📦 Supported Versions
 
 Only the latest release on `main` is actively maintained. Older releases do not receive security fixes.
 
@@ -9,7 +9,7 @@ Only the latest release on `main` is actively maintained. Older releases do not 
 | Latest (`main`) | ✅ |
 | Older releases | ❌ |
 
-## Reporting a Vulnerability
+## 🚨 Reporting a Vulnerability
 
 Please report security vulnerabilities **privately** — do not open a public GitHub issue.
 
@@ -23,7 +23,7 @@ Response SLA:
 
 We will acknowledge your report and keep you updated on progress. Please allow a reasonable time to fix before public disclosure.
 
-## Security Protections
+## 🔐 Security Protections
 
 **Infrastructure**
 - Cloud firewall: only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) inbound
@@ -48,7 +48,7 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - `pip audit` runs weekly via GitHub Actions — results published as CI badge
 - `gitleaks` secret scanning on every commit
 
-## Data Handling
+## 📊 Data Handling
 
 The public status page is read-only and stores no personal data. Anonymous, cookie-free usage analytics are collected via a self-hosted Umami instance (no cookies, no IP storage, no cross-site tracking) — see [PRIVACY.md](PRIVACY.md) for details.
 

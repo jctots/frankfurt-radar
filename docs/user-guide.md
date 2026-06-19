@@ -1,8 +1,8 @@
-# User Guide
+# 📖 User Guide
 
 This guide covers how to use Frankfurt Radar — the website, the Telegram channel, and the personalized Telegram bot.
 
-## Ways to receive alerts
+## 📡 Ways to receive alerts
 
 Frankfurt Radar delivers alerts through three channels. You can use any combination.
 
@@ -12,11 +12,9 @@ Frankfurt Radar delivers alerts through three channels. You can use any combinat
 | **Telegram channel** ([@FrankfurtRadar](https://t.me/FrankfurtRadar)) | All alerts, unfiltered | Join the channel |
 | **Telegram bot** ([@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot)) | Personalized alerts filtered to your preferences | Message the bot — see below |
 
----
+## 🖥️ Website
 
-## Website
-
-### Alert feed
+### 📋 Alert feed
 
 The main page shows all active alerts in a scrollable feed. Each alert shows its source, title, timestamp, and affected lines (for transit alerts).
 
@@ -27,51 +25,47 @@ The main page shows all active alerts in a scrollable feed. Each alert shows its
 - **Severity dropdown** — filter weather alerts by severity level
 - **Lines popup** — filter by specific transit lines
 - **Search box** — real-time text search across all alerts
-- **Future events toggle** — show/hide upcoming city events and sports
+- **Future events toggle** — show/hide upcoming festivals and sports
 
 Filter selections are saved in your browser and restored on your next visit.
 
-### Map
+### 🗺️ Map
 
 Alerts with location data appear as markers on an interactive map. Markers are clustered when zoomed out — click a cluster to expand. Weather warnings appear as a floating panel (city-wide, no point location).
 
-### Weather radar
+### 🌧️ Weather radar
 
 The radar overlay shows precipitation observations and forecasts animated over the map. Use the playback controls to scrub through frames.
 
-### Dark mode
+### 🌙 Dark mode
 
 Toggle dark mode with the button in the header. Your preference is saved in your browser.
 
-### Mobile
+### 📱 Mobile
 
 On mobile, the alert feed takes the full screen. Tap an alert with a location to open the map as a full-screen overlay. Tap the X or swipe to return to the feed.
 
-### Browser notifications
+### 🔔 Browser notifications
 
 Click the notification bell to enable browser push notifications for new alerts. This uses the Web Push API — permission is stored locally in your browser and never sent to the server.
 
----
-
-## Telegram channel
+## 📢 Telegram channel
 
 [@FrankfurtRadar](https://t.me/FrankfurtRadar) is a public channel that receives all alerts, unfiltered. Join it for a simple, zero-configuration feed. No data is stored in Frankfurt Radar systems — Telegram's own privacy policy applies.
 
 If you later set up personalized alerts via the bot, you can leave the channel to avoid duplicates.
 
----
-
-## Telegram bot
+## 🤖 Telegram bot
 
 [@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) delivers filtered alerts directly to your DMs, tailored to your commute and interests.
 
-### Getting started
+### 🚀 Getting started
 
 1. Search for **@frankfurt_radar_bot** in Telegram, or tap the link above
 2. Send `/start`
 3. Tap **"Set up my alerts"** to begin the onboarding wizard
 
-### Setting up your alerts
+### ⚙️ Setting up your alerts
 
 The bot walks you through each category using buttons — no typing needed (except for specific line names).
 
@@ -83,7 +77,7 @@ Toggle each alert source on or off, then tap **Done**:
 - **Weather** — DWD weather warnings
 - **Police** — Frankfurt police press releases
 - **Roads** — Autobahn incidents and city road closures
-- **Events** — local city events
+- **Festivals** — local city festival events
 - **Sports** — Eintracht Frankfurt and Deutsche Bank Park events
 
 #### Transport filters
@@ -117,7 +111,7 @@ Quiet hours buffer alerts overnight and deliver them as a morning briefing when 
 - Quiet hours use the Europe/Berlin timezone
 - If no alerts arrived during quiet hours, no briefing is sent
 
-### How alerts look
+### 💬 How alerts look
 
 **Real-time alert (DM):**
 
@@ -150,7 +144,7 @@ Details ↗
 
 Alert status indicators: **🟢** = ongoing, **⌛** = future (with date/time).
 
-### Commands
+### 🎛️ Commands
 
 | Command | Description |
 |---------|-------------|
@@ -161,19 +155,17 @@ Alert status indicators: **🟢** = ongoing, **⌛** = future (with date/time).
 | `/stop` | Pause alerts. Your preferences are saved — send `/start` to resume. |
 | `/deletedata` | Permanently delete all your data (chat ID, preferences, alert history). Cannot be undone. |
 
-### Changing your preferences
+### ✏️ Changing your preferences
 
 Send `/settings` at any time. The wizard opens with your current choices pre-selected — tap to toggle what you want to change, then tap Done through each step.
 
-### Privacy
+### 🔒 Privacy
 
 The bot stores only your Telegram chat ID (a numeric identifier — not your name or username), your alert preferences, and a log of which alerts were sent to you (for deduplication). No name, username, phone number, or message content is stored.
 
 Send `/deletedata` to permanently erase everything. See [PRIVACY.md](../PRIVACY.md) for full details.
 
----
-
-## FAQ
+## ❓ FAQ
 
 **Can I receive alerts without setting up preferences?**
 Yes — follow the @FrankfurtRadar channel for all alerts, or just visit the website. No bot interaction needed.

@@ -1,6 +1,6 @@
-# Architecture
+# 🏗️ Architecture
 
-## Overview
+## 🔭 Overview
 
 Frankfurt Radar runs as three independently deployable containers — a **poller**, a **notifier**, and a **web server** — sharing a single SQLite database via a Docker volume.
 
@@ -37,9 +37,9 @@ The containers share no direct communication — the database is the only coupli
 
 ---
 
-## Poller container
+## 📦 Poller container
 
-### Startup
+### 🚀 Startup
 
 On container start, `entrypoint.sh`:
 
@@ -48,7 +48,7 @@ On container start, `entrypoint.sh`:
 3. Injects runtime env vars into the cron environment
 4. Runs one immediate poll before handing off to `cron -f`
 
-### Alert pipeline
+### ⚙️ Alert pipeline
 
 Each cron invocation calls `main.py` with `--mode poll` or `--mode daily`:
 
@@ -64,7 +64,7 @@ main.py
   └── set_meta("last_polled_at", ...)
 ```
 
-### Pollers
+### 📡 Pollers
 
 All sources subclass `BasePoller`:
 
@@ -87,7 +87,7 @@ class BasePoller(ABC):
 
 Adding a new source means subclassing `BasePoller` and registering it in `main.py` — the rest of the pipeline is source-agnostic.
 
-### Alert model
+### 📄 Alert model
 
 ```python
 @dataclass
@@ -109,7 +109,7 @@ class Alert:
     icon: Optional[str]        # display icon
 ```
 
-### Pipeline modes
+### 🔀 Pipeline modes
 
 **Poll mode** — runs every N minutes:
 
@@ -121,7 +121,7 @@ class Alert:
 
 Collects active alerts by source, groups into sections, sends a single summary notification, marks all seen.
 
-### Translation
+### 🌐 Translation
 
 Two pluggable backends, selected by `translator.backend` in config:
 
@@ -132,7 +132,7 @@ Two pluggable backends, selected by `translator.backend` in config:
 
 `translate_alert(alert, config)` returns `(en_title, en_body)`. DWD alerts arrive in English from BrightSky and skip translation.
 
-### Notifications
+### 📬 Notifications
 
 Two pluggable backends, selected by `notifier.backend` in config:
 
@@ -143,15 +143,15 @@ Two pluggable backends, selected by `notifier.backend` in config:
 
 ---
 
-## Notifier container
+## 🤖 Notifier container
 
 The notifier handles Telegram bot interactions and subscriber dispatch.
 
-### Webhook
+### 🔗 Webhook
 
 Listens on port 8443 for Telegram webhook requests. Validates incoming requests via `X-Telegram-Bot-Api-Secret-Token` header.
 
-### User commands
+### 👤 User commands
 
 | Command | Action |
 |---------|--------|
@@ -162,7 +162,7 @@ Listens on port 8443 for Telegram webhook requests. Validates incoming requests 
 | `/stop` | Set `active=0` — pauses delivery, keeps preferences |
 | `/deletedata` | Delete subscriber + sent_alerts + conversation_state records |
 
-### Admin commands
+### 🔧 Admin commands
 
 Gated by `chat_id` matching `admin_health_notifier.telegram_chat_id`:
 
@@ -173,7 +173,7 @@ Gated by `chat_id` matching `admin_health_notifier.telegram_chat_id`:
 | `/visits` | Recent visitor/event statistics |
 | `/poll` | Trigger a manual poll cycle |
 
-### Subscriber dispatch
+### 📤 Subscriber dispatch
 
 When the poller writes new alerts, the notifier dispatches them to subscribers:
 
@@ -183,7 +183,7 @@ When the poller writes new alerts, the notifier dispatches them to subscribers:
 4. Otherwise: send the DM immediately
 5. Rate limit: 30 hits per 60s per chat_id; 5-minute cooldown after breach
 
-### Quiet hours and morning briefing
+### 🌅 Quiet hours and morning briefing
 
 At the configured quiet hours end time:
 
@@ -194,11 +194,11 @@ At the configured quiet hours end time:
 
 ---
 
-## Web container
+## 🌐 Web container
 
 Flask app served by gunicorn. Read-only — no API keys, no write access to the database.
 
-### Routes
+### 🛣️ Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
@@ -215,7 +215,7 @@ Flask app served by gunicorn. Read-only — no API keys, no write access to the 
 | `/robots.txt` | GET | SEO directives with sitemap |
 | `/um/*` | GET | Umami analytics proxy |
 
-### Status page
+### 🖥️ Status page
 
 Single-page app with no build step:
 
@@ -231,7 +231,7 @@ Single-page app with no build step:
 
 ---
 
-## Database
+## 🗄️ Database
 
 SQLite at `data/radar.db` with WAL mode. Six tables:
 
@@ -248,7 +248,7 @@ SQLite at `data/radar.db` with WAL mode. Six tables:
 
 ---
 
-## Data flow
+## 🔄 Data flow
 
 ```
 RMV / DWD / Polizei / Autobahn / Baustellen / Events / Sports APIs
@@ -275,7 +275,7 @@ Bot interaction:
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 `config.yaml` is the single non-secret configuration source. It lives in the `data/` volume and is editable at runtime. `.env` holds secrets only.
 

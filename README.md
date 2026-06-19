@@ -1,4 +1,4 @@
-# Frankfurt Radar
+# 📡 Frankfurt Radar
 
 [![Tests](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml)
 [![Docker](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml)
@@ -7,7 +7,7 @@
 [![GHCR poller](https://img.shields.io/badge/ghcr.io-poller-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-poller)
 [![GHCR web](https://img.shields.io/badge/ghcr.io-web-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-web)
 
-Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, road closures, police reports, city events, and sports, translated to English and delivered via a live status page, Telegram channel, or personalized Telegram bot.
+Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, road closures, police reports, festivals, and sports, translated to English and delivered via a live status page, Telegram channel, or personalized Telegram bot.
 
 **Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
 **Telegram channel:** [@FrankfurtRadar](https://t.me/FrankfurtRadar)
@@ -15,11 +15,9 @@ Real-time alert service for Frankfurt am Main — transit disruptions, weather w
 
 ![Frankfurt Radar demo](docs/assets/demo.gif)
 
----
+## ⚡ Features
 
-## Features
-
-### Seven data sources
+### 📊 Seven data sources
 
 Frankfurt Radar aggregates alerts from public German data feeds, translates them to English, and delivers them in near real-time.
 
@@ -30,12 +28,12 @@ Frankfurt Radar aggregates alerts from public German data feeds, translates them
 | **Police** | Frankfurt police press releases | Presseportal RSS |
 | **Autobahn** | Highway incidents and closures (A3, A5, A66, etc.) | Autobahn API |
 | **City Roads** | Frankfurt road construction and closures | City of Frankfurt WFS |
-| **City Events** | Local events with dates, locations, and images | Curated YAML |
+| **Festivals** | Local events with dates, locations, and images | Curated YAML |
 | **Sports** | Eintracht Frankfurt home games, Deutsche Bank Park events | OpenLigaDB, Ticketmaster |
 
 All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky.
 
-### Live status page
+### 🖥️ Live status page
 
 The web interface at [frankfurt-radar.com](https://frankfurt-radar.com) provides a real-time overview of all active alerts.
 
@@ -46,7 +44,7 @@ The web interface at [frankfurt-radar.com](https://frankfurt-radar.com) provides
 - **Mobile-optimized** layout — full-height alert list with tap-to-map overlay
 - **Search** — real-time text filtering across all alerts
 - **Browser notifications** via the Web Push API (opt-in, no server-side storage)
-- **Future events** toggle to show/hide upcoming city events and sports
+- **Future events** toggle to show/hide upcoming festivals and sports
 - **Long-running disruptions** collapsed into an accordion for older alerts
 - **Cleared alerts** section showing recently resolved alerts (7-day retention)
 - **Pulse indicator** — live green/yellow/red dot showing system health
@@ -54,11 +52,11 @@ The web interface at [frankfurt-radar.com](https://frankfurt-radar.com) provides
 
 No cookies, no accounts, no personal data collected. Anonymous usage analytics via self-hosted Umami (cookie-free, no IP storage).
 
-### Telegram channel
+### 📢 Telegram channel
 
 [@FrankfurtRadar](https://t.me/FrankfurtRadar) — a public channel that receives all alerts, unfiltered. Follow it for a simple, zero-configuration feed.
 
-### Telegram bot — personalized alerts
+### 🤖 Telegram bot — personalized alerts
 
 [@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) — a bot that delivers filtered alerts directly to your DMs, tailored to your commute and interests.
 
@@ -85,7 +83,7 @@ No cookies, no accounts, no personal data collected. Anonymous usage analytics v
 
 See the [User Guide](docs/user-guide.md) for a full walkthrough of the bot onboarding flow, quiet hours, and morning briefings.
 
-### Translation
+### 🌐 Translation
 
 All German-language alerts are automatically translated to English before delivery. Two pluggable backends:
 
@@ -96,9 +94,7 @@ All German-language alerts are automatically translated to English before delive
 
 DWD weather warnings arrive pre-translated from BrightSky and skip the translation step.
 
----
-
-## Architecture
+## 🏗️ Architecture
 
 Frankfurt Radar runs as three Docker containers sharing a SQLite database via a named volume.
 
@@ -127,11 +123,9 @@ The poller fetches alerts on a configurable cron schedule (default: every 2 minu
 
 See [docs/architecture.md](docs/architecture.md) for the full technical breakdown: database schema, alert pipeline, data flow, and configuration system.
 
----
+## 🚀 Quick start
 
-## Quick start
-
-### Use the hosted instance
+### 🌍 Use the hosted instance
 
 No setup needed — just open the website or join the Telegram channel:
 
@@ -139,7 +133,7 @@ No setup needed — just open the website or join the Telegram channel:
 2. **Telegram channel:** join [@FrankfurtRadar](https://t.me/FrankfurtRadar) for all alerts
 3. **Personalized alerts:** message [@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) and send `/start`
 
-### Self-host your own instance
+### 🐳 Self-host your own instance
 
 Frankfurt Radar is open source and designed to be self-hosted via Docker Compose.
 
@@ -154,9 +148,7 @@ On first start, `config.yaml` is seeded to the data volume — edit it at `data/
 
 See [docs/self-hosting.md](docs/self-hosting.md) for the full setup guide, environment variables, configuration reference, and Telegram bot deployment.
 
----
-
-## Security and privacy
+## 🔒 Security and privacy
 
 Frankfurt Radar is built with privacy by design:
 
@@ -170,9 +162,7 @@ Frankfurt Radar is built with privacy by design:
 
 Full details: [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 
----
-
-## Data sources and licensing
+## ⚖️ Data sources and licensing
 
 | Source | License | Notes |
 |--------|---------|-------|
@@ -184,17 +174,15 @@ Full details: [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 | OpenLigaDB | [CC BY-SA 4.0](https://www.openligadb.de/) | Bundesliga match data |
 | Ticketmaster | [Ticketmaster API ToS](https://developer.ticketmaster.com/) | Optional; Deutsche Bank Park events |
 
----
-
-## Contributing
+## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, project structure, and how to add new alert sources.
 
-## License
+## 📄 License
 
 MIT — see [LICENSE](LICENSE).
 
-## Support
+## ☕ Support
 
 Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.
 
