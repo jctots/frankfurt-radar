@@ -41,9 +41,9 @@ _SOURCE_LABELS = {
     "rmv": "🚇 Transport",
     "dwd": "⛈️ Weather",
     "polizei": "🚨 Police",
-    "autobahn": "🚧 Autobahn",
-    "baustellen": "🛑 City Roads",
-    "events": "🎉 Events",
+    "autobahn": "⚠️ Autobahn",
+    "baustellen": "🚧 City Roads",
+    "events": "🎉 Festivals",
     "sports": "⚽ Sports",
 }
 
@@ -560,7 +560,7 @@ def _sources_keyboard(prefs: dict) -> dict:
     for src in _ALL_SOURCES:
         enabled = sources.get(src, {}).get("enabled", False)
         icon = "✅" if enabled else "⬜"
-        row.append((f"{icon} {src}", f"s:{src}"))
+        row.append((f"{icon} {_SOURCE_LABELS.get(src, src)}", f"s:{src}"))
         if len(row) == 2:
             buttons.append(row)
             row = []

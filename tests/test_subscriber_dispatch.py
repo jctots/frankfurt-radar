@@ -145,7 +145,7 @@ class TestDispatchToSubscribers:
         count = dispatch_to_subscribers(rows, config)
 
         assert count == 1
-        assert mock_dm.call_args.kwargs["title"] == "Delay"
+        assert mock_dm.call_args.kwargs["title"] == "🚇 Delay"
 
 
 class TestFlushQuietBuffers:

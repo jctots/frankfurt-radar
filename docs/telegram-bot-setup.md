@@ -7,7 +7,7 @@ How to create and configure the Frankfurt Radar Telegram bot for a new deploymen
 1. Open Telegram and message [@BotFather](https://t.me/BotFather).
 2. Send `/newbot` and follow the prompts:
    - **Name:** `Frankfurt Radar` (or your preferred display name)
-   - **Username:** must end in `Bot` (e.g. `FrankfurtRadarBot`)
+   - **Username:** must end in `Bot` (e.g. `frankfurt_radar_bot`)
 3. BotFather returns a **bot token** — save it securely.
 4. Set the bot commands:
 

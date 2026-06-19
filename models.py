@@ -55,6 +55,85 @@ def alert_emoji(alert) -> str:
     if alert.source == "dwd" and getattr(alert, "icon", None):
         return alert.icon
     return SOURCE_EMOJI.get(alert.source, "")
+
+
+def _row_emoji(row: dict) -> str:
+    source = row.get("source", "")
+    if source == "sports":
+        return SPORT_EMOJI.get(row.get("service") or "", SOURCE_EMOJI.get("sports", ""))
+    if source == "baustellen" and row.get("service") == "City (Partial)":
+        return "🚧"
+    if source == "dwd" and row.get("icon"):
+        return row["icon"]
+    return SOURCE_EMOJI.get(source, "")
+
+
+def _fmt_alert_status(row: dict) -> str:
+    from datetime import datetime, timezone
+
+    valid_from = row.get("valid_from")
+    if not valid_from:
+        return ""
+    try:
+        target = datetime.fromisoformat(valid_from)
+    except ValueError:
+        return ""
+    now = datetime.now(timezone.utc)
+    diff = (target - now).total_seconds()
+    if diff <= 0:
+        return "\U0001f7e2 Ongoing"
+
+    from zoneinfo import ZoneInfo
+    local = target.astimezone(ZoneInfo("Europe/Berlin"))
+    dt_str = f"{local.day} {local.strftime('%b %H:%M')}"
+
+    day_diff = (target.date() - now.date()).days
+    if day_diff <= 0:
+        mins = int(diff // 60)
+        if mins < 60:
+            return f"⌛ Starts in {mins} min{'s' if mins != 1 else ''} ({dt_str})"
+        hours = int(diff // 3600)
+        return f"⌛ Starts in {hours} hour{'s' if hours != 1 else ''} ({dt_str})"
+    if day_diff == 1:
+        return f"⌛ Starts tomorrow ({dt_str})"
+    return f"⌛ Starts in {day_diff} days ({dt_str})"
+
+
+def _fmt_event_meta(row: dict) -> str:
+    from datetime import datetime
+
+    parts = []
+    if row.get("valid_from") and row.get("valid_until"):
+        def _d(iso):
+            dt = datetime.fromisoformat(iso)
+            return f"{dt.day} {dt.strftime('%b')}"
+        parts.append(f"{_d(row['valid_from'])} – {_d(row['valid_until'])}")
+    elif row.get("valid_from"):
+        dt = datetime.fromisoformat(row["valid_from"])
+        parts.append(f"From {dt.day} {dt.strftime('%b')}")
+    if row.get("location_label"):
+        parts.append(row["location_label"])
+    return " · ".join(parts)
+
+
+def format_alert_message(row: dict) -> tuple[str, str]:
+    """Build the formatted (title, body) for an alert_cache row.
+
+    Used by both channel and subscriber dispatch so content is identical.
+    """
+    emoji = _row_emoji(row)
+    title = f"{emoji} {row['title_en']}".strip()
+    body = row["body_en"]
+
+    status = _fmt_alert_status(row)
+    if status:
+        body = f"{status}\n\n{body}".strip()
+
+    if row["source"] in ("events", "sports"):
+        meta = _fmt_event_meta(row)
+        body = f"{meta}\n{body}".strip() if meta else body
+
+    return title, body
 SOURCE_URL: dict[str, Optional[str]] = {
     "rmv":        "https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen",
     "dwd":        "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",

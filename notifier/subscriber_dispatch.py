@@ -15,6 +15,7 @@ from db import (
     update_last_briefing,
 )
 from notifications import notify_subscriber_dm
+from models import format_alert_message
 from notifier.preferences import is_quiet_hours, matches_preferences
 
 log = logging.getLogger(__name__)
@@ -41,10 +42,11 @@ def dispatch_to_subscribers(alert_rows: list[dict], config: dict) -> int:
                 buffer_quiet_alert(sub["id"], row["alert_id"])
                 continue
 
+            title, body = format_alert_message(row)
             ok = notify_subscriber_dm(
                 chat_id=sub["chat_id"],
-                title=row["title_en"],
-                body=row["body_en"],
+                title=title,
+                body=body,
                 url=row.get("url"),
                 config=config,
                 source=row["source"],
@@ -133,7 +135,7 @@ def _fmt_missed_section(rows: list[dict], qh: dict) -> str:
     header = f"\U0001f4ec Missed Alerts ({start}–{end})"
     if not rows:
         return f"{header}\nNo alerts matching your filters during quiet hours."
-    lines = [f"• {r['title_en']}" for r in rows]
+    lines = [f"• {format_alert_message(r)[0]}" for r in rows]
     return f"{header}\n" + "\n".join(lines)
 
 

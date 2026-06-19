@@ -1,4 +1,4 @@
-# 📡 Frankfurt Radar 
+# Frankfurt Radar
 
 [![Tests](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/tests.yml)
 [![Docker](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml/badge.svg)](https://github.com/jctots/frankfurt-radar/actions/workflows/docker.yml)
@@ -7,111 +7,194 @@
 [![GHCR poller](https://img.shields.io/badge/ghcr.io-poller-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-poller)
 [![GHCR web](https://img.shields.io/badge/ghcr.io-web-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-web)
 
-Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, and local police reports, translated to English and delivered to where you are.
+Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, road closures, police reports, city events, and sports, translated to English and delivered via a live status page, Telegram channel, or personalized Telegram bot.
 
-🌐 **Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
-📱 **Telegram:** [@FrankfurtRadar](https://t.me/FrankfurtRadar)
+**Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
+**Telegram channel:** [@FrankfurtRadar](https://t.me/FrankfurtRadar)
+**Telegram bot:** [@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot)
 
 ![Frankfurt Radar demo](docs/assets/demo.gif)
 
-## ⚡ What it does
+---
 
-- Polls RMV (S-Bahn/U-Bahn/tram/bus), DWD weather, and Frankfurt police press releases
-- Translates German alerts to English
-- Posts to a public Telegram channel and a live status webpage
-- Configurable line filters and severity thresholds
-- Self-hostable via Docker Compose
+## Features
 
-## 🖥️ Web interface
+### Seven data sources
 
-- Live alert feed with source, severity, and line filters (persisted per browser)
-- Interactive Leaflet map with clustered alert pins
-- Dark mode, mobile-optimised layout, browser push notifications
+Frankfurt Radar aggregates alerts from public German data feeds, translates them to English, and delivers them in near real-time.
 
-## 🗂️ Data sources
+| Source | What it covers | Feed |
+|--------|---------------|------|
+| **RMV Transit** | S-Bahn, U-Bahn, Tram, Bus, Regional disruptions | HAFAS HIM API |
+| **DWD Weather** | Weather warnings from minor to extreme severity | BrightSky (DWD proxy) |
+| **Police** | Frankfurt police press releases | Presseportal RSS |
+| **Autobahn** | Highway incidents and closures (A3, A5, A66, etc.) | Autobahn API |
+| **City Roads** | Frankfurt road construction and closures | City of Frankfurt WFS |
+| **City Events** | Local events with dates, locations, and images | Curated YAML |
+| **Sports** | Eintracht Frankfurt home games, Deutsche Bank Park events | OpenLigaDB, Ticketmaster |
 
-| Source | Feed | License |
-|--------|------|---------|
-| RMV | HAFAS HIM API (disruptions) | RMV Open Data ToS |
-| DWD | BrightSky proxy (weather warnings) | DL-DE→Zero |
-| Frankfurt Police | Presseportal RSS | Personal / non-commercial only — see Legal |
+All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky.
 
-## 🏗️ Architecture
+### Live status page
+
+The web interface at [frankfurt-radar.com](https://frankfurt-radar.com) provides a real-time overview of all active alerts.
+
+- **Alert feed** with source, severity, service, and line filters — filter state persisted per browser
+- **Interactive map** with clustered alert markers (Leaflet + CartoDB/OSM tiles)
+- **Weather radar** playback — observation and forecast frames animated on the map
+- **Dark mode** toggle, persisted in browser
+- **Mobile-optimized** layout — full-height alert list with tap-to-map overlay
+- **Search** — real-time text filtering across all alerts
+- **Browser notifications** via the Web Push API (opt-in, no server-side storage)
+- **Future events** toggle to show/hide upcoming city events and sports
+- **Long-running disruptions** collapsed into an accordion for older alerts
+- **Cleared alerts** section showing recently resolved alerts (7-day retention)
+- **Pulse indicator** — live green/yellow/red dot showing system health
+- **Rotating ticker** — animated headline bar on desktop
+
+No cookies, no accounts, no personal data collected. Anonymous usage analytics via self-hosted Umami (cookie-free, no IP storage).
+
+### Telegram channel
+
+[@FrankfurtRadar](https://t.me/FrankfurtRadar) — a public channel that receives all alerts, unfiltered. Follow it for a simple, zero-configuration feed.
+
+### Telegram bot — personalized alerts
+
+[@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) — a bot that delivers filtered alerts directly to your DMs, tailored to your commute and interests.
+
+**Personalization options:**
+
+- **Source filters** — enable/disable each of the 7 alert sources
+- **Transport service filter** — S-Bahn, U-Bahn, Tram, Bus, Regional
+- **Line filter** — specific lines (e.g. S3, S5, U4) or all lines
+- **Weather severity** — all warnings, moderate+, severe+, or extreme only
+- **Autobahn filter** — select specific highways (A3, A5, A66, A661, etc.)
+- **Road closure filter** — full closures, partial closures, or both
+- **Quiet hours** — buffer alerts overnight and receive a morning briefing at your chosen wake-up time
+
+**Bot commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Set up or update personalized alerts |
+| `/settings` | Edit your alert preferences |
+| `/mystatus` | View your current settings and subscription status |
+| `/help` | Usage guide and available commands |
+| `/stop` | Pause alerts (keeps your settings) |
+| `/deletedata` | Permanently delete all your data (GDPR) |
+
+See the [User Guide](docs/user-guide.md) for a full walkthrough of the bot onboarding flow, quiet hours, and morning briefings.
+
+### Translation
+
+All German-language alerts are automatically translated to English before delivery. Two pluggable backends:
+
+| Backend | Use case |
+|---------|----------|
+| Google Cloud Translation | Production — used on the public instance |
+| LibreTranslate | Self-hosting — no API key needed for your own instance |
+
+DWD weather warnings arrive pre-translated from BrightSky and skip the translation step.
+
+---
+
+## Architecture
+
+Frankfurt Radar runs as three Docker containers sharing a SQLite database via a named volume.
 
 ```
-poller container          web container
-──────────────            ─────────────
-main.py (cron)  ──────▶  Flask app
-  ├── RMVPoller           ├── /           (status page)
-  ├── DWDPoller           ├── /api/status (JSON feed)
-  └── PolizeiPoller       └── /api/poll   (manual trigger)
-        │
-        ▼
+poller (cron)              notifier (webhook)        web (Flask/gunicorn)
+──────────────             ──────────────────        ────────────────────
+main.py                    bot.py                    app.py
+├── RMVPoller              ├── /start, /settings     ├── /           (status page)
+├── DWDPoller              ├── /mystatus, /help      ├── /api/status (JSON feed)
+├── PolizeiPoller          ├── /stop, /deletedata    ├── /api/radar  (radar frames)
+├── AutobahnPoller         ├── /status (admin)       ├── /legal
+├── BaustellenPoller       ├── /alerts (admin)       ├── /privacy
+├── StaticEventsPoller     ├── /poll   (admin)       └── /security
+├── StaticSportsPoller     └── subscriber dispatch
+├── OpenLigaPoller              │
+└── TicketmasterPoller          │
+       │                        │
+       ▼                        ▼
   SQLite (radar.db) — shared volume
-        │
-   notifier backend      translator backend
-   (Telegram / ntfy)     (Google / LibreTranslate)
+       │
+  translator backend
+  (Google / LibreTranslate)
 ```
 
-See [docs/architecture.md](docs/architecture.md) for a full breakdown of each component, the database schema, and the alert data flow.
+The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys.
 
-## 🐳 Self-hosting
+See [docs/architecture.md](docs/architecture.md) for the full technical breakdown: database schema, alert pipeline, data flow, and configuration system.
 
-**Prerequisites:** Docker, Docker Compose, RMV API key
+---
+
+## Quick start
+
+### Use the hosted instance
+
+No setup needed — just open the website or join the Telegram channel:
+
+1. **Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
+2. **Telegram channel:** join [@FrankfurtRadar](https://t.me/FrankfurtRadar) for all alerts
+3. **Personalized alerts:** message [@frankfurt_radar_bot](https://t.me/frankfurt_radar_bot) and send `/start`
+
+### Self-host your own instance
+
+Frankfurt Radar is open source and designed to be self-hosted via Docker Compose.
 
 ```bash
 git clone https://github.com/jctots/frankfurt-radar
 cd frankfurt-radar
-cp .env.example .env   # fill in your keys
+cp .env.example .env   # fill in your API keys
 docker compose up -d
 ```
 
 On first start, `config.yaml` is seeded to the data volume — edit it at `data/config.yaml` (no container rebuild needed).
 
-### Environment variables (`.env`)
+See [docs/self-hosting.md](docs/self-hosting.md) for the full setup guide, environment variables, configuration reference, and Telegram bot deployment.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `RMV_API_KEY` | Yes | RMV Open Data API key |
-| `TELEGRAM_BOT_TOKEN` | If `notifier.backend: telegram` | Bot token from @BotFather |
-| `GOOGLE_TRANSLATE_API_KEY` | If `translator.backend: google` | Cloud Translation API key |
+---
 
-### Key config options (`data/config.yaml`)
+## Security and privacy
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `notifier.backend` | `telegram` | `telegram` or `ntfy` |
-| `translator.backend` | `libretranslate` | `google` or `libretranslate` |
-| `polling.interval_minutes` | `10` | Poll frequency (10–60 min) |
-| `notifier.notify_burst_threshold` | `10` | Cold-start guard — skip notifications if ≥ N new alerts on first run |
-| `weather.min_severity` | `1` | 1=minor, 2=moderate, 3=severe, 4=extreme |
-| `transport.services` | (all) | Filter by service type and line |
+Frankfurt Radar is built with privacy by design:
 
-## 🔒 Security & Privacy
-
-Frankfurt Radar is built with security and privacy in mind:
-
-- The status page collects no personal data — no cookies, no analytics, no account required
-- Periodic security audits covering infrastructure hardening, OWASP Top 10, and dependency CVE scanning
+- The status page collects **no personal data** — no cookies, no accounts
+- Anonymous analytics via self-hosted [Umami](https://umami.is/) (cookie-free, no IP storage)
+- The Telegram bot stores only your **chat ID and preferences** — no name, username, or message content
+- **GDPR compliant** — send `/deletedata` to permanently erase all stored data
+- All data stored and processed within the **EU** (Hetzner Frankfurt)
 - Weekly automated `pip audit` and `gitleaks` secret scanning (CI badges above)
+- Periodic security audits covering infrastructure hardening, OWASP Top 10, and dependency CVEs
 
-See [SECURITY.md](SECURITY.md) for the full security policy and how to report a vulnerability.
+Full details: [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 
-## ⚖️ Legal
+---
 
-- **RMV data**: used under [RMV Open Data terms](https://opendata.rmv.de/). Commercial redistribution requires a separate agreement with RMV.
-- **DWD data**: [DL-DE→Zero](https://www.govdata.de/dl-de/zero-2-0) — freely reusable, including commercially.
-- **Police press releases**: Presseportal RSS — non-commercial use only (§87g(2) UrhG). Only the RSS summary (not the full article) is fetched and translated; a link to the original press release is always included.
+## Data sources and licensing
 
-## 🤝 Contributing
+| Source | License | Notes |
+|--------|---------|-------|
+| RMV | [RMV Open Data ToS](https://opendata.rmv.de/) | Commercial redistribution requires a separate agreement |
+| DWD | [DL-DE-Zero](https://www.govdata.de/dl-de/zero-2-0) | Freely reusable, including commercially |
+| Presseportal (Police) | Non-commercial only (§87g(2) UrhG) | RSS summary only; links to original press release |
+| Autobahn API | [Autobahn API ToS](https://autobahn.api.bund.dev/) | Public federal data |
+| City of Frankfurt WFS | Public municipal data | Road construction and closures |
+| OpenLigaDB | [CC BY-SA 4.0](https://www.openligadb.de/) | Bundesliga match data |
+| Ticketmaster | [Ticketmaster API ToS](https://developer.ticketmaster.com/) | Optional; Deutsche Bank Park events |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+---
 
-## 📄 License
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, project structure, and how to add new alert sources.
+
+## License
 
 MIT — see [LICENSE](LICENSE).
 
-## ☕ Support
+## Support
 
 Frankfurt Radar is free and ad-free. If it saves you a missed train or a soaked commute, a coffee helps keep the server running.
 
