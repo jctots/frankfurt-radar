@@ -2728,7 +2728,16 @@ async function init() {
   try {
     applyData(await apiGet('/api/status'));
     const deepId = new URLSearchParams(location.search).get('alert');
-    if (deepId) { setTimeout(() => selectAlert(deepId), 100); }
+    if (deepId) {
+      const da = alerts.find(x => x.id === deepId) || removedAlerts.find(x => x.id === deepId);
+      if (da) {
+        if (filters.sources[da.source] === false) { filters.sources[da.source] = true; saveFilters(); }
+        if (da.stale && !showLongRunning) { showLongRunning = true; localStorage.setItem('fr_lr', '1'); document.getElementById('lr-switch').checked = true; }
+        if (isFuture(da) && !showFutureEvents) { showFutureEvents = true; localStorage.setItem('fr_future', '1'); document.getElementById('future-switch').checked = true; }
+        renderFeed(); buildFilterBar();
+      }
+      setTimeout(() => selectAlert(deepId), 100);
+    }
     if (localStorage.getItem('fr_disclaimer_seen')) runGestureHints();
   } catch (e) {
     document.getElementById('feed').innerHTML =
