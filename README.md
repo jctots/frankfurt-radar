@@ -115,12 +115,26 @@ main.py                    bot.py                    app.py
        │                        │
        ▼                        ▼
   SQLite (radar.db) — shared volume
-       │
-  translator backend
-  (Google / LibreTranslate)
+       │                        │
+  translator backend      MCP server (optional)
+  (Google / LibreTranslate)  SSE :8811
 ```
 
 The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The optional MCP server (enabled with `--profile mcp`) exposes alerts to AI assistants like Claude Code via SSE.
+
+### 🤖 MCP server — AI assistant integration
+
+Frankfurt Radar provides a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI assistants query Frankfurt alerts directly. This means tools like Claude Code, Cursor, or any MCP-compatible client can search for active disruptions, check system health, and retrieve alert details — all in natural language.
+
+**Available tools:** `get_active_alerts`, `search_alerts`, `get_alert_details`, `get_system_status`, `get_alert_stats`
+
+**Authentication:** The MCP server supports two key tiers:
+- **Admin key** (`MCP_ADMIN_KEY`) — unlimited access, intended for the operator
+- **Distributed keys** (`MCP_API_KEYS`) — rate-limited (60 requests per 60 seconds), for external consumers
+
+When no keys are configured, the server allows unauthenticated access (suitable for local/homelab use). To request an API key for the hosted instance, [open an MCP access request](https://github.com/jctots/frankfurt-radar/issues/new?template=mcp_access.md).
+
+See [docs/self-hosting.md](docs/self-hosting.md) for setup instructions and MCP client configuration.
 
 See [docs/architecture.md](docs/architecture.md) for the full technical breakdown: database schema, alert pipeline, data flow, and configuration system.
 

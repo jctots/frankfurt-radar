@@ -250,7 +250,19 @@ Read-only MCP server exposing alert data to AI assistants (Claude Code, etc.) vi
 | `get_system_status()` | Last poll time, source health, counts |
 | `get_alert_stats()` | Summary by source and severity |
 
-The server reuses `db.py` query functions (`get_all_active_alerts`, `search_active_alerts`, `get_status_json`) and `models.py` formatters. No API keys required — it only reads from the shared SQLite database.
+The server reuses `db.py` query functions (`get_all_active_alerts`, `search_active_alerts`, `get_status_json`) and `models.py` formatters. It reads from the shared SQLite database and `config.yaml` (via the shared `radar_data` volume).
+
+### 🔐 Authentication and rate limiting
+
+The auth layer (`mcp/auth.py`) supports two key tiers via ASGI middleware:
+
+| Key type | Env var | Rate limited | Purpose |
+|----------|---------|--------------|---------|
+| Admin | `MCP_ADMIN_KEY` | No | Operator's own use |
+| Distributed | `MCP_API_KEYS` (comma-separated) | Yes (60 req/60s) | External consumers |
+| Neither set | — | — | Open access (local/homelab) |
+
+Rate limiting uses an in-memory sliding window per key. When a distributed key exceeds the limit, the server returns HTTP 429 with a `Retry-After` header and sends an admin notification via Telegram (with 5-minute cooldown per key, using `admin_health_notifier.telegram_chat_id` from `config.yaml`).
 
 ---
 

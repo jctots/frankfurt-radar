@@ -119,6 +119,7 @@
     <li>Bot webhook endpoint validated via <code>X-Telegram-Bot-Api-Secret-Token</code> header</li>
     <li>User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained</li>
     <li>Admin bot commands (<code>/status</code>, <code>/alerts</code>, <code>/poll</code>) gated by <code>chat_id</code> allowlist</li>
+    <li>MCP server: optional Bearer token authentication with two tiers (admin and rate-limited consumer keys); rate-limited keys use a per-key sliding window (60 req/60s) with admin notification on breach</li>
     <li>Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan</li>
   </ul>
 

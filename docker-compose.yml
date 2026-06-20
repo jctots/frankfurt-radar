@@ -80,6 +80,9 @@ services:
     init: true
     environment:
       - TZ=Europe/Berlin
+      - MCP_ADMIN_KEY=${MCP_ADMIN_KEY:-}
+      - MCP_API_KEYS=${MCP_API_KEYS:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     volumes:
       - radar_data:/app/data
     ports:

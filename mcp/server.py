@@ -6,7 +6,9 @@ import os
 from collections import Counter
 
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware import Middleware
 
+from auth import ApiKeyAuthMiddleware
 import db
 import models
 
@@ -19,6 +21,7 @@ mcp = FastMCP(
     instructions="Real-time Frankfurt alerts: transit, weather, police, roads, events",
     host="0.0.0.0",
     port=port,
+    middleware=[Middleware(ApiKeyAuthMiddleware)],
 )
 
 VALID_SOURCES = list(models.SOURCE_LABEL.keys())

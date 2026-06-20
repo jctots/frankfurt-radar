@@ -42,6 +42,7 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - Bot webhook endpoint validated via `X-Telegram-Bot-Api-Secret-Token` header
 - User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained
 - Admin bot commands (`/status`, `/alerts`, `/poll`) gated by `chat_id` allowlist
+- MCP server: optional Bearer token authentication with two tiers (admin and rate-limited consumer keys); rate-limited keys use a per-key sliding window (60 req/60s) with admin notification on breach
 - Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan
 
 **Supply chain**
