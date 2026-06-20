@@ -133,8 +133,10 @@ def _is_banned(chat_id: int) -> bool:
 
 # ── Umami event tracking ───────────────────────────────────────────────────
 
-def _track_command(command: str, config: dict) -> None:
+def _track_command(command: str, config: dict, chat_id: int = 0) -> None:
     """Fire a bot_command event to Umami (best-effort, non-blocking)."""
+    if _is_admin(chat_id, config):
+        return
     umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
     web_cfg = config.get("web", {})
     website_id = web_cfg.get("umami_website_id", "")
@@ -145,7 +147,7 @@ def _track_command(command: str, config: dict) -> None:
     try:
         requests.post(
             f"{umami_url}/api/send",
-            headers={"User-Agent": "FrankfurtRadar-Notifier/1.0"},
+            headers={"User-Agent": f"FrankfurtRadar-Notifier/1.0 (u:{chat_id})"},
             json={
                 "payload": {
                     "hostname": hostname,
@@ -214,25 +216,25 @@ def handle_update(update: dict, config: dict) -> None:
     cmd = text.split()[0].lower() if text.startswith("/") else ""
 
     if cmd == "/start":
-        _track_command("start", config)
+        _track_command("start", config, chat_id)
         _cmd_start(chat_id, config)
     elif cmd == "/settings":
-        _track_command("settings", config)
+        _track_command("settings", config, chat_id)
         _cmd_settings(chat_id, config)
     elif cmd == "/mystatus":
-        _track_command("mystatus", config)
+        _track_command("mystatus", config, chat_id)
         _cmd_mystatus(chat_id)
     elif cmd == "/search":
-        _track_command("search", config)
+        _track_command("search", config, chat_id)
         _cmd_search(chat_id, text, config)
     elif cmd == "/help":
-        _track_command("help", config)
+        _track_command("help", config, chat_id)
         _cmd_help(chat_id)
     elif cmd == "/stop":
-        _track_command("stop", config)
+        _track_command("stop", config, chat_id)
         _cmd_stop(chat_id)
     elif cmd == "/deletedata":
-        _track_command("deletedata", config)
+        _track_command("deletedata", config, chat_id)
         _cmd_deletedata(chat_id)
     elif cmd in _ADMIN_CMDS and _is_admin(chat_id, config):
         _handle_admin_cmd(cmd, text, chat_id, config)

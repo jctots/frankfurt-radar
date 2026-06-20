@@ -7,7 +7,7 @@ from collections import Counter
 
 from mcp.server.fastmcp import FastMCP
 
-from auth import ApiKeyAuthMiddleware
+from auth import ApiKeyAuthMiddleware, is_admin_request, _track_mcp_call  # noqa: F401 (request_key_id set by middleware)
 import db
 import models
 
@@ -45,12 +45,18 @@ def _format_alert(row: dict) -> dict:
     }
 
 
+def _track(tool_name: str) -> None:
+    if not is_admin_request.get(False):
+        _track_mcp_call(tool_name)
+
+
 @mcp.tool()
 def get_active_alerts(source: str | None = None) -> list[dict]:
     """List all active alerts for Frankfurt, optionally filtered by source.
 
     Sources: rmv, dwd, polizei, autobahn, baustellen, events, sports
     """
+    _track("get_active_alerts")
     alerts = db.get_all_active_alerts()
     if source:
         source = source.lower()
@@ -62,6 +68,7 @@ def get_active_alerts(source: str | None = None) -> list[dict]:
 def search_alerts(query: str) -> list[dict]:
     """Search active alerts by keyword. Multiple words use AND matching
     across title, body, service, and location fields."""
+    _track("search_alerts")
     results = db.search_active_alerts(query)
     return [_format_alert(a) for a in results]
 
@@ -69,6 +76,7 @@ def search_alerts(query: str) -> list[dict]:
 @mcp.tool()
 def get_alert_details(alert_id: str) -> dict | None:
     """Get full details for a single alert by its ID."""
+    _track("get_alert_details")
     with db._conn() as conn:
         row = conn.execute(
             "SELECT * FROM alert_cache WHERE alert_id = ? AND removed_at IS NULL",
@@ -82,6 +90,7 @@ def get_alert_details(alert_id: str) -> dict | None:
 @mcp.tool()
 def get_system_status() -> dict:
     """System health: last poll time, source status, and active alert counts."""
+    _track("get_system_status")
     status = db.get_status_json()
     by_source = Counter(a["source"] for a in status["alerts"])
     return {
@@ -96,6 +105,7 @@ def get_system_status() -> dict:
 @mcp.tool()
 def get_alert_stats() -> dict:
     """Summary statistics: count by source, by severity, oldest/newest alert."""
+    _track("get_alert_stats")
     alerts = db.get_all_active_alerts()
     by_source = Counter(a["source"] for a in alerts)
     by_severity = Counter(a["severity"] for a in alerts if a.get("severity"))

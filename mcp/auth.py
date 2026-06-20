@@ -1,5 +1,7 @@
 """API key authentication and rate limiting middleware for the MCP server."""
 
+import contextvars
+import json
 import logging
 import os
 import threading
@@ -41,6 +43,13 @@ _NOTIFY_COOLDOWN = 300
 
 _request_log: dict[str, deque[float]] = {}
 _last_notify: dict[str, float] = {}
+
+is_admin_request: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "is_admin_request", default=False
+)
+request_key_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "request_key_id", default=""
+)
 
 if _admin_key:
     log.info("MCP admin key loaded")
@@ -95,6 +104,42 @@ def _notify_rate_limit(key: str) -> None:
     )
 
 
+def _track_mcp_call(tool_name: str) -> None:
+    """Fire an mcp_tool_call event to Umami (best-effort, non-blocking)."""
+    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
+    config = _load_config()
+    website_id = config.get("web", {}).get("umami_website_id", "")
+    if not umami_url or not website_id:
+        return
+    site_url = config.get("web", {}).get("site_url", "")
+    hostname = site_url.split("//")[-1].split("/")[0] if site_url else "localhost"
+    key_id = request_key_id.get("")
+    ua = f"FrankfurtRadar-MCP/1.0 (k:{key_id})" if key_id else "FrankfurtRadar-MCP/1.0"
+
+    def _send():
+        try:
+            http_requests.post(
+                f"{umami_url}/api/send",
+                headers={"User-Agent": ua},
+                json={
+                    "payload": {
+                        "hostname": hostname,
+                        "language": "en-US",
+                        "url": f"/mcp/{tool_name}",
+                        "website": website_id,
+                        "name": "mcp_tool_call",
+                        "data": {"tool": tool_name},
+                    },
+                    "type": "event",
+                },
+                timeout=3,
+            )
+        except Exception:
+            pass
+
+    threading.Thread(target=_send, daemon=True).start()
+
+
 def _is_rate_limited(key: str) -> bool:
     """Sliding window rate limiter. Returns True if the key has exceeded the limit."""
     now = time.monotonic()
@@ -141,6 +186,7 @@ class ApiKeyAuthMiddleware:
         token = auth[7:]
 
         if _admin_key and token == _admin_key:
+            is_admin_request.set(True)
             await self.app(scope, receive, send)
             return
 
@@ -154,6 +200,7 @@ class ApiKeyAuthMiddleware:
                 )
                 await response(scope, receive, send)
                 return
+            request_key_id.set(_mask_key(token))
             await self.app(scope, receive, send)
             return
 
