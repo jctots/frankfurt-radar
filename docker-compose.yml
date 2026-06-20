@@ -49,7 +49,6 @@ services:
     environment:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
-      - UMAMI_INTERNAL_URL=http://umami:3000
       - STADIA_API_KEY=${STADIA_API_KEY:-}
     volumes:
       - radar_data:/app/data
@@ -102,7 +101,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD:-unused}@umami-db:5432/umami
       - APP_SECRET=${UMAMI_APP_SECRET:-unused}
-      - APP_URL
     depends_on:
       umami-db:
         condition: service_healthy

@@ -36,8 +36,8 @@
   </script>
   {% endif %}
 
-  {% if umami_website_id and site_url %}
-  <script async src="/um/script.js" data-website-id="{{ umami_website_id | e }}" data-host-url="{{ site_url | e }}/um"></script>
+  {% if umami_website_id and umami_url %}
+  <script async src="{{ umami_url | e }}/script.js" data-website-id="{{ umami_website_id | e }}" data-host-url="{{ umami_url | e }}"></script>
   {% endif %}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
