@@ -308,7 +308,7 @@ class TestDBSubscriberFunctions:
         db.buffer_quiet_alert(sub["id"], "Q1")
         db.buffer_quiet_alert(sub["id"], "Q2")
         flushed = db.flush_quiet_buffer(sub["id"])
-        assert flushed == ["Q1", "Q2"]
+        assert [aid for aid, _ in flushed] == ["Q1", "Q2"]
         assert db.flush_quiet_buffer(sub["id"]) == []
 
     def test_buffer_quiet_alert_idempotent(self):
@@ -317,7 +317,7 @@ class TestDBSubscriberFunctions:
         db.buffer_quiet_alert(sub["id"], "Q1")
         db.buffer_quiet_alert(sub["id"], "Q1")
         flushed = db.flush_quiet_buffer(sub["id"])
-        assert flushed == ["Q1"]
+        assert [aid for aid, _ in flushed] == ["Q1"]
 
     def test_cascade_delete_clears_quiet_buffer(self):
         db.add_subscriber(777)

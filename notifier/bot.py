@@ -382,7 +382,7 @@ def _cmd_search(chat_id: int, text: str, config: dict | None = None) -> None:
 def _send_search_page(chat_id: int, results: list[dict], query: str,
                        offset: int, message_id: int | None = None,
                        config: dict | None = None) -> None:
-    from models import _row_emoji, SOURCE_LABEL
+    from models import _fmt_alert_status, _row_emoji
 
     site_url = ""
     if config:
@@ -397,14 +397,15 @@ def _send_search_page(chat_id: int, results: list[dict], query: str,
 
     for row in page:
         emoji = _row_emoji(row)
-        source = SOURCE_LABEL.get(row.get("source", ""), row.get("source", ""))
         title = row.get("title_en", "")
         alert_id = row.get("alert_id", "")
         if site_url and alert_id:
             title_html = f'<a href="{site_url}/alert/{alert_id}">{_esc(title)}</a>'
         else:
             title_html = f"<b>{_esc(title)}</b>"
-        lines.append(f"{emoji} {title_html}\n<i>{source}</i>\n")
+        status = _fmt_alert_status(row)
+        status_line = f"\n{_esc(status)}" if status else ""
+        lines.append(f"{emoji} {title_html}{status_line}\n")
 
     buttons: list[list[tuple[str, str]]] = []
     nav_row: list[tuple[str, str]] = []

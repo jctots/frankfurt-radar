@@ -91,7 +91,7 @@ class TestDispatchToSubscribers:
         assert count == 0
         mock_dm.assert_not_called()
         buffered = db.flush_quiet_buffer(sub["id"])
-        assert "A4" in buffered
+        assert "A4" in [aid for aid, _ in buffered]
 
     def test_blocked_subscriber_deactivated(self, mocker, config):
         mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=False)

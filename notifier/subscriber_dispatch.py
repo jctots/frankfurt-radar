@@ -81,9 +81,13 @@ def flush_quiet_buffers(config: dict) -> int:
 
         sections = []
 
-        buffered_ids = flush_quiet_buffer(sub["id"])
+        buffered = flush_quiet_buffer(sub["id"])
+        buffered_ids = [aid for aid, _ in buffered]
+        buffered_times = {aid: bat for aid, bat in buffered}
         missed_rows = _get_buffered_alerts(buffered_ids) if buffered_ids else []
-        sections.append(_fmt_missed_section(missed_rows, qh))
+        for r in missed_rows:
+            r["buffered_at"] = buffered_times.get(r["alert_id"])
+        sections.append(_fmt_missed_section(missed_rows, qh, config))
 
         tz = ZoneInfo(qh.get("timezone", "Europe/Berlin"))
         today = datetime.now(tz).date()
@@ -92,7 +96,7 @@ def flush_quiet_buffers(config: dict) -> int:
             if matches_preferences(r, prefs)
             and _is_today(r.get("valid_from"), today, tz)
         ]
-        sections.append(_fmt_upcoming_section(future_rows))
+        sections.append(_fmt_upcoming_section(future_rows, config))
 
         body = "\n\n".join(sections)
         ok = notify_subscriber_dm(
@@ -146,34 +150,86 @@ def _parse_time_minutes(t: str) -> int:
     return int(parts[0]) * 60 + int(parts[1])
 
 
-def _fmt_missed_section(rows: list[dict], qh: dict) -> str:
+def _fmt_missed_section(rows: list[dict], qh: dict, config: dict | None = None) -> str:
+    from models import _fmt_alert_status, _row_emoji
+
     start = qh.get("start", "22:00")
     end = qh.get("end", "07:00")
     header = f"\U0001f4ec Missed Alerts ({start}–{end})"
     if not rows:
         return f"{header}\nNo alerts matching your filters during quiet hours."
-    lines = [f"• {format_alert_message(r)[0]}" for r in rows]
-    return f"{header}\n" + "\n".join(lines)
+
+    site_url = ""
+    if config:
+        site_url = (config.get("web", {}).get("site_url") or "").rstrip("/")
+    tz = ZoneInfo(qh.get("timezone", "Europe/Berlin"))
+
+    lines = []
+    for r in rows:
+        emoji = _row_emoji(r)
+        title = r.get("title_en", "")
+        alert_id = r.get("alert_id", "")
+        if site_url and alert_id:
+            title_html = f'<a href="{site_url}/alert/{alert_id}">{title}</a>'
+        else:
+            title_html = f"<b>{title}</b>"
+
+        status = _fmt_cleared_status(r) or _fmt_alert_status(r)
+        buffered_at = r.get("buffered_at")
+        time_str = ""
+        if buffered_at:
+            try:
+                bt = datetime.fromisoformat(buffered_at).astimezone(tz)
+                time_str = bt.strftime("%H:%M")
+            except ValueError:
+                pass
+        meta_parts = []
+        if time_str:
+            meta_parts.append(f"🕐 {time_str}")
+        if status:
+            meta_parts.append(status)
+        meta_line = f"\n{' · '.join(meta_parts)}" if meta_parts else ""
+        lines.append(f"{emoji} {title_html}{meta_line}")
+
+    return f"{header}\n" + "\n\n".join(lines)
 
 
-def _fmt_upcoming_section(rows: list[dict]) -> str:
+def _fmt_cleared_status(row: dict) -> str:
+    removed_at = row.get("removed_at")
+    if not removed_at:
+        return ""
+    try:
+        dt = datetime.fromisoformat(removed_at).astimezone(ZoneInfo("Europe/Berlin"))
+        return f"\U0001f534 Cleared ({dt.day} {dt.strftime('%b %H:%M')})"
+    except ValueError:
+        return "\U0001f534 Cleared"
+
+
+def _fmt_upcoming_section(rows: list[dict], config: dict | None = None) -> str:
+    from models import _fmt_alert_status, _row_emoji
+
     header = "\U0001f4c5 Upcoming Today"
     if not rows:
         return f"{header}\nNo events matching your filters today."
+
+    site_url = ""
+    if config:
+        site_url = (config.get("web", {}).get("site_url") or "").rstrip("/")
+
     lines = []
     for r in rows:
-        title = r["title_en"]
-        vf = r.get("valid_from")
-        if vf:
-            try:
-                dt = datetime.fromisoformat(vf)
-                date_str = f"{dt.day} {dt.strftime('%b')} {dt.strftime('%H:%M')}"
-                lines.append(f"• {title} — {date_str}")
-            except ValueError:
-                lines.append(f"• {title}")
+        emoji = _row_emoji(r)
+        title = r.get("title_en", "")
+        alert_id = r.get("alert_id", "")
+        if site_url and alert_id:
+            title_html = f'<a href="{site_url}/alert/{alert_id}">{title}</a>'
         else:
-            lines.append(f"• {title}")
-    return f"{header}\n" + "\n".join(lines)
+            title_html = f"<b>{title}</b>"
+        status = _fmt_alert_status(r)
+        status_line = f"\n{status}" if status else ""
+        lines.append(f"{emoji} {title_html}{status_line}")
+
+    return f"{header}\n" + "\n\n".join(lines)
 
 
 def _get_buffered_alerts(alert_ids: list[str]) -> list[dict]:

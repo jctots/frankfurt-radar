@@ -525,10 +525,10 @@ def buffer_quiet_alert(subscriber_id: int, alert_id: str) -> None:
         )
 
 
-def flush_quiet_buffer(subscriber_id: int) -> list[str]:
+def flush_quiet_buffer(subscriber_id: int) -> list[tuple[str, str]]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT alert_id FROM quiet_buffer WHERE subscriber_id = ? ORDER BY buffered_at",
+            "SELECT alert_id, buffered_at FROM quiet_buffer WHERE subscriber_id = ? ORDER BY buffered_at",
             (subscriber_id,),
         ).fetchall()
         if rows:
@@ -536,7 +536,7 @@ def flush_quiet_buffer(subscriber_id: int) -> list[str]:
                 "DELETE FROM quiet_buffer WHERE subscriber_id = ?",
                 (subscriber_id,),
             )
-    return [r[0] for r in rows]
+    return [(r[0], r[1]) for r in rows]
 
 
 # ── alert_cache queries (notifier) ──────────────────────────────────────────
