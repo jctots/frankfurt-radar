@@ -12,7 +12,7 @@ _health = {"ok": True}
 
 _GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
+    "gemini-2.5-flash:generateContent"
 )
 
 _KEY_RE = re.compile(r"key=[A-Za-z0-9._-]+")
