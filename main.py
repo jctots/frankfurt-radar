@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from extraction import reset_extraction_health
+from extraction import extraction_ok, reset_extraction_health
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, StrikePoller, TicketmasterPoller
 from translation import reset_translation_health, translation_ok
 
@@ -212,6 +212,7 @@ def main() -> None:
 
         current_health: dict[str, bool] = {type(p).__name__: p.ok for p, _ in fetched}
         current_health["translator"] = translation_ok()
+        current_health["extraction"] = extraction_ok()
         if stale_minutes:
             current_health["poll_schedule"] = poll_fresh
         current_health["ram"] = metrics["ram_pct"] <= ram_warn_pct
