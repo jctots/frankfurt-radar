@@ -136,16 +136,19 @@ def _is_banned(chat_id: int) -> bool:
 def _track_command(command: str, config: dict) -> None:
     """Fire a bot_command event to Umami (best-effort, non-blocking)."""
     umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
-    website_id = config.get("web", {}).get("umami_website_id", "")
+    web_cfg = config.get("web", {})
+    website_id = web_cfg.get("umami_website_id", "")
     if not umami_url or not website_id:
         return
+    site_url = web_cfg.get("site_url", "")
+    hostname = site_url.split("//")[-1].split("/")[0] if site_url else "localhost"
     try:
         requests.post(
             f"{umami_url}/api/send",
-            headers={"User-Agent": "FrankfurtRadar-Bot/1.0"},
+            headers={"User-Agent": "FrankfurtRadar-Notifier/1.0"},
             json={
                 "payload": {
-                    "hostname": "telegram-bot",
+                    "hostname": hostname,
                     "language": "en-US",
                     "url": f"/bot/{command}",
                     "website": website_id,
