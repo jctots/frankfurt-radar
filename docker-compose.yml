@@ -7,6 +7,7 @@ services:
       - TZ=Europe/Berlin
       - RMV_API_KEY=${RMV_API_KEY}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY:-}
       - NOTIFIER_DISPATCH_URL=http://notifier:8443/dispatch
     volumes:
