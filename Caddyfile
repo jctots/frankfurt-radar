@@ -1,0 +1,16 @@
+frankfurt-radar.com {
+    handle /bot/webhook {
+        reverse_proxy notifier:8443
+    }
+    handle {
+        reverse_proxy web:8080
+    }
+}
+
+mcp.frankfurt-radar.com {
+    reverse_proxy mcp:8811
+}
+
+umami.frankfurt-radar.com {
+    reverse_proxy umami:3000
+}

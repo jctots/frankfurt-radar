@@ -100,32 +100,6 @@ class TestPollEndpoint:
         assert resp.status_code == 500
 
 
-class TestBotWebhookProxy:
-    def test_returns_404_when_notifier_url_not_set(self):
-        original = web_app.NOTIFIER_INTERNAL_URL
-        web_app.NOTIFIER_INTERNAL_URL = ""
-        resp = _client.post("/bot/webhook", json={})
-        web_app.NOTIFIER_INTERNAL_URL = original
-        assert resp.status_code == 404
-
-    def test_forwards_to_notifier(self, mocker):
-        web_app.NOTIFIER_INTERNAL_URL = "http://notifier:8443"
-        mock_req = mocker.patch("app.http_requests.request")
-        mock_req.return_value = MagicMock(content=b"", status_code=200, headers={})
-        resp = _client.post("/bot/webhook", json={"update_id": 1})
-        mock_req.assert_called_once()
-        assert mock_req.call_args.kwargs["url"] == "http://notifier:8443/bot/webhook"
-        assert resp.status_code == 200
-        web_app.NOTIFIER_INTERNAL_URL = ""
-
-    def test_returns_502_on_connection_error(self, mocker):
-        import requests
-        web_app.NOTIFIER_INTERNAL_URL = "http://notifier:8443"
-        mocker.patch("app.http_requests.request", side_effect=requests.ConnectionError)
-        resp = _client.post("/bot/webhook", json={})
-        assert resp.status_code == 502
-        web_app.NOTIFIER_INTERNAL_URL = ""
-
 
 class TestIndexPage:
     def test_returns_html(self):

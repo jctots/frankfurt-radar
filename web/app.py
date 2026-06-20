@@ -19,7 +19,7 @@ BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
 UMAMI_INTERNAL_URL   = os.getenv("UMAMI_INTERNAL_URL", "").rstrip("/")
-NOTIFIER_INTERNAL_URL = os.getenv("NOTIFIER_INTERNAL_URL", "").rstrip("/")
+
 
 init_db()
 
@@ -97,28 +97,6 @@ def umami_proxy(path):
     resp_headers = {k: v for k, v in r.headers.items() if k.lower() not in skip_resp}
     return Response(r.content, status=r.status_code, headers=resp_headers)
 
-
-@app.route("/bot/webhook", methods=["POST"])
-def bot_webhook_proxy():
-    if not NOTIFIER_INTERNAL_URL:
-        abort(404)
-    url = f"{NOTIFIER_INTERNAL_URL}/bot/webhook"
-    skip_req = {"host", "content-length", "transfer-encoding", "connection"}
-    fwd_headers = {k: v for k, v in request.headers if k.lower() not in skip_req}
-    try:
-        r = http_requests.request(
-            method="POST",
-            url=url,
-            headers=fwd_headers,
-            data=request.get_data(),
-            allow_redirects=False,
-            timeout=10,
-        )
-    except http_requests.RequestException:
-        abort(502)
-    skip_resp = {"content-encoding", "content-length", "transfer-encoding", "connection"}
-    resp_headers = {k: v for k, v in r.headers.items() if k.lower() not in skip_resp}
-    return Response(r.content, status=r.status_code, headers=resp_headers)
 
 
 @app.route("/robots.txt")

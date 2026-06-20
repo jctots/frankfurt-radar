@@ -50,7 +50,6 @@ services:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - UMAMI_INTERNAL_URL=http://umami:3000
-      - NOTIFIER_INTERNAL_URL=http://notifier:8443
       - STADIA_API_KEY=${STADIA_API_KEY:-}
     volumes:
       - radar_data:/app/data
@@ -65,7 +64,7 @@ services:
 
   ntfy:
     image: binwiederhier/ntfy:latest
-    profiles: [ntfy]
+    profiles: [staging]
     init: true
     ports:
       - "80:80"
@@ -76,7 +75,6 @@ services:
   mcp:
     image: ghcr.io/jctots/frankfurt-radar-mcp:${RADAR_TAG:-latest}
     container_name: frankfurt-radar-mcp
-    profiles: [mcp]
     init: true
     environment:
       - TZ=Europe/Berlin
@@ -96,7 +94,7 @@ services:
 
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
-    profiles: [analytics]
+    profiles: [production]
     container_name: umami
     init: true
     ports:
@@ -122,7 +120,7 @@ services:
 
   umami-db:
     image: postgres:15-alpine
-    profiles: [analytics]
+    profiles: [production]
     container_name: umami-db
     init: true
     environment:
@@ -143,7 +141,30 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  caddy:
+    image: caddy:2-alpine
+    profiles: [production]
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - web
+      - notifier
+      - mcp
+      - umami
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
 volumes:
   radar_data:   # shared SQLite DB (radar.db) between poller, notifier, and web containers
   ntfy_data:
   umami_data:
+  caddy_data:
