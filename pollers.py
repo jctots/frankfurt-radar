@@ -918,14 +918,6 @@ class StrikePoller(BasePoller):
                 valid_from = _to_utc_iso(details.get("valid_from"))
                 valid_until = _to_utc_iso(details.get("valid_until"))
 
-                if valid_until:
-                    try:
-                        if datetime.fromisoformat(valid_until) < datetime.now(timezone.utc):
-                            log.debug("StrikePoller: skipping past strike %s (ended %s)", entry_id, valid_until)
-                            continue
-                    except ValueError:
-                        pass
-
                 alerts.append(Alert(
                     id=entry_id,
                     source="strike",
