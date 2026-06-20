@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -84,23 +85,25 @@ def extract_alert_details(text: str, prompt: str) -> dict:
     return {}
 
 
-STRIKE_EXTRACTION_PROMPT = """\
-You are analyzing a German press release about a labor strike or warning strike (Warnstreik).
-Extract the following fields and respond with a JSON object:
-
-{
-  "summary": "2-3 sentence English summary of the strike: who is striking, what sector, when, where, and why",
-  "valid_from": "Strike start date/time in ISO 8601 format with Europe/Berlin timezone (e.g. 2026-06-05T00:00:00+02:00), or null if not determinable",
-  "valid_until": "Strike end date/time in ISO 8601 format with Europe/Berlin timezone, or null if not determinable. For open-ended strikes use null.",
-  "location": "Specific rally/demo location if mentioned (e.g. 'Hauptwache, Frankfurt'), otherwise the city or region name (e.g. 'Frankfurt und Region')",
-  "service": "One of: Transport, Retail, Public Sector, Aviation, Healthcare, Other",
-  "affected": ["List of affected companies or institutions, e.g. 'VGF', 'Rewe', 'Goethe-Universität'"]
-}
-
-Rules:
-- All date/times must use Europe/Berlin timezone offset (+01:00 or +02:00 depending on DST).
-- If the strike spans multiple days, valid_from is the start of the first day, valid_until is the end of the last day.
-- For single-day strikes without specific end time, set valid_until to end of day (23:59).
-- If the press release is about negotiations or general union news (not an actual strike call), return {"not_a_strike": true}.
-- The summary must be in English.\
-"""
+def strike_extraction_prompt() -> str:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return (
+        f"Today's date is {today}.\n\n"
+        "You are analyzing a German press release about a labor strike or warning strike (Warnstreik).\n"
+        "Extract the following fields and respond with a JSON object:\n\n"
+        "{\n"
+        '  "summary": "2-3 sentence English summary of the strike: who is striking, what sector, when, where, and why",\n'
+        '  "valid_from": "Strike start date/time in ISO 8601 format with Europe/Berlin timezone (e.g. 2026-06-05T00:00:00+02:00), or null if not determinable",\n'
+        '  "valid_until": "Strike end date/time in ISO 8601 format with Europe/Berlin timezone, or null if not determinable. For open-ended strikes use null.",\n'
+        '  "location": "Specific rally/demo location if mentioned (e.g. \'Hauptwache, Frankfurt\'), otherwise the city or region name (e.g. \'Frankfurt und Region\')",\n'
+        '  "service": "One of: Transport, Retail, Public Sector, Aviation, Healthcare, Other",\n'
+        '  "affected": ["List of affected companies or institutions, e.g. \'VGF\', \'Rewe\', \'Goethe-Universität\'"]\n'
+        "}\n\n"
+        "Rules:\n"
+        "- All date/times must use Europe/Berlin timezone offset (+01:00 or +02:00 depending on DST).\n"
+        "- Dates must be consistent with the press release's publication date. Do not output dates from prior years.\n"
+        "- If the strike spans multiple days, valid_from is the start of the first day, valid_until is the end of the last day.\n"
+        "- For single-day strikes without specific end time, set valid_until to end of day (23:59).\n"
+        '- If the press release is about negotiations or general union news (not an actual strike call), return {"not_a_strike": true}.\n'
+        "- The summary must be in English."
+    )

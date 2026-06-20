@@ -12,7 +12,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-from extraction import STRIKE_EXTRACTION_PROMPT, extract_alert_details
+from extraction import extract_alert_details, strike_extraction_prompt
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
@@ -900,7 +900,7 @@ class StrikePoller(BasePoller):
 
                 details = extract_alert_details(
                     page_body or searchable,
-                    STRIKE_EXTRACTION_PROMPT,
+                    strike_extraction_prompt(),
                 )
 
                 if details.get("not_a_strike"):
@@ -915,16 +915,27 @@ class StrikePoller(BasePoller):
                     if affected_str.lower() not in summary.lower():
                         summary += f"\n\nAffected: {affected_str}"
 
+                valid_from = _to_utc_iso(details.get("valid_from"))
+                valid_until = _to_utc_iso(details.get("valid_until"))
+
+                if valid_until:
+                    try:
+                        if datetime.fromisoformat(valid_until) < datetime.now(timezone.utc):
+                            log.debug("StrikePoller: skipping past strike %s (ended %s)", entry_id, valid_until)
+                            continue
+                    except ValueError:
+                        pass
+
                 alerts.append(Alert(
                     id=entry_id,
                     source="strike",
                     title=title,
                     body=summary,
                     url=link or None,
-                    valid_until=_to_utc_iso(details.get("valid_until")),
+                    valid_until=valid_until,
                     service=service,
                     published_at=published_at,
-                    valid_from=_to_utc_iso(details.get("valid_from")),
+                    valid_from=valid_from,
                     location_label=details.get("location"),
                 ))
 

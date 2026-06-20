@@ -726,9 +726,9 @@ class TestStrikePoller:
 
     def _mock_extraction(self):
         return {
-            "summary": "ver.di calls a warning strike in Hessian retail on June 5-6, 2026.",
-            "valid_from": "2026-06-05T00:00:00+02:00",
-            "valid_until": "2026-06-06T23:59:00+02:00",
+            "summary": "ver.di calls a warning strike in Hessian retail on Dec 5-6, 2099.",
+            "valid_from": "2099-12-05T00:00:00+01:00",
+            "valid_until": "2099-12-06T23:59:00+01:00",
             "location": "Frankfurt und Region",
             "service": "Retail",
             "affected": ["Rewe", "Ikea", "H&M", "Primark"],
@@ -832,8 +832,8 @@ class TestStrikePoller:
 
         alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
         alert = alerts[0]
-        assert "2026-06-04" in alert.valid_from
-        assert "2026-06-06" in alert.valid_until
+        assert "2099-12-04" in alert.valid_from
+        assert "2099-12-06" in alert.valid_until
         assert alert.location_label == "Frankfurt und Region"
 
     def test_llm_extraction_fallback_on_failure(self, mocker):
