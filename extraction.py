@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import re
+import time
 
 import requests
 
@@ -12,6 +14,12 @@ _GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-2.0-flash:generateContent"
 )
+
+_KEY_RE = re.compile(r"key=[A-Za-z0-9._-]+")
+
+
+def _mask_key(text: str) -> str:
+    return _KEY_RE.sub("key=***", text)
 
 
 def extraction_ok() -> bool:
@@ -41,29 +49,39 @@ def extract_alert_details(text: str, prompt: str) -> dict:
         },
     }
 
-    try:
-        resp = requests.post(
-            _GEMINI_URL,
-            params={"key": api_key},
-            json=body,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        candidates = resp.json().get("candidates", [])
-        if not candidates:
-            log.error("Gemini returned no candidates")
+    for attempt in range(3):
+        try:
+            resp = requests.post(
+                _GEMINI_URL,
+                params={"key": api_key},
+                json=body,
+                timeout=30,
+            )
+            if resp.status_code == 429:
+                wait = min(2 ** attempt * 5, 30)
+                log.warning("Gemini rate limited (attempt %d/3), retrying in %ds", attempt + 1, wait)
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            candidates = resp.json().get("candidates", [])
+            if not candidates:
+                log.error("Gemini returned no candidates")
+                _health["ok"] = False
+                return {}
+            raw = candidates[0]["content"]["parts"][0]["text"]
+            return json.loads(raw)
+        except requests.RequestException as e:
+            log.error("Gemini API request failed: %s", _mask_key(str(e)))
             _health["ok"] = False
             return {}
-        raw = candidates[0]["content"]["parts"][0]["text"]
-        return json.loads(raw)
-    except requests.RequestException as e:
-        log.error("Gemini API request failed: %s", e)
-        _health["ok"] = False
-        return {}
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        log.error("Gemini response parse failed: %s", e)
-        _health["ok"] = False
-        return {}
+        except (KeyError, IndexError, json.JSONDecodeError) as e:
+            log.error("Gemini response parse failed: %s", e)
+            _health["ok"] = False
+            return {}
+
+    log.error("Gemini rate limited — all retries exhausted")
+    _health["ok"] = False
+    return {}
 
 
 STRIKE_EXTRACTION_PROMPT = """\
