@@ -21,8 +21,8 @@ CLS_LABEL: dict[int, str] = {
 # Priority order for picking the primary service when a message affects multiple types
 CLS_PRIORITY = [8, 16, 32, 64, 4]  # sbahn > ubahn > tram > bus > regional
 
-SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "baustellen": "City Roads", "events": "Events", "sports": "Sports"}
-SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "⚠️", "baustellen": "🛑", "events": "🎉", "sports": "⚽"}
+SOURCE_LABEL: dict[str, str] = {"rmv": "Transport", "polizei": "Police", "dwd": "Weather", "autobahn": "Roads", "baustellen": "City Roads", "events": "Events", "sports": "Sports", "strike": "Strikes"}
+SOURCE_EMOJI: dict[str, str] = {"rmv": "🚇", "polizei": "🚨", "dwd": "⛈️", "autobahn": "⚠️", "baustellen": "🛑", "events": "🎉", "sports": "⚽", "strike": "🪧"}
 SPORT_EMOJI: dict[str, str] = {"running": "🏃", "triathlon": "🏊", "cycling": "🚴", "football": "⚽", "american_football": "🏈", "basketball": "🏀"}
 
 # Keyword → emoji for the specific weather event a DWD warning describes (checked in order,

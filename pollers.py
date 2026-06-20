@@ -10,7 +10,9 @@ from typing import Optional
 
 import feedparser
 import requests
+from bs4 import BeautifulSoup
 
+from extraction import STRIKE_EXTRACTION_PROMPT, extract_alert_details
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
@@ -781,3 +783,150 @@ def _primary_service_and_line(product_list: list[dict]) -> tuple[Optional[str], 
     service = CLS_LABEL[primary_cls]
     lines = sorted({str(p["line"]) for p in product_list if "cls" in p and int(p["cls"]) == primary_cls and p.get("line")})
     return service, lines
+
+
+# ── StrikePoller ────────────────────────────────────────────────────────────────
+
+_VERDI_HESSEN_FEED = "https://hessen.verdi.de/presse/pressemitteilungen/@@rss"
+_HESSENSCHAU_WIRTSCHAFT_FEED = "https://www.hessenschau.de/wirtschaft/index.rss"
+
+_STRIKE_KEYWORDS = ["streik", "warnstreik", "arbeitskampf", "arbeitsniederleg", "ausstand"]
+_FRANKFURT_LOCATIONS = ["frankfurt", "hessen", "rmv", "vgf", "fraport", "fes", "icb"]
+
+
+def _fetch_page_body(url: str) -> str:
+    """Fetch a web page and extract the main text content."""
+    try:
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "FrankfurtRadar/1.0"})
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        log.error("StrikePoller: failed to fetch %s: %s", url, e)
+        return ""
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        tag.decompose()
+    return soup.get_text(separator="\n", strip=True)
+
+
+def _parse_strike_timestamp(entry: dict) -> str | None:
+    """Extract published timestamp from RSS entry (dc:date or pubDate)."""
+    if entry.get("published_parsed"):
+        return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
+    updated = entry.get("updated_parsed")
+    if updated:
+        return datetime(*updated[:6], tzinfo=timezone.utc).isoformat()
+    return None
+
+
+def _to_utc_iso(iso_str: str | None) -> str | None:
+    """Convert an ISO 8601 string with timezone to UTC ISO format."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_BERLIN)
+        return dt.astimezone(timezone.utc).isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
+class StrikePoller(BasePoller):
+    def __init__(
+        self,
+        feeds: list[str] | None = None,
+        keywords: list[str] | None = None,
+        locations: list[str] | None = None,
+        max_age_days: int = 14,
+    ):
+        super().__init__()
+        self.feeds = feeds or [_VERDI_HESSEN_FEED, _HESSENSCHAU_WIRTSCHAFT_FEED]
+        self.keywords = keywords or _STRIKE_KEYWORDS
+        self.locations = locations or _FRANKFURT_LOCATIONS
+        self.max_age_days = max_age_days
+
+    def _matches_keywords(self, text: str) -> bool:
+        lower = text.lower()
+        return any(kw in lower for kw in self.keywords)
+
+    def _matches_location(self, text: str) -> bool:
+        lower = text.lower()
+        return any(loc in lower for loc in self.locations)
+
+    def fetch(self) -> list[Alert]:
+        seen_ids: set[str] = set()
+        alerts: list[Alert] = []
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.max_age_days)
+
+        for feed_url in self.feeds:
+            try:
+                feed = feedparser.parse(feed_url)
+                if feed.bozo and not feed.entries:
+                    log.error("StrikePoller: failed to parse %s: %s", feed_url, feed.bozo_exception)
+                    self.ok = False
+                    continue
+            except Exception as e:
+                log.error("StrikePoller: feed error %s: %s", feed_url, e)
+                self.ok = False
+                continue
+
+            for entry in feed.entries:
+                entry_id = entry.get("id") or entry.get("link", "")
+                if not entry_id or entry_id in seen_ids:
+                    continue
+
+                published_at = _parse_strike_timestamp(entry)
+                if published_at:
+                    try:
+                        pub_dt = datetime.fromisoformat(published_at)
+                        if pub_dt < cutoff:
+                            continue
+                    except ValueError:
+                        pass
+
+                title = entry.get("title", "")
+                description = entry.get("summary") or entry.get("description", "")
+                searchable = f"{title} {description}"
+
+                if not self._matches_keywords(searchable):
+                    continue
+                if not self._matches_location(searchable):
+                    continue
+
+                seen_ids.add(entry_id)
+
+                link = entry.get("link", "")
+                page_body = _fetch_page_body(link) if link else ""
+
+                details = extract_alert_details(
+                    page_body or searchable,
+                    STRIKE_EXTRACTION_PROMPT,
+                )
+
+                if details.get("not_a_strike"):
+                    log.debug("StrikePoller: skipping non-strike entry %s", entry_id)
+                    continue
+
+                summary = details.get("summary", description)
+                service = details.get("service")
+                affected = details.get("affected", [])
+                if affected and summary:
+                    affected_str = ", ".join(affected)
+                    if affected_str.lower() not in summary.lower():
+                        summary += f"\n\nAffected: {affected_str}"
+
+                alerts.append(Alert(
+                    id=entry_id,
+                    source="strike",
+                    title=title,
+                    body=summary,
+                    url=link or None,
+                    valid_until=_to_utc_iso(details.get("valid_until")),
+                    service=service,
+                    published_at=published_at,
+                    valid_from=_to_utc_iso(details.get("valid_from")),
+                    location_label=details.get("location"),
+                ))
+
+        log.info("Strike: fetched %d alerts from %d feeds", len(alerts), len(self.feeds))
+        return alerts

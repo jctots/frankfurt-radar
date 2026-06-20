@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>ver.di Hessen Pressemitteilungen</title>
+    <link>https://hessen.verdi.de/presse/pressemitteilungen</link>
+    <item>
+      <title>Am Brückentag: Warnstreiks im hessischen Handel</title>
+      <dc:date>2026-06-03T07:00:00+02:00</dc:date>
+      <description>Viele dezentrale Demonstrationen und Aktionen in Frankfurt und Region.</description>
+      <link>https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-001</link>
+    </item>
+    <item>
+      <title>Warnstreik bei Münchner Einzelhandel</title>
+      <dc:date>2026-06-02T10:00:00+02:00</dc:date>
+      <description>Streik in München betrifft mehrere Kaufhäuser.</description>
+      <link>https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-002</link>
+    </item>
+    <item>
+      <title>Internationaler Tag des öffentlichen Dienstes in Frankfurt</title>
+      <dc:date>2026-06-01T09:00:00+02:00</dc:date>
+      <description>Keine Arbeit im öffentlichen Dienst - kein Leben in den Kommunen.</description>
+      <link>https://hessen.verdi.de/presse/pressemitteilungen/++co++no-strike-003</link>
+    </item>
+  </channel>
+</rss>

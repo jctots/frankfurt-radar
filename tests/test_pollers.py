@@ -712,3 +712,149 @@ class TestPollerOkFlag:
         poller.fetch()
 
         assert poller.ok is True
+
+
+# ── StrikePoller ────────────────────────────────────────────────────────────────
+
+class TestStrikePoller:
+    def _patched_feed(self):
+        xml = (FIXTURES_DIR / "strike_rss.xml").read_text()
+        return feedparser.parse(xml)
+
+    def _patched_page(self):
+        return (FIXTURES_DIR / "strike_press_release.html").read_text()
+
+    def _mock_extraction(self):
+        return {
+            "summary": "ver.di calls a warning strike in Hessian retail on June 5-6, 2026.",
+            "valid_from": "2026-06-05T00:00:00+02:00",
+            "valid_until": "2026-06-06T23:59:00+02:00",
+            "location": "Frankfurt und Region",
+            "service": "Retail",
+            "affected": ["Rewe", "Ikea", "H&M", "Primark"],
+        }
+
+    def test_filters_non_frankfurt_entries(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        ids = [a.id for a in alerts]
+        assert "https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-002" not in ids
+
+    def test_filters_non_strike_entries(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        ids = [a.id for a in alerts]
+        assert "https://hessen.verdi.de/presse/pressemitteilungen/++co++no-strike-003" not in ids
+
+    def test_alert_fields_populated(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert.source == "strike"
+        assert alert.title == "Am Brückentag: Warnstreiks im hessischen Handel"
+        assert "warning strike" in alert.body.lower()
+        assert alert.url == "https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-001"
+        assert alert.service == "Retail"
+        assert alert.location_label == "Frankfurt und Region"
+        assert alert.valid_from is not None
+        assert alert.valid_until is not None
+
+    def test_source_is_strike(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        assert all(a.source == "strike" for a in alerts)
+
+    def test_published_at_parsed(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        assert alerts[0].published_at is not None
+        assert "2026-06-03" in alerts[0].published_at
+
+    def test_feed_parse_failure_sets_ok_false(self, mocker):
+        from pollers import StrikePoller
+        bad_feed = MagicMock()
+        bad_feed.bozo = True
+        bad_feed.bozo_exception = Exception("parse error")
+        bad_feed.entries = []
+        mocker.patch("pollers.feedparser.parse", return_value=bad_feed)
+
+        poller = StrikePoller(feeds=["https://fake.test/rss"])
+        alerts = poller.fetch()
+
+        assert alerts == []
+        assert poller.ok is False
+
+    def test_multiple_feeds_deduplicates(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake1.test/rss", "https://fake2.test/rss"], max_age_days=365).fetch()
+        ids = [a.id for a in alerts]
+        assert len(ids) == len(set(ids))
+
+    def test_max_age_filters_old_entries(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=0).fetch()
+        assert len(alerts) == 0
+
+    def test_llm_extraction_populates_dates_and_location(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=self._mock_extraction())
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        alert = alerts[0]
+        assert "2026-06-04" in alert.valid_from
+        assert "2026-06-06" in alert.valid_until
+        assert alert.location_label == "Frankfurt und Region"
+
+    def test_llm_extraction_fallback_on_failure(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value={})
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert.source == "strike"
+        assert alert.valid_from is None
+        assert alert.valid_until is None
+        assert alert.location_label is None
+
+    def test_not_a_strike_entry_skipped(self, mocker):
+        from pollers import StrikePoller
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value={"not_a_strike": True})
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        assert len(alerts) == 0
