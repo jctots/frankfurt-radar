@@ -791,7 +791,7 @@ _VERDI_HESSEN_FEED = "https://hessen.verdi.de/presse/pressemitteilungen/@@rss"
 _HESSENSCHAU_WIRTSCHAFT_FEED = "https://www.hessenschau.de/wirtschaft/index.rss"
 
 _STRIKE_KEYWORDS = ["streik", "warnstreik", "arbeitskampf", "arbeitsniederleg", "ausstand"]
-_FRANKFURT_LOCATIONS = ["frankfurt", "hessen", "rmv", "vgf", "fraport", "fes", "icb"]
+_FRANKFURT_LOCATIONS = ["frankfurt", "hessen", "hessisch", "rmv", "vgf", "fraport", "fes", "icb"]
 
 
 def _fetch_page_body(url: str) -> str:
