@@ -27,19 +27,24 @@ On first start, `config.yaml` is seeded to the `data/` volume. Edit it at `data/
 | **poller** | Fetches alerts on a cron schedule, translates, writes to DB | — | 0.5 CPU, 256 MB |
 | **notifier** | Telegram bot webhook endpoint, subscriber dispatch | 8443 | 0.25 CPU, 128 MB |
 | **web** | Flask app serving the status page and API | 8080 | 0.5 CPU, 256 MB |
+| **mcp** | MCP server for AI assistant integration | 8811 | 0.25 CPU, 128 MB |
 
 Optional services (enabled via Docker Compose profiles):
 
 | Service | Profile | Role |
 |---------|---------|------|
-| **ntfy** | `ntfy` | Push notifications via [ntfy.sh](https://ntfy.sh) |
-| **umami** + **umami-db** | `analytics` | Self-hosted, cookie-free usage analytics |
-| **mcp** | `mcp` | MCP server for AI assistant integration (Claude Code, etc.) |
+| **ntfy** | `staging` | Push notifications via [ntfy.sh](https://ntfy.sh) |
+| **umami** + **umami-db** | `production` | Self-hosted, cookie-free usage analytics |
+| **caddy** | `production` | Reverse proxy with automatic HTTPS (Let's Encrypt) |
 
 Enable profiles:
 
 ```bash
-docker compose --profile analytics --profile ntfy up -d
+# Production (includes Caddy reverse proxy and Umami analytics)
+docker compose --profile production up -d
+
+# Staging (includes ntfy for push notifications)
+docker compose --profile staging up -d
 ```
 
 ## 🔑 Environment variables
@@ -60,7 +65,7 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `MCP_ADMIN_KEY` | No | Admin API key for MCP server (unlimited, no rate limiting) |
 | `MCP_API_KEYS` | No | Comma-separated API keys for MCP consumers (rate-limited) |
 
-Analytics profile variables (only needed with `--profile analytics`):
+Production profile variables (only needed with `--profile production`):
 
 | Variable | Description |
 |----------|-------------|
@@ -77,7 +82,7 @@ Analytics profile variables (only needed with `--profile analytics`):
 
 ```yaml
 polling:
-  interval_minutes: 10       # Poll frequency (2–60 min)
+  interval_minutes: 10       # Poll frequency (1–60 min)
 ```
 
 ### 📊 Data sources
@@ -176,7 +181,8 @@ web:
   github_url: https://github.com/you/frankfurt-radar
   kofi_url: https://ko-fi.com/you           # Optional — donation link in footer
   sponsor_url: https://...                    # Optional — sponsor link in footer
-  umami_website_id: xxxxxxxx                  # Umami tracking ID (if analytics profile enabled)
+  umami_url: https://umami.your-domain.com     # Umami instance URL (if production profile enabled)
+  umami_website_id: xxxxxxxx                  # Umami tracking ID (if production profile enabled)
   disabled_default_sources: []                # Sources hidden by default on page load
   impressum_address: "..."                    # Legal operator address (shown on /legal)
   operator_name: "..."
@@ -203,6 +209,7 @@ Festivals and sports fixtures can be defined in YAML files:
 start - Set up personalized alerts
 settings - Edit your alert preferences
 mystatus - View your current settings
+search - Search active alerts by keyword
 help - Usage guide and commands
 stop - Pause notifications
 deletedata - Delete all your data (GDPR)
@@ -256,17 +263,7 @@ See [docs/telegram-bot-setup.md](telegram-bot-setup.md) for the full deployment 
 
 The MCP server exposes Frankfurt Radar alerts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/). It provides read-only access to active alerts, search, and system status.
 
-**Add to the full stack:**
-
-```bash
-docker compose --profile mcp up -d
-```
-
-**AI-only deployment** (poller + MCP server, no web/Telegram/ntfy):
-
-```bash
-docker compose up -d poller mcp
-```
+The MCP server is included in the default profile — no extra flags needed.
 
 **MCP-only** (if you already have a `radar.db` from another source):
 

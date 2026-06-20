@@ -21,6 +21,7 @@ Select your bot, then paste:
 start - Set up personalized alerts
 settings - Edit your alert preferences
 mystatus - View your current settings
+search - Search active alerts by keyword
 help - Usage guide and commands
 stop - Pause notifications
 deletedata - Delete all your data (GDPR)
@@ -82,7 +83,7 @@ Expected response: `"url"` matches your webhook URL, `"has_custom_certificate": 
 
 ## 4️⃣ Admin commands
 
-Admin commands (`/status`, `/alerts`, `/poll`) are gated by chat ID. The admin chat ID is read from `config.yaml`:
+Admin commands (`/status`, `/alerts`, `/visits`, `/poll`, `/ban`, `/unban`) are gated by chat ID. The admin chat ID is read from `config.yaml`:
 
 ```yaml
 admin_health_notifier:

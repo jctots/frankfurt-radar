@@ -14,7 +14,7 @@ transport:
   services:
 
 polling:
-  interval_minutes: 10   # min 10, max 60 — drives cron poll schedule
+  interval_minutes: 10   # min 1, max 60 — drives cron poll schedule
 
 location:
   radius_km: 50          # shared radius (km) for all location-aware pollers (autobahn, events)

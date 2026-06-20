@@ -2,7 +2,7 @@
 
 ## 🔭 Overview
 
-Frankfurt Radar runs as independently deployable containers — a **poller**, a **notifier**, a **web server**, and an optional **MCP server** — sharing a single SQLite database via a Docker volume.
+Frankfurt Radar runs as independently deployable containers — a **poller**, a **notifier**, a **web server**, and an **MCP server** — sharing a single SQLite database via a Docker volume. In production, a **Caddy** reverse proxy handles TLS termination and hostname-based routing.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -38,7 +38,7 @@ Frankfurt Radar runs as independently deployable containers — a **poller**, a 
 
 The containers share no direct communication — the database is the only coupling point.
 
-An optional **MCP server** container (profile: `mcp`) provides read-only access to the alert database for AI assistants via the Model Context Protocol (SSE transport on port 8811). It imports `db.py` and `models.py` directly — no API layer between it and SQLite.
+The **MCP server** container provides read-only access to the alert database for AI assistants via the Model Context Protocol (SSE transport on port 8811). It imports `db.py` and `models.py` directly — no API layer between it and SQLite.
 
 ---
 
@@ -163,6 +163,7 @@ Listens on port 8443 for Telegram webhook requests. Validates incoming requests 
 | `/start` | Subscribe + interactive preference onboarding (7 steps) |
 | `/settings` | Re-enter preference wizard with current settings pre-selected |
 | `/mystatus` | Display current preferences and subscription status |
+| `/search` | Search active alerts by keyword (interactive paginated results) |
 | `/help` | Command reference and usage guide |
 | `/stop` | Set `active=0` — pauses delivery, keeps preferences |
 | `/deletedata` | Delete subscriber + sent_alerts + conversation_state records |
@@ -177,6 +178,8 @@ Gated by `chat_id` matching `admin_health_notifier.telegram_chat_id`:
 | `/alerts` | List current active alerts grouped by source |
 | `/visits` | Recent visitor/event statistics |
 | `/poll` | Trigger a manual poll cycle |
+| `/ban` | Block a user from using the bot |
+| `/unban` | Unblock a previously banned user |
 
 ### 📤 Subscriber dispatch
 
@@ -213,12 +216,8 @@ Flask app served by gunicorn. Read-only — no API keys, no write access to the 
 | `/api/radar/frames` | GET | List available radar observation/forecast frames |
 | `/api/radar/obs/<file>` | GET | Serve radar observation PNG |
 | `/api/radar/forecast/<file>` | GET | Serve radar forecast PNG |
-| `/bot/webhook` | POST | Proxy to notifier container |
 | `/legal` | GET | Impressum page |
-| `/privacy` | GET | Privacy policy |
-| `/security` | GET | Security policy |
 | `/robots.txt` | GET | SEO directives with sitemap |
-| `/um/*` | GET | Umami analytics proxy |
 
 ### 🖥️ Status page
 
@@ -238,7 +237,7 @@ Single-page app with no build step:
 
 ## 🤖 MCP server container (optional)
 
-Read-only MCP server exposing alert data to AI assistants (Claude Code, etc.) via SSE transport. Enabled with `--profile mcp`.
+Read-only MCP server exposing alert data to AI assistants (Claude Code, etc.) via SSE transport. Included in the default profile.
 
 ### 🔧 Tools
 
@@ -305,7 +304,7 @@ Status page:
     web/app.py GET /api/status → db.get_status_json() → alert_cache → browser
 
 Bot interaction:
-    Telegram → /bot/webhook → notifier:8443 → bot.py → db.py (subscribers, sent_alerts, quiet_buffer)
+    Telegram → Caddy → notifier:8443 → bot.py → db.py (subscribers, sent_alerts, quiet_buffer)
 ```
 
 ---

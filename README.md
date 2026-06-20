@@ -120,7 +120,7 @@ main.py                    bot.py                    app.py
   (Google / LibreTranslate)  SSE :8811
 ```
 
-The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The optional MCP server (enabled with `--profile mcp`) exposes alerts to AI assistants like Claude Code via SSE.
+The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The MCP server exposes alerts to AI assistants like Claude Code via SSE.
 
 ### 🤖 MCP server — AI assistant integration
 
