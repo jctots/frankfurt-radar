@@ -142,10 +142,11 @@ def _track_command(command: str, config: dict) -> None:
     try:
         requests.post(
             f"{umami_url}/api/send",
+            headers={"User-Agent": "FrankfurtRadar-Bot/1.0"},
             json={
                 "payload": {
                     "hostname": "telegram-bot",
-                    "language": "en",
+                    "language": "en-US",
                     "url": f"/bot/{command}",
                     "website": website_id,
                     "name": "bot_command",
