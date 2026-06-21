@@ -53,6 +53,7 @@
       --clr-roads:     #d97706;
       --clr-events:    #059669;
       --clr-sports:    #ea580c;
+      --clr-strike:    #b91c1c;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -256,6 +257,7 @@
     .chip.src-baustellen.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #fff7ed; }
+    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fef2f2; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -446,6 +448,7 @@
     .card.src-baustellen { border-left-color: var(--clr-roads); }
     .card.src-events     { border-left-color: var(--clr-events); }
     .card.src-sports     { border-left-color: var(--clr-sports); }
+    .card.src-strike     { border-left-color: var(--clr-strike); }
     .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
     .card.card-pinned.src-sports { background: #fff7ed; }
@@ -465,6 +468,7 @@
     .card.sel.src-baustellen { background: #fde68a; border-left-color: var(--clr-roads); }
     .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
     .card.sel.src-sports     { background: #fed7aa; border-left-color: var(--clr-sports); }
+    .card.sel.src-strike     { background: #fecaca; border-left-color: var(--clr-strike); }
     .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .card.card-removed:hover { background: #f8fafc !important; }
 
@@ -907,6 +911,7 @@
       --clr-roads:     #fbbf24;
       --clr-events:    #34d399;
       --clr-sports:    #fb923c;
+      --clr-strike:    #f87171;
       --clr-bg:      #131921;
       --clr-surface: #1c2433;
       --clr-border:  #2a3344;
@@ -921,6 +926,7 @@
     .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
     .dark .card.src-events     { background: #182428; border-left-color: var(--clr-events); }
     .dark .card.src-sports     { background: #22201c; border-left-color: var(--clr-sports); }
+    .dark .card.src-strike     { background: #2a1c1c; border-left-color: var(--clr-strike); }
     .dark .card:hover              { background: #222c3a; }
     .dark .card.src-rmv:hover      { background: #1e2d42; }
     .dark .card.src-dwd:hover      { background: #262548; }
@@ -936,6 +942,7 @@
     .dark .card.sel.src-baustellen { background: #3d3018; border-left-color: var(--clr-roads); }
     .dark .card.sel.src-events     { background: #1e3d32; border-left-color: var(--clr-events); }
     .dark .card.sel.src-sports     { background: #3d2e18; border-left-color: var(--clr-sports); }
+    .dark .card.sel.src-strike     { background: #3d2028; border-left-color: var(--clr-strike); }
     .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .dark .card.card-removed:hover { background: #222c3a !important; }
 
@@ -1207,6 +1214,7 @@ const SOURCE = {
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
   events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
   sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
+  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: null },
 };
 
 const SVC_ICON = {
@@ -1327,6 +1335,7 @@ let filters       = (() => {
 if (!filters.sources.hasOwnProperty('events'))     filters.sources.events     = _srcOn('events');
 if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
+if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
 if (!filters.roads) filters.roads = {};
 if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
 if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
@@ -2288,7 +2297,7 @@ function buildFilterBar() {
 
   const sectionAlerts = feedVisible();
   const counts = {};
-  ['polizei','dwd','autobahn','events','sports','rmv'].forEach(src => {
+  ['polizei','dwd','autobahn','events','sports','rmv','strike'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
   });
   counts.autobahn += sectionAlerts.filter(a => a.source === 'baustellen').length;
@@ -2321,6 +2330,11 @@ function buildFilterBar() {
   html += '<div class="filter-sep"></div>';
   const polOn = filters.sources.polizei !== false;
   html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
+
+  // Strikes
+  html += '<div class="filter-sep"></div>';
+  const stOn = filters.sources.strike !== false;
+  html += `<button class="chip src-strike${stOn ? ' on' : ''}" onclick="toggleSrc('strike')">${SOURCE.strike.emoji} ${SOURCE.strike.label}${badge(counts.strike)}</button>`;
 
   // Roads
   html += '<div class="filter-sep"></div>';

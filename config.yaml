@@ -74,6 +74,11 @@ baustellen:
     - full                  # sperrung=1: road completely blocked
     # - partial               # sperrung=0: lane restriction / partial closure
 
+# Strike alerts — ver.di Hessen + hessenschau RSS, LLM-extracted dates/locations
+strike:
+  enabled: true
+  max_age_days: 14          # backstop: drop alerts older than this IF valid_until is missing
+
 # City events — dates and details are in city_events.yaml (same DATA_DIR)
 events:
   enabled: true

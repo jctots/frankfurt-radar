@@ -10,7 +10,9 @@ from typing import Optional
 
 import feedparser
 import requests
+from bs4 import BeautifulSoup
 
+from extraction import STRIKE_DEDUP_PROMPT, extract_alert_details, strike_extraction_prompt
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
@@ -781,3 +783,219 @@ def _primary_service_and_line(product_list: list[dict]) -> tuple[Optional[str], 
     service = CLS_LABEL[primary_cls]
     lines = sorted({str(p["line"]) for p in product_list if "cls" in p and int(p["cls"]) == primary_cls and p.get("line")})
     return service, lines
+
+
+# ── StrikePoller ────────────────────────────────────────────────────────────────
+
+_VERDI_HESSEN_FEED = "https://hessen.verdi.de/presse/pressemitteilungen/@@rss"
+_HESSENSCHAU_WIRTSCHAFT_FEED = "https://www.hessenschau.de/wirtschaft/index.rss"
+
+_STRIKE_KEYWORDS = ["streik", "warnstreik", "arbeitskampf", "arbeitsniederleg", "ausstand"]
+_FRANKFURT_LOCATIONS = ["frankfurt", "hessen", "hessisch", "rmv", "vgf", "fraport", "fes", "icb"]
+
+
+def _fetch_page_body(url: str) -> str:
+    """Fetch a web page and extract the main text content."""
+    try:
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "FrankfurtRadar/1.0"})
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        log.error("StrikePoller: failed to fetch %s: %s", url, e)
+        return ""
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        tag.decompose()
+    return soup.get_text(separator="\n", strip=True)
+
+
+def _parse_strike_timestamp(entry: dict) -> str | None:
+    """Extract published timestamp from RSS entry (dc:date or pubDate)."""
+    if entry.get("published_parsed"):
+        return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
+    updated = entry.get("updated_parsed")
+    if updated:
+        return datetime(*updated[:6], tzinfo=timezone.utc).isoformat()
+    return None
+
+
+def _to_utc_iso(iso_str: str | None) -> str | None:
+    """Convert an ISO 8601 string with timezone to UTC ISO format."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_BERLIN)
+        return dt.astimezone(timezone.utc).isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
+def _dates_overlap(from_a: str | None, until_a: str | None, from_b: str | None, until_b: str | None) -> bool:
+    """Check if two date ranges overlap. Returns False if either range is incomplete."""
+    if not from_a or not from_b:
+        return False
+    try:
+        start_a = datetime.fromisoformat(from_a)
+        end_a = datetime.fromisoformat(until_a) if until_a else start_a + timedelta(days=1)
+        start_b = datetime.fromisoformat(from_b)
+        end_b = datetime.fromisoformat(until_b) if until_b else start_b + timedelta(days=1)
+        return start_a < end_b and start_b < end_a
+    except (ValueError, TypeError):
+        return False
+
+
+def _is_duplicate_strike(new_alert: Alert, existing: dict) -> bool:
+    """Check if new_alert duplicates an existing strike using date overlap + LLM."""
+    if not _dates_overlap(
+        new_alert.valid_from, new_alert.valid_until,
+        existing.get("valid_from"), existing.get("valid_until"),
+    ):
+        return False
+
+    prompt = STRIKE_DEDUP_PROMPT.format(
+        existing_title=existing.get("title_en") or existing.get("title", ""),
+        existing_body=(existing.get("body_en") or existing.get("body", ""))[:500],
+        existing_from=existing.get("valid_from", ""),
+        existing_until=existing.get("valid_until", ""),
+        existing_service=existing.get("service", ""),
+        new_title=new_alert.title,
+        new_body=(new_alert.body or "")[:500],
+        new_from=new_alert.valid_from or "",
+        new_until=new_alert.valid_until or "",
+        new_service=new_alert.service or "",
+    )
+    result = extract_alert_details("", prompt)
+    return result.get("same_event", False)
+
+
+class StrikePoller(BasePoller):
+    def __init__(
+        self,
+        feeds: list[str] | None = None,
+        keywords: list[str] | None = None,
+        locations: list[str] | None = None,
+        max_age_days: int = 14,
+    ):
+        super().__init__()
+        self.feeds = feeds or [_VERDI_HESSEN_FEED, _HESSENSCHAU_WIRTSCHAFT_FEED]
+        self.keywords = keywords or _STRIKE_KEYWORDS
+        self.locations = locations or _FRANKFURT_LOCATIONS
+        self.max_age_days = max_age_days
+
+    def _matches_keywords(self, text: str) -> bool:
+        lower = text.lower()
+        return any(kw in lower for kw in self.keywords)
+
+    def _matches_location(self, text: str) -> bool:
+        lower = text.lower()
+        return any(loc in lower for loc in self.locations)
+
+    def fetch(self) -> list[Alert]:
+        from db import get_active_strikes
+
+        seen_ids: set[str] = set()
+        alerts: list[Alert] = []
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.max_age_days)
+        cached_strikes = get_active_strikes()
+
+        for feed_url in self.feeds:
+            try:
+                feed = feedparser.parse(feed_url)
+                if feed.bozo and not feed.entries:
+                    log.error("StrikePoller: failed to parse %s: %s", feed_url, feed.bozo_exception)
+                    self.ok = False
+                    continue
+            except Exception as e:
+                log.error("StrikePoller: feed error %s: %s", feed_url, e)
+                self.ok = False
+                continue
+
+            is_verdi = "verdi.de" in feed_url
+
+            for entry in feed.entries:
+                entry_id = entry.get("id") or entry.get("link", "")
+                if not entry_id or entry_id in seen_ids:
+                    continue
+
+                published_at = _parse_strike_timestamp(entry)
+                if published_at:
+                    try:
+                        pub_dt = datetime.fromisoformat(published_at)
+                        if pub_dt < cutoff:
+                            continue
+                    except ValueError:
+                        pass
+
+                title = entry.get("title", "")
+                description = entry.get("summary") or entry.get("description", "")
+                searchable = f"{title} {description}"
+
+                if not self._matches_keywords(searchable):
+                    continue
+                if not is_verdi and not self._matches_location(searchable):
+                    continue
+
+                seen_ids.add(entry_id)
+
+                link = entry.get("link", "")
+                page_body = _fetch_page_body(link) if link else ""
+
+                details = extract_alert_details(
+                    page_body or searchable,
+                    strike_extraction_prompt(),
+                )
+
+                if details.get("not_a_strike"):
+                    log.debug("StrikePoller: skipping non-strike entry %s", entry_id)
+                    continue
+
+                summary = details.get("summary", description)
+                service = details.get("service")
+                affected = details.get("affected", [])
+                if affected and summary:
+                    affected_str = ", ".join(affected)
+                    if affected_str.lower() not in summary.lower():
+                        summary += f"\n\nAffected: {affected_str}"
+
+                valid_from = _to_utc_iso(details.get("valid_from"))
+                valid_until = _to_utc_iso(details.get("valid_until"))
+
+                if valid_from and not valid_until:
+                    try:
+                        vf = datetime.fromisoformat(valid_from)
+                        valid_until = vf.replace(hour=21, minute=59, second=0).astimezone(timezone.utc).isoformat()
+                    except ValueError:
+                        pass
+
+                alert = Alert(
+                    id=entry_id,
+                    source="strike",
+                    title=title,
+                    body=summary,
+                    url=link or None,
+                    valid_until=valid_until,
+                    service=service,
+                    published_at=published_at,
+                    valid_from=valid_from,
+                    location_label=details.get("location"),
+                )
+
+                existing_to_check = [
+                    {"title_en": a.title, "body_en": a.body, "valid_from": a.valid_from,
+                     "valid_until": a.valid_until, "service": a.service}
+                    for a in alerts
+                ] + [s for s in cached_strikes if s.get("alert_id") != entry_id]
+
+                is_dup = False
+                for existing in existing_to_check:
+                    if _is_duplicate_strike(alert, existing):
+                        log.info("StrikePoller: skipping duplicate strike %s (matches %s)",
+                                 entry_id, existing.get("alert_id", "batch"))
+                        is_dup = True
+                        break
+                if not is_dup:
+                    alerts.append(alert)
+
+        log.info("Strike: fetched %d alerts from %d feeds", len(alerts), len(self.feeds))
+        return alerts

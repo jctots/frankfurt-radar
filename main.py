@@ -11,9 +11,10 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
+from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
-from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, TicketmasterPoller
+from extraction import extraction_ok, reset_extraction_health
+from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, StrikePoller, TicketmasterPoller
 from translation import reset_translation_health, translation_ok
 
 load_dotenv()
@@ -92,6 +93,7 @@ def main() -> None:
                 pass
 
     reset_translation_health()
+    reset_extraction_health()
 
     transport_cfg = config.get("transport", {})
     services = transport_cfg.get("services") or {}
@@ -152,6 +154,14 @@ def main() -> None:
             set_meta("last_sports_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         else:
             log.info("Sports network pollers skipped — last run %s", last_sports)
+    strike_cfg = config.get("strike", {})
+    if strike_cfg.get("enabled", False):
+        pollers.append(StrikePoller(
+            feeds=strike_cfg.get("feeds"),
+            keywords=strike_cfg.get("keywords"),
+            locations=strike_cfg.get("locations"),
+            max_age_days=strike_cfg.get("max_age_days", 14),
+        ))
 
     fetched = [(p, p.fetch()) for p in pollers]
     all_alerts = [a for _, alerts in fetched for a in alerts]
@@ -168,6 +178,14 @@ def main() -> None:
             if not (a.source == "polizei" and a.published_at and a.published_at < cutoff)
         ]
 
+    strike_max_age_days = config.get("strike", {}).get("max_age_days", 14)
+    if strike_max_age_days:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=strike_max_age_days)).isoformat()
+        all_alerts = [
+            a for a in all_alerts
+            if not (a.source == "strike" and not a.valid_until and a.published_at and a.published_at < cutoff)
+        ]
+
     stale_after_days = config.get("stale_after_days")
     if stale_after_days:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()
@@ -176,6 +194,7 @@ def main() -> None:
                 a.stale = True
 
     sync_alert_cache(all_alerts, config)
+    clear_expired_alerts()
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -194,6 +213,7 @@ def main() -> None:
 
         current_health: dict[str, bool] = {type(p).__name__: p.ok for p, _ in fetched}
         current_health["translator"] = translation_ok()
+        current_health["extraction"] = extraction_ok()
         if stale_minutes:
             current_health["poll_schedule"] = poll_fresh
         current_health["ram"] = metrics["ram_pct"] <= ram_warn_pct
