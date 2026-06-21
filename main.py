@@ -186,6 +186,12 @@ def main() -> None:
             if not (a.source == "strike" and not a.valid_until and a.published_at and a.published_at < cutoff)
         ]
 
+    now_iso = datetime.now(timezone.utc).isoformat()
+    all_alerts = [
+        a for a in all_alerts
+        if not (a.source == "strike" and a.valid_until and a.valid_until < now_iso)
+    ]
+
     stale_after_days = config.get("stale_after_days")
     if stale_after_days:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()

@@ -436,6 +436,16 @@ def update_last_briefing(subscriber_id: int) -> None:
         )
 
 
+def get_active_strikes() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT alert_id, valid_from, valid_until, service, title_en, body_en
+               FROM alert_cache
+               WHERE source = 'strike' AND removed_at IS NULL"""
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_future_alerts() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

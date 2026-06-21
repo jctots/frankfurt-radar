@@ -107,3 +107,25 @@ def strike_extraction_prompt() -> str:
         '- If the press release is about negotiations or general union news (not an actual strike call), return {"not_a_strike": true}.\n'
         "- The summary must be in English."
     )
+
+
+STRIKE_DEDUP_PROMPT = """\
+Are these two alerts about the same labor strike or warning strike event?
+
+EXISTING ALERT:
+Title: {existing_title}
+Summary: {existing_body}
+From: {existing_from}
+Until: {existing_until}
+Service: {existing_service}
+
+NEW ALERT:
+Title: {new_title}
+Summary: {new_body}
+From: {new_from}
+Until: {new_until}
+Service: {new_service}
+
+Respond with a JSON object: {"same_event": true} or {"same_event": false}.
+Only return true if both alerts clearly describe the same strike action by the same union affecting the same workers/companies.\
+"""

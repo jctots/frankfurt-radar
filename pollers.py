@@ -12,7 +12,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-from extraction import extract_alert_details, strike_extraction_prompt
+from extraction import STRIKE_DEDUP_PROMPT, extract_alert_details, strike_extraction_prompt
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
@@ -831,6 +831,44 @@ def _to_utc_iso(iso_str: str | None) -> str | None:
         return None
 
 
+def _dates_overlap(from_a: str | None, until_a: str | None, from_b: str | None, until_b: str | None) -> bool:
+    """Check if two date ranges overlap. Returns False if either range is incomplete."""
+    if not from_a or not from_b:
+        return False
+    try:
+        start_a = datetime.fromisoformat(from_a)
+        end_a = datetime.fromisoformat(until_a) if until_a else start_a + timedelta(days=1)
+        start_b = datetime.fromisoformat(from_b)
+        end_b = datetime.fromisoformat(until_b) if until_b else start_b + timedelta(days=1)
+        return start_a < end_b and start_b < end_a
+    except (ValueError, TypeError):
+        return False
+
+
+def _is_duplicate_strike(new_alert: Alert, existing: dict) -> bool:
+    """Check if new_alert duplicates an existing strike using date overlap + LLM."""
+    if not _dates_overlap(
+        new_alert.valid_from, new_alert.valid_until,
+        existing.get("valid_from"), existing.get("valid_until"),
+    ):
+        return False
+
+    prompt = STRIKE_DEDUP_PROMPT.format(
+        existing_title=existing.get("title_en") or existing.get("title", ""),
+        existing_body=(existing.get("body_en") or existing.get("body", ""))[:500],
+        existing_from=existing.get("valid_from", ""),
+        existing_until=existing.get("valid_until", ""),
+        existing_service=existing.get("service", ""),
+        new_title=new_alert.title,
+        new_body=(new_alert.body or "")[:500],
+        new_from=new_alert.valid_from or "",
+        new_until=new_alert.valid_until or "",
+        new_service=new_alert.service or "",
+    )
+    result = extract_alert_details("", prompt)
+    return result.get("same_event", False)
+
+
 class StrikePoller(BasePoller):
     def __init__(
         self,
@@ -854,9 +892,12 @@ class StrikePoller(BasePoller):
         return any(loc in lower for loc in self.locations)
 
     def fetch(self) -> list[Alert]:
+        from db import get_active_strikes
+
         seen_ids: set[str] = set()
         alerts: list[Alert] = []
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.max_age_days)
+        cached_strikes = get_active_strikes()
 
         for feed_url in self.feeds:
             try:
@@ -869,6 +910,8 @@ class StrikePoller(BasePoller):
                 log.error("StrikePoller: feed error %s: %s", feed_url, e)
                 self.ok = False
                 continue
+
+            is_verdi = "verdi.de" in feed_url
 
             for entry in feed.entries:
                 entry_id = entry.get("id") or entry.get("link", "")
@@ -890,7 +933,7 @@ class StrikePoller(BasePoller):
 
                 if not self._matches_keywords(searchable):
                     continue
-                if not self._matches_location(searchable):
+                if not is_verdi and not self._matches_location(searchable):
                     continue
 
                 seen_ids.add(entry_id)
@@ -918,7 +961,14 @@ class StrikePoller(BasePoller):
                 valid_from = _to_utc_iso(details.get("valid_from"))
                 valid_until = _to_utc_iso(details.get("valid_until"))
 
-                alerts.append(Alert(
+                if valid_from and not valid_until:
+                    try:
+                        vf = datetime.fromisoformat(valid_from)
+                        valid_until = vf.replace(hour=21, minute=59, second=0).astimezone(timezone.utc).isoformat()
+                    except ValueError:
+                        pass
+
+                alert = Alert(
                     id=entry_id,
                     source="strike",
                     title=title,
@@ -929,7 +979,23 @@ class StrikePoller(BasePoller):
                     published_at=published_at,
                     valid_from=valid_from,
                     location_label=details.get("location"),
-                ))
+                )
+
+                existing_to_check = [
+                    {"title_en": a.title, "body_en": a.body, "valid_from": a.valid_from,
+                     "valid_until": a.valid_until, "service": a.service}
+                    for a in alerts
+                ] + cached_strikes
+
+                is_dup = False
+                for existing in existing_to_check:
+                    if _is_duplicate_strike(alert, existing):
+                        log.info("StrikePoller: skipping duplicate strike %s (matches %s)",
+                                 entry_id, existing.get("alert_id", "batch"))
+                        is_dup = True
+                        break
+                if not is_dup:
+                    alerts.append(alert)
 
         log.info("Strike: fetched %d alerts from %d feeds", len(alerts), len(self.feeds))
         return alerts
