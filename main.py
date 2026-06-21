@@ -11,7 +11,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from db import clear_expired_strikes, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
+from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
 from extraction import extraction_ok, reset_extraction_health
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, StrikePoller, TicketmasterPoller
@@ -194,7 +194,7 @@ def main() -> None:
                 a.stale = True
 
     sync_alert_cache(all_alerts, config)
-    clear_expired_strikes()
+    clear_expired_alerts()
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
