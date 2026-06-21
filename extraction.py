@@ -126,6 +126,6 @@ From: {new_from}
 Until: {new_until}
 Service: {new_service}
 
-Respond with a JSON object: {"same_event": true} or {"same_event": false}.
+Respond with a JSON object: {{"same_event": true}} or {{"same_event": false}}.
 Only return true if both alerts clearly describe the same strike action by the same union affecting the same workers/companies.\
 """
