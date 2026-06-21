@@ -985,7 +985,7 @@ class StrikePoller(BasePoller):
                     {"title_en": a.title, "body_en": a.body, "valid_from": a.valid_from,
                      "valid_until": a.valid_until, "service": a.service}
                     for a in alerts
-                ] + cached_strikes
+                ] + [s for s in cached_strikes if s.get("alert_id") != entry_id]
 
                 is_dup = False
                 for existing in existing_to_check:
