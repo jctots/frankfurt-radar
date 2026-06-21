@@ -85,7 +85,7 @@ def _notify_telegram_channel(title: str, body: str, url: Optional[str], config: 
         log.error("Telegram send failed: %s", e)
 
 
-def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, config: dict, source: str = "", alert_id: str = "") -> bool:
+def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, config: dict, source: str = "", alert_id: str = "", body_html: bool = False) -> bool:
     """Send a DM to an individual subscriber. Returns False on 403 (blocked)."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -94,8 +94,11 @@ def notify_subscriber_dm(chat_id: int, title: str, body: str, url: str | None, c
 
     parts = [f"<b>{html_lib.escape(title)}</b>"]
     if body:
-        truncated = body[:800] + ("…" if len(body) > 800 else "")
-        parts.append(html_lib.escape(truncated))
+        if body_html:
+            parts.append(body)
+        else:
+            truncated = body[:800] + ("…" if len(body) > 800 else "")
+            parts.append(html_lib.escape(truncated))
     links = []
     link = url or SOURCE_URL.get(source, "")
     if link:

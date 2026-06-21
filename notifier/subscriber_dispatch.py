@@ -105,6 +105,7 @@ def flush_quiet_buffers(config: dict) -> int:
             body=body,
             url=None,
             config=config,
+            body_html=True,
         )
         if not ok:
             deactivate_subscriber(sub["chat_id"])
