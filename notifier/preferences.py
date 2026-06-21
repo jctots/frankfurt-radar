@@ -15,6 +15,7 @@ def default_preferences() -> dict:
             "polizei": {"enabled": True},
             "autobahn": {"enabled": True, "roads": []},
             "baustellen": {"enabled": True, "closures": ["full"]},
+            "strike": {"enabled": True},
             "events": {"enabled": True},
             "sports": {"enabled": True},
         },

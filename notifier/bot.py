@@ -317,10 +317,6 @@ def _cmd_mystatus(chat_id: int) -> None:
                 detail = f" ({', '.join(svcs)})"
             if lns:
                 detail += f" lines: {', '.join(lns)}"
-        elif src == "dwd":
-            sev = cfg.get("min_severity", 1)
-            sev_labels = {1: "All", 2: "Moderate+", 3: "Severe+", 4: "Extreme"}
-            detail = f" (min: {sev_labels.get(sev, str(sev))})"
         elif src == "autobahn":
             roads = cfg.get("roads", [])
             detail = f" ({', '.join(roads)})" if roads else " (all)"
@@ -703,8 +699,6 @@ def _handle_callback(cq: dict, config: dict) -> None:
         _cb_rmv_lines_choice(chat_id, message_id, cq_id, data, prefs, state)
     elif step == "rmv_lines_confirm":
         _cb_rmv_lines_confirm(chat_id, message_id, cq_id, data, prefs, state)
-    elif step == "dwd_severity":
-        _cb_dwd_severity(chat_id, message_id, cq_id, data, prefs, state)
     elif step == "autobahn_roads":
         _cb_autobahn_roads(chat_id, message_id, cq_id, data, prefs, state)
     elif step == "baustellen_closures":
@@ -811,8 +805,6 @@ def _advance_from_sources(chat_id: int, msg_id: int,
     sources = prefs.get("sources", {})
     if sources.get("rmv", {}).get("enabled"):
         _goto_rmv_services(chat_id, prefs, state)
-    elif sources.get("dwd", {}).get("enabled"):
-        _goto_dwd_severity(chat_id, prefs, state)
     elif sources.get("autobahn", {}).get("enabled"):
         _goto_autobahn_roads(chat_id, prefs, state)
     elif sources.get("baustellen", {}).get("enabled"):
@@ -933,37 +925,6 @@ def _cb_rmv_lines_confirm(chat_id: int, msg_id: int, cq_id: str,
 
 
 def _advance_after_rmv(chat_id: int, prefs: dict, state: dict) -> None:
-    sources = prefs.get("sources", {})
-    if sources.get("dwd", {}).get("enabled"):
-        _goto_dwd_severity(chat_id, prefs, state)
-    elif sources.get("autobahn", {}).get("enabled"):
-        _goto_autobahn_roads(chat_id, prefs, state)
-    elif sources.get("baustellen", {}).get("enabled"):
-        _goto_baustellen_closures(chat_id, prefs, state)
-    else:
-        _goto_quiet_hours(chat_id, prefs, state)
-
-
-# ── DWD severity ────────────────────────────────────────────────────────────
-
-def _goto_dwd_severity(chat_id: int, prefs: dict, state: dict) -> None:
-    state["step"] = "dwd_severity"
-    set_conversation_state(chat_id, state)
-    _send(chat_id,
-          "<b>⛈️ Weather — Minimum severity</b>\n\nOnly receive warnings at or above this level:",
-          _inline_kb([
-              [("All warnings", "ds:1"), ("Moderate+", "ds:2")],
-              [("Severe+", "ds:3"), ("Extreme only", "ds:4")],
-          ]))
-
-
-def _cb_dwd_severity(chat_id: int, msg_id: int, cq_id: str,
-                     data: str, prefs: dict, state: dict) -> None:
-    _answer_cb(cq_id)
-    sev = int(data.removeprefix("ds:"))
-    prefs["sources"]["dwd"]["min_severity"] = sev
-    state["prefs"] = prefs
-
     sources = prefs.get("sources", {})
     if sources.get("autobahn", {}).get("enabled"):
         _goto_autobahn_roads(chat_id, prefs, state)

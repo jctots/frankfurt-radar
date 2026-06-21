@@ -836,6 +836,26 @@ class TestStrikePoller:
         assert "2099-12-06" in alert.valid_until
         assert alert.location_label == "Frankfurt und Region"
 
+    @pytest.mark.parametrize("valid_from,expected_until_date", [
+        ("2099-07-15T04:00:00+02:00", "2099-07-15T21:59"),  # CEST: 23:59+02 = 21:59 UTC
+        ("2099-12-05T00:00:00+01:00", "2099-12-05T22:59"),  # CET:  23:59+01 = 22:59 UTC
+    ])
+    def test_valid_until_fallback_respects_dst(self, mocker, valid_from, expected_until_date):
+        from pollers import StrikePoller
+        extraction = self._mock_extraction()
+        extraction["valid_from"] = valid_from
+        del extraction["valid_until"]
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mocker.patch("pollers.extract_alert_details", return_value=extraction)
+
+        alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
+        alert = alerts[0]
+        assert alert.valid_from is not None
+        assert alert.valid_until is not None
+        assert expected_until_date in alert.valid_until
+        assert datetime.fromisoformat(alert.valid_from) <= datetime.fromisoformat(alert.valid_until)
+
     def test_llm_extraction_fallback_on_failure(self, mocker):
         from pollers import StrikePoller
         mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())

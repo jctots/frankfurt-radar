@@ -20,7 +20,7 @@ The main page shows all active alerts in a scrollable feed. Each alert shows its
 
 **Filters** — use the filter bar at the top to narrow the feed:
 
-- **Source toggles** — show/hide alerts by source (Transit, Weather, Police, Roads, Events, Sports)
+- **Source toggles** — show/hide alerts by source (Transit, Weather, Police, Strikes, Roads, Events, Sports)
 - **Service dropdown** — filter transit alerts by service type (S-Bahn, U-Bahn, Tram, Bus, Regional)
 - **Severity dropdown** — filter weather alerts by severity level
 - **Lines popup** — filter by specific transit lines
@@ -76,6 +76,7 @@ Toggle each alert source on or off, then tap **Done**:
 - **Transport** — RMV S-Bahn, U-Bahn, Tram, Bus, Regional disruptions
 - **Weather** — DWD weather warnings
 - **Police** — Frankfurt police press releases
+- **Strikes** — labor strike alerts (ver.di Hessen, hessenschau)
 - **Roads** — Autobahn incidents and city road closures
 - **Festivals** — local city festival events
 - **Sports** — Eintracht Frankfurt and Deutsche Bank Park events
@@ -93,15 +94,6 @@ If you enabled Roads:
 
 - **Autobahn** — select specific highways (A3, A5, A45, A60, A66, A67, A480, A648, A661)
 - **City roads** — full closures only, partial closures only, or both
-
-#### Weather severity
-
-If you enabled Weather, choose the minimum severity level:
-
-- All warnings (includes minor)
-- Moderate and above
-- Severe and above
-- Extreme only
 
 #### Quiet hours
 

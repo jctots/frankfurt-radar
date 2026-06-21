@@ -17,7 +17,7 @@ Real-time alert service for Frankfurt am Main — transit disruptions, weather w
 
 ## ⚡ Features
 
-### 📊 Seven data sources
+### 📊 Eight data sources
 
 Frankfurt Radar aggregates alerts from public German data feeds, translates them to English, and delivers them in near real-time.
 
@@ -28,10 +28,11 @@ Frankfurt Radar aggregates alerts from public German data feeds, translates them
 | **Police** | Frankfurt police press releases | Presseportal RSS |
 | **Autobahn** | Highway incidents and closures (A3, A5, A66, etc.) | Autobahn API |
 | **City Roads** | Frankfurt road construction and closures | City of Frankfurt WFS |
+| **Strikes** | Labor strike alerts (ver.di Hessen, hessenschau) | RSS + Gemini Flash LLM extraction |
 | **Festivals** | Local events with dates, locations, and images | Curated YAML |
 | **Sports** | Eintracht Frankfurt home games, Deutsche Bank Park events | OpenLigaDB, Ticketmaster |
 
-All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky.
+All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky. Strike alerts use Gemini Flash for structured date/location extraction from German press releases.
 
 ### 🖥️ Live status page
 
@@ -62,10 +63,9 @@ No cookies, no accounts, no personal data collected. Anonymous usage analytics v
 
 **Personalization options:**
 
-- **Source filters** — enable/disable each of the 7 alert sources
+- **Source filters** — enable/disable each of the 8 alert sources
 - **Transport service filter** — S-Bahn, U-Bahn, Tram, Bus, Regional
 - **Line filter** — specific lines (e.g. S3, S5, U4) or all lines
-- **Weather severity** — all warnings, moderate+, severe+, or extreme only
 - **Autobahn filter** — select specific highways (A3, A5, A66, A661, etc.)
 - **Road closure filter** — full closures, partial closures, or both
 - **Quiet hours** — buffer alerts overnight and receive a morning briefing at your chosen wake-up time
@@ -107,17 +107,18 @@ main.py                    bot.py                    app.py
 ├── DWDPoller              ├── /mystatus, /help      ├── /api/status (JSON feed)
 ├── PolizeiPoller          ├── /stop, /deletedata    ├── /api/radar  (radar frames)
 ├── AutobahnPoller         ├── /status (admin)       ├── /legal
-├── BaustellenPoller       ├── /alerts (admin)       ├── /privacy
-├── StaticEventsPoller     ├── /poll   (admin)       └── /security
-├── StaticSportsPoller     └── subscriber dispatch
+├── BaustellenPoller       ├── /alerts (admin)       └── /robots.txt
+├── StrikePoller           ├── /poll   (admin)
+├── StaticEventsPoller     └── subscriber dispatch
+├── StaticSportsPoller          │
 ├── OpenLigaPoller              │
 └── TicketmasterPoller          │
        │                        │
        ▼                        ▼
   SQLite (radar.db) — shared volume
        │                        │
-  translator backend      MCP server (optional)
-  (Google / LibreTranslate)  SSE :8811
+  translator backend      extraction (Gemini Flash)    MCP server (optional)
+  (Google / LibreTranslate)  (strike dates/locations)     SSE :8811
 ```
 
 The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The MCP server exposes alerts to AI assistants like Claude Code via SSE.

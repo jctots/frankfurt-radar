@@ -209,7 +209,7 @@ class TestOnboardingFlow:
         sub = db.get_subscriber_by_chat_id(7000)
         assert sub["conversation_state"]["step"] == "rmv_services"
 
-    def test_sources_done_skips_to_dwd_when_rmv_off(self, mocker, bot_config):
+    def test_sources_done_skips_to_autobahn_when_rmv_off(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
         mocker.patch("notifier.bot._edit")
         mocker.patch("notifier.bot._answer_cb")
@@ -219,7 +219,7 @@ class TestOnboardingFlow:
         handle_update(_cb_update(7001, "s:done"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7001)
-        assert sub["conversation_state"]["step"] == "dwd_severity"
+        assert sub["conversation_state"]["step"] == "autobahn_roads"
 
     def test_rmv_all_services_then_all_lines(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
@@ -235,7 +235,7 @@ class TestOnboardingFlow:
         handle_update(_cb_update(7002, "rl:all"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7002)
-        assert sub["conversation_state"]["step"] == "dwd_severity"
+        assert sub["conversation_state"]["step"] == "autobahn_roads"
 
     def test_rmv_specific_lines_text_input(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
@@ -254,25 +254,6 @@ class TestOnboardingFlow:
         sub = db.get_subscriber_by_chat_id(7003)
         assert sub["conversation_state"]["step"] == "rmv_lines_confirm"
         assert sub["conversation_state"]["prefs"]["sources"]["rmv"]["lines"] == ["S3", "S5", "Bus 32"]
-
-    def test_dwd_severity_selection(self, mocker, bot_config):
-        mock_send = mocker.patch("notifier.bot._send")
-        mocker.patch("notifier.bot._edit")
-        mocker.patch("notifier.bot._answer_cb")
-        handle_update(_msg_update(7004, "/start"), bot_config)
-
-        # Disable all except dwd
-        for src in ["rmv", "polizei", "autobahn", "baustellen", "events", "sports"]:
-            handle_update(_cb_update(7004, f"s:{src}"), bot_config)
-        handle_update(_cb_update(7004, "s:done"), bot_config)
-
-        sub = db.get_subscriber_by_chat_id(7004)
-        assert sub["conversation_state"]["step"] == "dwd_severity"
-
-        handle_update(_cb_update(7004, "ds:3"), bot_config)
-
-        sub = db.get_subscriber_by_chat_id(7004)
-        assert sub["conversation_state"]["step"] == "quiet_hours"
 
     def test_full_onboarding_saves_preferences(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")

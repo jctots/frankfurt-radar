@@ -964,7 +964,8 @@ class StrikePoller(BasePoller):
                 if valid_from and not valid_until:
                     try:
                         vf = datetime.fromisoformat(valid_from)
-                        valid_until = vf.replace(hour=21, minute=59, second=0).astimezone(timezone.utc).isoformat()
+                        end_berlin = vf.astimezone(_BERLIN).replace(hour=23, minute=59, second=0)
+                        valid_until = end_berlin.astimezone(timezone.utc).isoformat()
                     except ValueError:
                         pass
 

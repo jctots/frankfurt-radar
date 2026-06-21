@@ -54,7 +54,7 @@ def _track(tool_name: str) -> None:
 def get_active_alerts(source: str | None = None) -> list[dict]:
     """List all active alerts for Frankfurt, optionally filtered by source.
 
-    Sources: rmv, dwd, polizei, autobahn, baustellen, events, sports
+    Sources: rmv, dwd, polizei, autobahn, baustellen, strike, events, sports
     """
     _track("get_active_alerts")
     alerts = db.get_all_active_alerts()

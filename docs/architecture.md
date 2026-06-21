@@ -14,10 +14,10 @@ Frankfurt Radar runs as independently deployable containers — a **poller**, a 
 │  │  main.py              │  │  bot.py           │  │  GET /             │  │
 │  │  ├── pollers.py       │  │  ├── /start       │  │  GET /api/status   │  │
 │  │  ├── pipeline.py      │  │  ├── /settings    │  │  GET /api/radar/*  │  │
-│  │  ├── translation.py   │  │  ├── /mystatus    │  │  POST /api/poll    │  │
-│  │  ├── notifications.py │  │  ├── /help        │  │  GET /legal        │  │
-│  │  └── db.py (write)    │  │  ├── /stop        │  │  GET /privacy      │  │
-│  │                       │  │  ├── /deletedata  │  │  GET /security     │  │
+│  │  ├── extraction.py    │  │  ├── /mystatus    │  │  POST /api/poll    │  │
+│  │  ├── translation.py   │  │  ├── /help        │  │  GET /legal        │  │
+│  │  ├── notifications.py │  │  ├── /stop        │  │                    │  │
+│  │  └── db.py (write)    │  │  ├── /deletedata  │  │                    │  │
 │  │                       │  │  ├── /search      │  │                    │  │
 │  │                       │  │  ├── /status (a)  │  │                    │  │
 │  │                       │  │  ├── /alerts (a)  │  │  db.py (read)      │  │
@@ -85,6 +85,7 @@ class BasePoller(ABC):
 | `PolizeiPoller` | Presseportal RSS | 24h window; title-only in public mode |
 | `AutobahnPoller` | Autobahn API | Road filter, radius_km, kind filter (warning/closure) |
 | `BaustellenPoller` | City of Frankfurt WFS | GeoJSON geometry parsing; sperrung filter |
+| `StrikePoller` | ver.di Hessen + hessenschau RSS | Gemini Flash LLM extraction for dates/location; cross-feed dedup |
 | `StaticEventsPoller` | `city_events.yaml` | advance_days, location-based, images supported |
 | `StaticSportsPoller` | `sports_events.yaml` | Static sports fixtures |
 | `OpenLigaPoller` | OpenLigaDB API | Eintracht Frankfurt home games |
@@ -98,7 +99,7 @@ Adding a new source means subclassing `BasePoller` and registering it in `main.p
 @dataclass
 class Alert:
     id: str                    # stable dedup key
-    source: str                # "rmv" | "dwd" | "polizei" | "autobahn" | "baustellen" | "events" | "sports"
+    source: str                # "rmv" | "dwd" | "polizei" | "autobahn" | "baustellen" | "strike" | "events" | "sports"
     title: str                 # German, pre-translation
     body: str                  # German, HTML-stripped
     url: Optional[str]
@@ -137,6 +138,12 @@ Two pluggable backends, selected by `translator.backend` in config:
 
 `translate_alert(alert, config)` returns `(en_title, en_body)`. DWD alerts arrive in English from BrightSky and skip translation.
 
+### 🤖 LLM extraction
+
+`extraction.py` provides structured data extraction from German press releases using Google Gemini Flash. Currently used by `StrikePoller` to extract strike dates, locations, affected services, and English summaries from RSS feed content. The module also powers cross-feed deduplication — when two feeds report the same strike, a date-overlap heuristic followed by an LLM confirmation call suppresses the duplicate.
+
+Health is tracked via `extraction_ok()` and shown in the `/status` admin dashboard as "extraction".
+
 ### 📬 Notifications
 
 Two pluggable backends, selected by `notifier.backend` in config:
@@ -160,7 +167,7 @@ Listens on port 8443 for Telegram webhook requests. Validates incoming requests 
 
 | Command | Action |
 |---------|--------|
-| `/start` | Subscribe + interactive preference onboarding (7 steps) |
+| `/start` | Subscribe + interactive preference onboarding |
 | `/settings` | Re-enter preference wizard with current settings pre-selected |
 | `/mystatus` | Display current preferences and subscription status |
 | `/search` | Search active alerts by keyword (interactive paginated results) |
@@ -285,7 +292,7 @@ SQLite at `data/radar.db` with WAL mode. Six tables:
 ## 🔄 Data flow
 
 ```
-RMV / DWD / Polizei / Autobahn / Baustellen / Events / Sports APIs
+RMV / DWD / Polizei / Autobahn / Baustellen / Strike / Events / Sports APIs
          │
          ▼
     pollers.py           ← fetch(), returns list[Alert] (German)

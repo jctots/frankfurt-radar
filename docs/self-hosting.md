@@ -58,6 +58,7 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `TELEGRAM_WEBHOOK_SECRET` | Recommended | Validates incoming webhook requests (generate with `openssl rand -hex 32`) |
 | `GOOGLE_TRANSLATE_API_KEY` | If `translator.backend: google` | Google Cloud Translation API key |
 | `LIBRETRANSLATE_API_KEY` | No | Auth key for an external LibreTranslate instance |
+| `GEMINI_API_KEY` | If strike poller enabled | Google Gemini API key (Gemini Flash for strike date/location extraction) |
 | `TICKETMASTER_API_KEY` | No | Ticketmaster Discovery API key (for Deutsche Bank Park events) |
 | `STADIA_API_KEY` | No | Stadia Maps API key (dark mode map tiles) |
 | `RADAR_TAG` | No | Container image tag for version pinning |
@@ -115,6 +116,10 @@ autobahn:
 baustellen:
   enabled: true
   closures: [full]            # full = sperrung:1, partial = sperrung:0
+
+strike:
+  enabled: true
+  max_age_days: 14            # Drop alerts older than this if valid_until is missing
 
 events:
   enabled: true
