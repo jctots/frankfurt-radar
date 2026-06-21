@@ -436,6 +436,20 @@ def update_last_briefing(subscriber_id: int) -> None:
         )
 
 
+def clear_expired_strikes() -> None:
+    """Mark strike alerts with valid_until in the past as removed."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as conn:
+        cur = conn.execute(
+            """UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+               WHERE source = 'strike' AND removed_at IS NULL
+                 AND valid_until IS NOT NULL AND valid_until < ?""",
+            (now,),
+        )
+        if cur.rowcount:
+            log.info("Cleared %d expired strike alerts", cur.rowcount)
+
+
 def get_active_strikes() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

@@ -11,7 +11,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from db import expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
+from db import clear_expired_strikes, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
 from extraction import extraction_ok, reset_extraction_health
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, StrikePoller, TicketmasterPoller
@@ -186,12 +186,6 @@ def main() -> None:
             if not (a.source == "strike" and not a.valid_until and a.published_at and a.published_at < cutoff)
         ]
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    all_alerts = [
-        a for a in all_alerts
-        if not (a.source == "strike" and a.valid_until and a.valid_until < now_iso)
-    ]
-
     stale_after_days = config.get("stale_after_days")
     if stale_after_days:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_after_days)).isoformat()
@@ -200,6 +194,7 @@ def main() -> None:
                 a.stale = True
 
     sync_alert_cache(all_alerts, config)
+    clear_expired_strikes()
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)
     set_meta("last_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
