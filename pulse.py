@@ -111,7 +111,7 @@ def _call_gemini(prompt_config: dict, prompt_text: str) -> dict:
 
     for attempt in range(3):
         try:
-            resp = requests.post(url, params={"key": api_key}, json=body, timeout=30)
+            resp = requests.post(url, params={"key": api_key}, json=body, timeout=60)
             if resp.status_code == 429:
                 wait = min(2 ** attempt * 5, 30)
                 log.warning("Gemini rate limited (attempt %d/3), retrying in %ds", attempt + 1, wait)

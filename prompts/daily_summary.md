@@ -1,7 +1,7 @@
 ---
 model: gemini-2.5-flash
 temperature: 0.2
-max_output_tokens: 2048
+max_output_tokens: 8192
 thinking_budget: 4096
 response_mime_type: application/json
 ---
