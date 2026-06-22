@@ -657,7 +657,7 @@
 
     /* ── City Pulse overlay ──────────────────────────────── */
     #pulse-overlay {
-      position: absolute; top: 12px; left: 12px; z-index: 1000;
+      position: absolute; bottom: 24px; right: 12px; z-index: 1000;
       background: rgba(255,255,255,0.95); color: #1e293b;
       border-radius: 12px; padding: 14px 16px 12px;
       max-width: 340px; max-height: 60vh; overflow-y: auto;
@@ -1159,9 +1159,7 @@
       </div>
     </div>
   </div>
-  <div id="map">
-    <div id="pulse-overlay"></div>
-  </div>
+  <div id="map"></div>
 </div>
 
 <!-- Info modal -->
@@ -1487,6 +1485,12 @@ function initMap() {
     '<div class="radar-dots" id="radar-dots"></div>' +
     '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>';
   map.getContainer().appendChild(hudEl);
+
+  const pulseEl = document.createElement('div');
+  pulseEl.id = 'pulse-overlay';
+  L.DomEvent.disableClickPropagation(pulseEl);
+  L.DomEvent.disableScrollPropagation(pulseEl);
+  map.getContainer().appendChild(pulseEl);
   L.DomEvent.disableClickPropagation(hudEl);
 }
 
