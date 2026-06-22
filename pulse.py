@@ -4,13 +4,14 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
 import yaml
 
 import db
+from pulse_categories import compute_categories
 
 log = logging.getLogger(__name__)
 
@@ -102,7 +103,17 @@ def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | Non
     if pulses:
         lines = ["HOURLY PULSES (last 3 hours — use for short-term trend changes):"]
         for p in pulses:
-            lines.append(f"- {p['generated_at']}: {p['summary']} (travel_ok={p['travel_ok']})")
+            cats = p.get("categories") or {}
+            cat_parts = []
+            for key in ("weather", "transport", "roadworks", "incidents", "events"):
+                cat = cats.get(key)
+                if cat:
+                    cat_parts.append(f"{key}={cat.get('status','?')}/{cat.get('trend','?')}")
+            cat_str = ", ".join(cat_parts) if cat_parts else "no categories"
+            lines.append(
+                f"- {p['generated_at']}: {p['summary']} "
+                f"(travel_ok={p['travel_ok']}, {cat_str})"
+            )
         parts.append("\n".join(lines))
     if daily_summaries:
         lines = ["DAILY SUMMARIES (last 3 days — use for multi-day pattern detection):"]
@@ -172,11 +183,11 @@ _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
     "travel_ok": True,
     "categories": {
-        "weather": {"status": "good", "trend": "stable"},
-        "transport": {"status": "normal", "trend": "stable"},
-        "roadworks": {"status": "normal", "trend": "stable"},
-        "incidents": {"status": "normal", "trend": "stable"},
-        "events": {"status": "none", "trend": "stable"},
+        "weather": {"status": "clear", "trend": "stable", "count": 0},
+        "transport": {"status": "clear", "trend": "stable", "count": 0},
+        "roadworks": {"status": "clear", "trend": "stable", "count": 0},
+        "incidents": {"status": "clear", "trend": "stable", "count": 0},
+        "events": {"status": "clear", "trend": "stable", "count": 0},
     },
     "recommendation": "No special action needed.",
 }
@@ -199,6 +210,11 @@ def generate_pulse(config: dict) -> dict | None:
         log.info("Pulse generated: all clear (0 alerts)")
         return pulse
 
+    since = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_pulses = db.get_pulses_since(since)
+    previous_pulse = db.get_latest_pulse()
+    categories = compute_categories(alerts, previous_pulse, history_pulses, now.hour)
+
     prompt_config, template = load_prompt("pulse")
     alerts_json, stale_summary = _build_alert_data(alerts)
     history = _build_history_section(db.get_recent_pulses(3), db.get_recent_daily_summaries(3))
@@ -211,6 +227,7 @@ def generate_pulse(config: dict) -> dict | None:
         "alerts_json": alerts_json,
         "stale_summary": stale_summary,
         "history_section": history,
+        "categories_json": json.dumps(categories, indent=2),
     })
 
     result = _call_gemini(prompt_config, prompt_text)
@@ -221,7 +238,7 @@ def generate_pulse(config: dict) -> dict | None:
         "generated_at": generated_at,
         "summary": result.get("summary", ""),
         "travel_ok": result.get("travel_ok", True),
-        "categories": result.get("categories", {}),
+        "categories": categories,
         "recommendation": result.get("recommendation", ""),
         "alert_count": len(alerts),
     }

@@ -1080,7 +1080,7 @@
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ <span class="btn-label">Poll now</span></button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()"><span id="btn-notify-icon">🔔</span><span class="btn-label" id="btn-notify-label"> Notifications</span></button>
-    <button class="btn btn-ghost mobile-only" id="btn-cityview" onclick="openMobileMap()" style="display:none">🗺️<span class="btn-label"> City View</span></button>
+    <button class="btn btn-ghost mobile-only" id="btn-cityview" onclick="toggleMobileMap()" style="display:none">🗺️<span class="btn-label"> City View</span></button>
     <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ <span class="btn-label">More info</span></button>
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()"><span id="btn-dark-icon">🌙</span><span class="btn-label" id="btn-dark-label"> Dark mode</span></button>
   </div>
@@ -2134,6 +2134,11 @@ function closeMobileMap() {
   if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
+function toggleMobileMap() {
+  if (document.body.classList.contains('mobile-map-open')) closeMobileMap();
+  else openMobileMap();
+}
+
 // ── City Pulse ────────────────────────────────────────────────────────────────
 let _pulseData = null;
 let _pulseVisible = false;
@@ -2167,7 +2172,7 @@ function renderPulseOverlay(pulse) {
     const cat = cats[key];
     if (!cat) continue;
     const trend = cat.trend || 'stable';
-    const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
+    const isStable = trend === 'stable' && cat.status === 'clear';
     const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
     catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
   }

@@ -700,6 +700,15 @@ def get_recent_pulses(limit: int = 3) -> list[dict]:
     return [_parse_pulse_row(row) for row in rows]
 
 
+def get_pulses_since(since: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM pulse_history WHERE generated_at >= ? ORDER BY generated_at",
+            (since,),
+        ).fetchall()
+    return [_parse_pulse_row(row) for row in rows]
+
+
 def store_daily_summary(date: str, summary: str, generated_at: str) -> None:
     with _conn() as conn:
         conn.execute(

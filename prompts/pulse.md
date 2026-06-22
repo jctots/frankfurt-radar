@@ -14,21 +14,17 @@ Fresh active alerts ({alert_count}):
 
 Long-running background (not new — summarize only if noteworthy): {stale_summary}
 
-History (use for trend comparison):
+History (context for writing a better summary — do NOT use for trend/status decisions):
 {history_section}
 
-Produce a JSON object with these fields:
+Pre-computed category statuses (these are calculated from alert counts and historical baselines — DO NOT override or recalculate):
+{categories_json}
+
+Produce a JSON object with ONLY these fields:
 
 {{
   "summary": "2-3 SHORT sentences MAX. ANALYSIS, not repetition. Correlate cross-source alerts, flag severity, note convergence on same area. Weave in avoidance advice and crowding naturally. Lead with highest-impact insight. MUST be under 200 characters.",
   "travel_ok": true or false — false if transit or roads have significant active disruptions affecting commuters,
-  "categories": {{
-    "weather": {{"status": "good|minor|severe|extreme", "trend": "stable|improving|worsening"}},
-    "transport": {{"status": "normal|minor|disrupted|suspended", "trend": "stable|improving|worsening"}},
-    "roadworks": {{"status": "normal|minor|disrupted|closed", "trend": "stable|improving|worsening"}},
-    "incidents": {{"status": "normal|elevated|high", "trend": "stable|improving|worsening"}},
-    "events": {{"status": "none|upcoming|active", "trend": "stable|improving|worsening"}}
-  }},
   "recommendation": "One SHORT actionable sentence (under 100 characters). Be PROACTIVE: name the alternative route or suggest an event. Think like a helpful local friend. If nothing notable: 'No special action needed.'"
 }}
 
@@ -36,11 +32,9 @@ Rules:
 - NEVER just restate alert titles. Your value is SYNTHESIS: connecting dots across sources, assessing real severity, identifying correlated events.
 - If multiple alerts from different sources describe the same underlying event (e.g. police report + transit alert for the same location), say so explicitly.
 - Each alert has an "age" field. Prioritize NEW and recent alerts in the summary. Alerts older than 7 days marked "low priority" should only be mentioned if they have high severity or correlate with newer alerts.
-- Severity assessment: a single minor delay is "minor". Multiple delays on the same corridor, or delays plus a police incident, are "disrupted". Total line suspension is "suspended".
+- Use the pre-computed categories as context: if a category is "high", feature that topic prominently in your summary. If "clear", don't mention it.
 - Naturally weave avoidance advice and crowding warnings into the summary when relevant — don't create separate lists.
-- Categories map to sources: weather=dwd, transport=rmv, roadworks=autobahn+baustellen, incidents=polizei+strike, events=events+sports.
-- If a category has zero alerts, set status to the baseline (good/normal/none) and trend to "stable".
-- "trend" is determined ONLY from HOURLY PULSES (what changed in the last few hours). Only three values: "stable" (no change), "worsening" (situation got worse, including going from baseline to active), "improving" (situation got better, including returning to baseline). DAILY SUMMARIES are background context for writing a better summary text (multi-day patterns, recurring issues) — do NOT use them for trend values. If no hourly history exists, all trends are "stable" unless alerts are clearly new.
 - STRICT: summary MUST be under 200 characters. Recommendation MUST be under 100 characters. Brevity is critical — this is a glanceable overlay, not an article.
 - Be specific: "U5 suspended between Konstablerwache and Preungesheim" not "some transit issues".
 - Do not mention the number of long-running roadworks unless they affect a major route.
+- Do NOT include "categories" in your output — they are pre-computed and will be merged automatically.
