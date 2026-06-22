@@ -146,33 +146,21 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .pulse-dot {
+    .health-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: #22c55e;
       flex-shrink: 0;
-      animation: pulseDot 2s ease-in-out infinite;
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.25);
     }
-    .pulse-dot.degraded {
+    .health-dot.degraded {
       background: #eab308;
-      animation: pulseDotYellow 2s ease-in-out infinite;
+      box-shadow: 0 0 0 2px rgba(234,179,8,0.25);
     }
-    .pulse-dot.down {
+    .health-dot.down {
       background: #ef4444;
-      animation: pulseDotRed 2s ease-in-out infinite;
-    }
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(34,197,94,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0);   }
-    }
-    @keyframes pulseDotYellow {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(234,179,8,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(234,179,8,0);   }
-    }
-    @keyframes pulseDotRed {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(239,68,68,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(239,68,68,0);   }
+      box-shadow: 0 0 0 2px rgba(239,68,68,0.25);
     }
     .updated-full  { font-size: 11px; color: rgba(255,255,255,0.45); }
     .updated-short { display: none; font-size: 11px; color: rgba(255,255,255,0.45); }
@@ -670,11 +658,19 @@
     @media (max-width: 767px) {
       #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: 50vh; }
     }
-    .pulse-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex: 1; }
     .pulse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .pulse-dot.ok   { background: #22c55e; }
-    .pulse-dot.warn { background: #ef4444; }
+    .pulse-dot.ok   { background: #22c55e; animation: pulseDotGreen 2s ease-in-out infinite; }
+    .pulse-dot.warn { background: #ef4444; animation: pulseDotRed 2s ease-in-out infinite; }
+    @keyframes pulseDotGreen {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+      50%      { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+    }
+    @keyframes pulseDotRed {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      50%      { box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+    }
     .pulse-time { font-size: 11px; color: var(--clr-muted); }
     .pulse-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
     .pulse-close:hover { color: var(--clr-text); }
@@ -707,6 +703,12 @@
     .dark .pulse-btn { background: #1a2332; border-color: #2a3344; color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
     .pulse-btn .pulse-dot { width: 6px; height: 6px; }
+    .pulse-btn-trend { font-size: 11px; }
+    .pulse-btn-trend.worsening { color: #ef4444; }
+    .pulse-btn-trend.improving { color: #22c55e; }
+    .pulse-btn-trend.new       { color: #3b82f6; }
+    .pulse-btn-trend.resolved  { color: #22c55e; }
+    .pulse-btn-trend.stable    { color: var(--clr-muted); }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -1089,7 +1091,7 @@
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
-      <div class="pulse-dot" id="pulse-dot"></div>
+      <div class="health-dot" id="health-dot"></div>
       <span class="updated-full" id="updated-full">Updated just now</span>
       <span class="updated-short" id="updated-short">—</span>
     </div>
@@ -1113,7 +1115,8 @@
     <div class="feed-toggle-panel">
       <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
         <span class="pulse-dot ok" id="pulse-btn-dot"></span>
-        📊 City Pulse
+        City Pulse
+        <span class="pulse-btn-trend" id="pulse-btn-trend"></span>
       </button>
       <div class="feed-toggle">
         <span class="toggle-icon">⏳</span>
@@ -1830,9 +1833,9 @@ function applyData(data) {
 
   _pulseData = data.pulse || null;
   updatePulseButton(_pulseData);
-  if (_pulseData && !selectedId && !inRadarView && !isMobileView()) openPulse();
+  if (_pulseData && !selectedId && !inRadarView && !isMobileView()) _showPulseOverlay();
 
-  const dot = document.getElementById('pulse-dot');
+  const dot = document.getElementById('health-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
     const sources = Object.entries(data.source_health);
     const failed = sources.filter(([, ok]) => !ok).map(([name]) => name.replace('Poller', ''));
@@ -2209,6 +2212,7 @@ function renderPulseOverlay(pulse) {
 function updatePulseButton(pulse) {
   const btn = document.getElementById('pulse-btn');
   const btnDot = document.getElementById('pulse-btn-dot');
+  const btnTrend = document.getElementById('pulse-btn-trend');
   if (!btn) return;
   if (!pulse) { btn.style.display = 'none'; return; }
   btn.style.display = '';
@@ -2216,17 +2220,51 @@ function updatePulseButton(pulse) {
     btnDot.classList.toggle('ok', pulse.travel_ok);
     btnDot.classList.toggle('warn', !pulse.travel_ok);
   }
+  if (btnTrend) {
+    const cats = pulse.categories || {};
+    const worst = _worstTrend(cats);
+    if (worst) {
+      const meta = PULSE_CAT_META[worst.key];
+      const arrow = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'}[worst.trend] || '';
+      btnTrend.innerHTML = `${meta ? meta.emoji : ''} ${arrow}`;
+      btnTrend.className = 'pulse-btn-trend ' + worst.trend;
+    } else {
+      btnTrend.textContent = '';
+    }
+  }
+}
+
+function _worstTrend(cats) {
+  const priority = {worsening:0, new:1, stable:2, improving:3, resolved:4};
+  let worst = null;
+  for (const [key, cat] of Object.entries(cats)) {
+    const trend = cat.trend || 'stable';
+    const baseline = ['clear','normal','none'].includes(cat.status);
+    if (baseline && trend === 'stable') continue;
+    if (!worst || (priority[trend] ?? 5) < (priority[worst.trend] ?? 5)) {
+      worst = {key, trend, status: cat.status};
+    }
+  }
+  return worst;
 }
 
 function openPulse() {
   if (!_pulseData) return;
+  if (isMobileView()) {
+    openMobileMap(() => { _showPulseOverlay(); });
+  } else {
+    resetState();
+    map.setView(FRANKFURT, 12, { animate: true });
+  }
+  _track('pulse_open');
+}
+
+function _showPulseOverlay() {
   const el = document.getElementById('pulse-overlay');
-  if (!el) return;
+  if (!el || !_pulseData) return;
   el.innerHTML = renderPulseOverlay(_pulseData);
   el.style.display = '';
   _pulseVisible = true;
-  if (isMobileView()) openMobileMap(() => {});
-  _track('pulse_open');
 }
 
 function closePulse() {
@@ -2237,7 +2275,7 @@ function closePulse() {
 }
 
 function _autoShowPulse() {
-  if (_pulseData && !isMobileView() && !selectedId && !inRadarView) openPulse();
+  if (_pulseData && !isMobileView() && !selectedId && !inRadarView) _showPulseOverlay();
 }
 
 // ── Alert selection ───────────────────────────────────────────────────────────
