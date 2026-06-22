@@ -654,6 +654,60 @@
     #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
     #hud-tend { flex: 12; text-align: right; }
 
+    /* ── City Pulse overlay ──────────────────────────────── */
+    #pulse-overlay {
+      position: absolute; top: 12px; left: 12px; z-index: 1000;
+      background: rgba(255,255,255,0.95); color: #1e293b;
+      border-radius: 12px; padding: 14px 16px 12px;
+      max-width: 340px; max-height: 60vh; overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      pointer-events: auto;
+      scrollbar-width: thin;
+      display: none;
+    }
+    .dark #pulse-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    @media (max-width: 767px) {
+      #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: 50vh; }
+    }
+    .pulse-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .pulse-dot.ok   { background: #22c55e; }
+    .pulse-dot.warn { background: #ef4444; }
+    .pulse-time { font-size: 11px; color: var(--clr-muted); }
+    .pulse-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
+    .pulse-close:hover { color: var(--clr-text); }
+    .dark .pulse-close:hover { color: #e5e7eb; }
+    .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+    .pulse-categories { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+    .pulse-cat { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }
+    .pulse-cat.stable { opacity: 0.5; }
+    .pulse-cat-emoji { width: 20px; text-align: center; flex-shrink: 0; }
+    .pulse-cat-label { width: 65px; font-weight: 600; flex-shrink: 0; }
+    .pulse-cat-status { flex-shrink: 0; }
+    .pulse-cat-trend { font-size: 11px; }
+    .pulse-cat-trend.worsening { color: #ef4444; }
+    .pulse-cat-trend.improving { color: #22c55e; }
+    .pulse-cat-trend.new       { color: #3b82f6; }
+    .pulse-cat-trend.resolved  { color: #22c55e; }
+    .pulse-cat-trend.stable    { color: var(--clr-muted); }
+    .pulse-recommendation { font-size: 12px; color: var(--clr-muted); border-top: 1px solid var(--clr-border); padding-top: 8px; }
+    .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
+
+    .pulse-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px;
+      font-size: 12px; font-weight: 600;
+      background: var(--clr-surface); border: 1px solid var(--clr-border);
+      border-radius: 8px; cursor: pointer; color: var(--clr-text);
+      white-space: nowrap;
+    }
+    .pulse-btn:hover { background: #f1f5f9; }
+    .dark .pulse-btn { background: #1a2332; border-color: #2a3344; color: #d1d5db; }
+    .dark .pulse-btn:hover { background: #222c3a; }
+    .pulse-btn .pulse-dot { width: 6px; height: 6px; }
+
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
       border-radius: 10px;
@@ -1057,6 +1111,10 @@
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-toggle-panel">
+      <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
+        <span class="pulse-dot ok" id="pulse-btn-dot"></span>
+        📊 City Pulse
+      </button>
       <div class="feed-toggle">
         <span class="toggle-icon">⏳</span>
         <span class="toggle-label">Show long-running disruptions</span>
@@ -1100,7 +1158,9 @@
       </div>
     </div>
   </div>
-  <div id="map"></div>
+  <div id="map">
+    <div id="pulse-overlay"></div>
+  </div>
 </div>
 
 <!-- Info modal -->
@@ -1646,6 +1706,7 @@ function _stopRadarAnim()  { clearInterval(radarAnimTimer); clearTimeout(radarAn
 
 async function openRadarView() {
   if (!radarPreloaded || !radarFrames.length) return;
+  closePulse();
   _track('weather_popup_radar');
   inRadarView = true;
   radarHiddenMarkers = [];
@@ -1761,6 +1822,10 @@ function applyData(data) {
     lastUpdatedAt = new Date(data.updated_at);
     updateRelativeTime();
   }
+
+  _pulseData = data.pulse || null;
+  updatePulseButton(_pulseData);
+  if (_pulseData && !selectedId && !inRadarView && !isMobileView()) openPulse();
 
   const dot = document.getElementById('pulse-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
@@ -2080,9 +2145,100 @@ function closeMobileMap() {
   if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
+// ── City Pulse ────────────────────────────────────────────────────────────────
+let _pulseData = null;
+let _pulseVisible = false;
+
+const PULSE_CAT_META = {
+  weather:  { emoji: '⛈️',  label: 'Weather' },
+  transit:  { emoji: '🚇', label: 'Transit' },
+  roads:    { emoji: '🚧', label: 'Roads' },
+  highways: { emoji: '🛣️', label: 'Highways' },
+  safety:   { emoji: '🚨', label: 'Safety' },
+  events:   { emoji: '🎉', label: 'Events' },
+};
+
+const TREND_DISPLAY = {
+  worsening: '↗ worsening',
+  improving: '↘ improving',
+  stable:    '→ stable',
+  new:       '★ new',
+  resolved:  '✓ resolved',
+};
+
+function renderPulseOverlay(pulse) {
+  if (!pulse) return '';
+  const dot = pulse.travel_ok ? 'ok' : 'warn';
+  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+
+  const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
+  const staleHtml = ageMs > 2 * 3600_000
+    ? `<div class="pulse-stale">Last updated ${Math.round(ageMs / 3600_000)}h ago</div>` : '';
+
+  let catsHtml = '';
+  const cats = pulse.categories || {};
+  for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
+    const cat = cats[key];
+    if (!cat) continue;
+    const trend = cat.trend || 'stable';
+    const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
+    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">
+      <span class="pulse-cat-emoji">${meta.emoji}</span>
+      <span class="pulse-cat-label">${meta.label}</span>
+      <span class="pulse-cat-status">${cat.status}</span>
+      <span class="pulse-cat-trend ${trend}">${TREND_DISPLAY[trend] || trend}</span>
+    </div>`;
+  }
+
+  return `<div class="pulse-header">
+      <span class="pulse-title"><span class="pulse-dot ${dot}"></span> City Pulse</span>
+      <span class="pulse-time">${time}</span>
+      <button class="pulse-close" onclick="closePulse()" title="Close">✕</button>
+    </div>
+    <div class="pulse-summary">${pulse.summary || ''}</div>
+    <div class="pulse-categories">${catsHtml}</div>
+    <div class="pulse-recommendation">💡 ${pulse.recommendation || 'No special action needed.'}</div>
+    ${staleHtml}`;
+}
+
+function updatePulseButton(pulse) {
+  const btn = document.getElementById('pulse-btn');
+  const btnDot = document.getElementById('pulse-btn-dot');
+  if (!btn) return;
+  if (!pulse) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  if (btnDot) {
+    btnDot.classList.toggle('ok', pulse.travel_ok);
+    btnDot.classList.toggle('warn', !pulse.travel_ok);
+  }
+}
+
+function openPulse() {
+  if (!_pulseData) return;
+  const el = document.getElementById('pulse-overlay');
+  if (!el) return;
+  el.innerHTML = renderPulseOverlay(_pulseData);
+  el.style.display = '';
+  _pulseVisible = true;
+  if (isMobileView()) openMobileMap(() => {});
+  _track('pulse_open');
+}
+
+function closePulse() {
+  const el = document.getElementById('pulse-overlay');
+  if (el) el.style.display = 'none';
+  _pulseVisible = false;
+  _track('pulse_close');
+}
+
+function _autoShowPulse() {
+  if (_pulseData && !isMobileView() && !selectedId && !inRadarView) openPulse();
+}
+
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
   closeRadarView();
+  _autoShowPulse();
   map.closePopup();
   Object.keys(policeCircles).forEach(cid => {
     policeCircles[cid].remove();
@@ -2098,6 +2254,7 @@ function selectAlert(id, fromMap = false) {
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
+  closePulse();
   closeRadarView();
   map.closePopup();
 

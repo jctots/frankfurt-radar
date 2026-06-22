@@ -46,11 +46,20 @@ def _reload_crontab(cfg: dict) -> None:
         f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
         f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
         f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
+        f"GEMINI_API_KEY={os.environ.get('GEMINI_API_KEY', '')}",
         f"NOTIFIER_DISPATCH_URL={os.environ.get('NOTIFIER_DISPATCH_URL', '')}",
     ])
     job = (
         f"# Poll every {interval_min} min\n"
         f"{poll_minutes} * * * * root cd /app && python main.py --mode poll"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"{poll_minutes} * * * * root cd /app && python radar.py"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"# City Pulse — hourly\n"
+        f"0 * * * * root cd /app && python pulse.py"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"# City Pulse — daily summary at 23:00 Frankfurt time\n"
+        f"0 23 * * * root cd /app && python pulse.py --daily"
         f" >> /proc/1/fd/1 2>&1\n"
     )
     CRON_FILE.write_text(env_block + "\n\n" + job)

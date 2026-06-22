@@ -10,6 +10,7 @@ from db import (
     get_active_subscribers,
     get_alerts_since,
     get_future_alerts,
+    get_latest_pulse,
     get_unsent_for_subscriber,
     record_sent_alert,
     update_last_briefing,
@@ -231,6 +232,83 @@ def _fmt_upcoming_section(rows: list[dict], config: dict | None = None) -> str:
         lines.append(f"{emoji} {title_html}{status_line}")
 
     return f"{header}\n" + "\n\n".join(lines)
+
+
+def dispatch_pulse_to_subscribers(config: dict) -> int:
+    pulse = get_latest_pulse()
+    if not pulse:
+        return 0
+
+    subscribers = get_active_subscribers()
+    if not subscribers:
+        return 0
+
+    tz = ZoneInfo("Europe/Berlin")
+    now_local = datetime.now(tz)
+    current_hour = f"{now_local.hour:02d}:00"
+
+    total_sent = 0
+    for sub in subscribers:
+        prefs = sub["preferences"]
+        pulse_time = prefs.get("pulse_time")
+        if not pulse_time or pulse_time != current_hour:
+            continue
+
+        body = _fmt_pulse_message(pulse, config)
+        ok = notify_subscriber_dm(
+            chat_id=sub["chat_id"],
+            title="\U0001f4ca City Pulse",
+            body=body,
+            url=None,
+            config=config,
+            body_html=True,
+        )
+        if not ok:
+            deactivate_subscriber(sub["chat_id"])
+            continue
+        total_sent += 1
+
+    if total_sent:
+        log.info("Pulse delivered to %d subscribers", total_sent)
+    return total_sent
+
+
+def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
+    site_url = ""
+    if config:
+        site_url = (config.get("web", {}).get("site_url") or "").rstrip("/")
+
+    dot = "\U0001f7e2" if pulse.get("travel_ok") else "\U0001f534"
+    summary = pulse.get("summary", "")
+    recommendation = pulse.get("recommendation", "")
+
+    cat_emojis = {
+        "weather": "⛈️", "transit": "\U0001f687", "roads": "\U0001f6a7",
+        "highways": "\U0001f6e3️", "safety": "\U0001f6a8", "events": "\U0001f389",
+    }
+    trend_icons = {
+        "worsening": "↗ worsening", "improving": "↘ improving",
+        "stable": "→ stable", "new": "★ new", "resolved": "✓ resolved",
+    }
+    cat_lines = []
+    for key, emoji in cat_emojis.items():
+        cat = (pulse.get("categories") or {}).get(key)
+        if not cat:
+            continue
+        status = cat.get("status", "")
+        trend = cat.get("trend", "stable")
+        trend_text = trend_icons.get(trend, trend)
+        cat_lines.append(f"{emoji} {key.title()}: {status} {trend_text}")
+
+    parts = [f"{dot} {summary}"]
+    if cat_lines:
+        parts.append("\n".join(cat_lines))
+    if recommendation:
+        parts.append(f"\U0001f4a1 {recommendation}")
+    if site_url:
+        parts.append(f'<a href="{site_url}">View on Frankfurt Radar</a>')
+
+    return "\n\n".join(parts)
 
 
 def _get_buffered_alerts(alert_ids: list[str]) -> list[dict]:

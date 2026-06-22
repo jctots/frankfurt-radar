@@ -272,12 +272,15 @@ class TestOnboardingFlow:
 
         # Quiet hours: no
         handle_update(_cb_update(7005, "qh:no"), bot_config)
+        # Pulse time: default
+        handle_update(_cb_update(7005, "pt:12:00"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7005)
         assert sub["conversation_state"] is None
         assert sub["preferences"]["sources"]["rmv"]["enabled"] is True
         assert sub["preferences"]["sources"]["dwd"]["enabled"] is False
         assert sub["preferences"]["quiet_hours"]["enabled"] is False
+        assert sub["preferences"]["pulse_time"] == "12:00"
 
     def test_quiet_hours_preset(self, mocker, bot_config):
         mock_send = mocker.patch("notifier.bot._send")
@@ -291,6 +294,7 @@ class TestOnboardingFlow:
         handle_update(_cb_update(7006, "s:done"), bot_config)
 
         handle_update(_cb_update(7006, "qh:yes"), bot_config)
+        handle_update(_cb_update(7006, "pt:12:00"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7006)
         assert sub["conversation_state"] is None
@@ -308,6 +312,7 @@ class TestOnboardingFlow:
             handle_update(_cb_update(7007, f"s:{src}"), bot_config)
         handle_update(_cb_update(7007, "s:done"), bot_config)
         handle_update(_cb_update(7007, "qh:no"), bot_config)
+        handle_update(_cb_update(7007, "pt:12:00"), bot_config)
 
         last_text = mock_send.call_args.args[1]
         assert "all set" in last_text.lower()

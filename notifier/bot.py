@@ -335,6 +335,12 @@ def _cmd_mystatus(chat_id: int) -> None:
     if qh.get("enabled"):
         lines.append(f"\n🌙 Quiet hours: {qh['start']}–{qh['end']} ({qh.get('timezone', 'Europe/Berlin')})")
 
+    pulse_time = prefs.get("pulse_time")
+    if pulse_time:
+        lines.append(f"📊 City Pulse: {pulse_time} (Frankfurt time)")
+    else:
+        lines.append("📊 City Pulse: off")
+
     lines.append(f"\nStatus: {'🟢 active' if sub['active'] else '🔴 paused'}")
     _send(chat_id, "\n".join(lines))
 
@@ -705,6 +711,8 @@ def _handle_callback(cq: dict, config: dict) -> None:
         _cb_baustellen_closures(chat_id, message_id, cq_id, data, prefs, state)
     elif step == "quiet_hours":
         _cb_quiet_hours(chat_id, message_id, cq_id, data, prefs, state)
+    elif step == "pulse_time":
+        _cb_pulse_time(chat_id, message_id, cq_id, data, prefs, state)
     else:
         _answer_cb(cq_id)
 
@@ -1052,6 +1060,35 @@ def _cb_quiet_hours(chat_id: int, msg_id: int, cq_id: str,
         }
     else:
         prefs["quiet_hours"]["enabled"] = False
+    state["prefs"] = prefs
+    _goto_pulse_time(chat_id, prefs, state)
+
+
+# ── Pulse time ─────────────────────────────────────────────────────────────
+
+def _goto_pulse_time(chat_id: int, prefs: dict, state: dict) -> None:
+    state["step"] = "pulse_time"
+    set_conversation_state(chat_id, state)
+    current = prefs.get("pulse_time", "12:00")
+    _send(chat_id,
+          (f"<b>📊 City Pulse — daily delivery</b>\n\n"
+           f"Receive an AI-generated city situation summary via Telegram.\n\n"
+           f"Current: <b>{current}</b> (Frankfurt time)"),
+          _inline_kb([
+              [("08:00", "pt:08:00"), ("12:00 (default)", "pt:12:00")],
+              [("18:00", "pt:18:00"), ("Off", "pt:off")],
+          ]))
+
+
+def _cb_pulse_time(chat_id: int, msg_id: int, cq_id: str,
+                   data: str, prefs: dict, state: dict) -> None:
+    _answer_cb(cq_id)
+    choice = data.removeprefix("pt:")
+    if choice == "off":
+        prefs["pulse_time"] = None
+    else:
+        prefs["pulse_time"] = choice
+    state["prefs"] = prefs
     _finish_onboarding(chat_id, prefs)
 
 
@@ -1111,12 +1148,13 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def _handle_dispatch(self):
         from notifier.dispatcher import dispatch_new_alerts
         from notifier.health import check_and_notify_health
-        from notifier.subscriber_dispatch import flush_quiet_buffers
+        from notifier.subscriber_dispatch import dispatch_pulse_to_subscribers, flush_quiet_buffers
 
         log.info("Dispatch triggered by poller")
         try:
             dispatched = dispatch_new_alerts(_webhook_config)
             flush_quiet_buffers(_webhook_config)
+            dispatch_pulse_to_subscribers(_webhook_config)
             check_and_notify_health(_webhook_config)
         except Exception:
             log.exception("Error during dispatch")
