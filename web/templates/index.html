@@ -688,6 +688,9 @@
     .pulse-cat-trend.new       { color: #3b82f6; }
     .pulse-cat-trend.resolved  { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
+    .pulse-section { margin-bottom: 8px; }
+    .pulse-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--clr-muted); display: block; margin-bottom: 3px; }
+    .pulse-section-item { font-size: 12px; padding: 2px 0; }
     .pulse-recommendation { font-size: 12px; color: var(--clr-muted); border-top: 1px solid var(--clr-border); padding-top: 8px; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
@@ -1450,6 +1453,7 @@ function initMap() {
       Math.abs(c.lat - FRANKFURT[0]) < 0.001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.001;
     resetBtn.style.display = atDefault ? 'none' : '';
+    if (!atDefault && _pulseVisible) closePulse();
   }
   map.on('moveend zoomend', _updateResetBtn);
   _updateResetBtn();
@@ -2198,6 +2202,17 @@ function renderPulseOverlay(pulse) {
     </div>`;
   }
 
+  const avoid = (pulse.avoid || []).filter(Boolean);
+  const crowding = (pulse.crowding || []).filter(Boolean);
+  let avoidHtml = '';
+  if (avoid.length) {
+    avoidHtml = `<div class="pulse-section"><span class="pulse-section-label">🚫 Avoid</span>${avoid.map(a => `<div class="pulse-section-item">${a}</div>`).join('')}</div>`;
+  }
+  let crowdHtml = '';
+  if (crowding.length) {
+    crowdHtml = `<div class="pulse-section"><span class="pulse-section-label">👥 Expect crowds</span>${crowding.map(c => `<div class="pulse-section-item">${c}</div>`).join('')}</div>`;
+  }
+
   return `<div class="pulse-header">
       <span class="pulse-title"><span class="pulse-dot ${dot}"></span> City Pulse</span>
       <span class="pulse-time">${time}</span>
@@ -2205,6 +2220,7 @@ function renderPulseOverlay(pulse) {
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
     <div class="pulse-categories">${catsHtml}</div>
+    ${avoidHtml}${crowdHtml}
     <div class="pulse-recommendation">💡 ${pulse.recommendation || 'No special action needed.'}</div>
     ${staleHtml}`;
 }
@@ -2281,7 +2297,6 @@ function _autoShowPulse() {
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
   closeRadarView();
-  _autoShowPulse();
   map.closePopup();
   Object.keys(policeCircles).forEach(cid => {
     policeCircles[cid].remove();
@@ -2290,6 +2305,7 @@ function resetState() {
   });
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
   selectedId = null;
+  _autoShowPulse();
 }
 
 function selectAlert(id, fromMap = false) {

@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS pulse_history (
     summary        TEXT NOT NULL,
     travel_ok      INTEGER NOT NULL DEFAULT 1,
     categories     TEXT NOT NULL DEFAULT '{}',
+    avoid          TEXT NOT NULL DEFAULT '[]',
+    crowding       TEXT NOT NULL DEFAULT '[]',
     recommendation TEXT NOT NULL DEFAULT '',
     alert_count    INTEGER NOT NULL DEFAULT 0
 );
@@ -146,11 +148,18 @@ def init_db() -> None:
                 summary TEXT NOT NULL,
                 travel_ok INTEGER NOT NULL DEFAULT 1,
                 categories TEXT NOT NULL DEFAULT '{}',
+                avoid TEXT NOT NULL DEFAULT '[]',
+                crowding TEXT NOT NULL DEFAULT '[]',
                 recommendation TEXT NOT NULL DEFAULT '',
                 alert_count INTEGER NOT NULL DEFAULT 0
             )""")
         except Exception:
             pass
+        for col in ("avoid", "crowding"):
+            try:
+                conn.execute(f"ALTER TABLE pulse_history ADD COLUMN {col} TEXT NOT NULL DEFAULT '[]'")
+            except Exception:
+                pass
         try:
             conn.execute("""CREATE TABLE IF NOT EXISTS pulse_daily_summary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -643,17 +652,28 @@ def store_pulse(pulse: dict) -> None:
     with _conn() as conn:
         conn.execute(
             """INSERT INTO pulse_history
-               (generated_at, summary, travel_ok, categories, recommendation, alert_count)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 pulse["generated_at"],
                 pulse["summary"],
                 1 if pulse.get("travel_ok", True) else 0,
                 json.dumps(pulse.get("categories", {})),
+                json.dumps(pulse.get("avoid", [])),
+                json.dumps(pulse.get("crowding", [])),
                 pulse.get("recommendation", ""),
                 pulse.get("alert_count", 0),
             ),
         )
+
+
+def _parse_pulse_row(row) -> dict:
+    d = dict(row)
+    d["travel_ok"] = bool(d["travel_ok"])
+    d["categories"] = json.loads(d["categories"])
+    d["avoid"] = json.loads(d.get("avoid") or "[]")
+    d["crowding"] = json.loads(d.get("crowding") or "[]")
+    return d
 
 
 def get_latest_pulse() -> Optional[dict]:
@@ -663,10 +683,7 @@ def get_latest_pulse() -> Optional[dict]:
         ).fetchone()
     if not row:
         return None
-    d = dict(row)
-    d["travel_ok"] = bool(d["travel_ok"])
-    d["categories"] = json.loads(d["categories"])
-    return d
+    return _parse_pulse_row(row)
 
 
 def get_recent_pulses(limit: int = 3) -> list[dict]:
@@ -675,13 +692,7 @@ def get_recent_pulses(limit: int = 3) -> list[dict]:
             "SELECT * FROM pulse_history ORDER BY generated_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    result = []
-    for row in rows:
-        d = dict(row)
-        d["travel_ok"] = bool(d["travel_ok"])
-        d["categories"] = json.loads(d["categories"])
-        result.append(d)
-    return result
+    return [_parse_pulse_row(row) for row in rows]
 
 
 def store_daily_summary(date: str, summary: str, generated_at: str) -> None:
@@ -710,13 +721,7 @@ def get_pulses_for_date(date: str) -> list[dict]:
             "SELECT * FROM pulse_history WHERE generated_at >= ? AND generated_at <= ? ORDER BY generated_at",
             (start, end),
         ).fetchall()
-    result = []
-    for row in rows:
-        d = dict(row)
-        d["travel_ok"] = bool(d["travel_ok"])
-        d["categories"] = json.loads(d["categories"])
-        result.append(d)
-    return result
+    return [_parse_pulse_row(row) for row in rows]
 
 
 def search_active_alerts(query: str) -> list[dict]:

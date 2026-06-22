@@ -2,7 +2,7 @@
 model: gemini-2.5-flash
 temperature: 0.2
 max_output_tokens: 2048
-thinking_budget: 0
+thinking_budget: 4096
 response_mime_type: application/json
 ---
 You are summarizing a full day of hourly City Pulse reports for Frankfurt. Compress 24 hours of situational data into a single concise daily summary that will be used as historical context for future hourly pulses.

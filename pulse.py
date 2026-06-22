@@ -150,6 +150,8 @@ _ALL_CLEAR_PULSE = {
         "safety": {"status": "normal", "trend": "stable"},
         "events": {"status": "none", "trend": "stable"},
     },
+    "avoid": [],
+    "crowding": [],
     "recommendation": "No special action needed.",
 }
 
@@ -194,6 +196,8 @@ def generate_pulse(config: dict) -> dict | None:
         "summary": result.get("summary", ""),
         "travel_ok": result.get("travel_ok", True),
         "categories": result.get("categories", {}),
+        "avoid": result.get("avoid", []),
+        "crowding": result.get("crowding", []),
         "recommendation": result.get("recommendation", ""),
         "alert_count": len(alerts),
     }
