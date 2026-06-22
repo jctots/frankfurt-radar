@@ -122,6 +122,37 @@ def get_alert_stats() -> dict:
     }
 
 
+@mcp.tool()
+def get_city_pulse(include_history: bool = False) -> dict | None:
+    """Get the latest City Pulse — AI-generated situational summary for Frankfurt.
+
+    Returns category statuses (clear/low/moderate/high), trends, summary, and recommendation.
+    Set include_history=True to also get the last 3 hourly pulses and latest daily summary.
+    """
+    _track("get_city_pulse")
+    pulse = db.get_latest_pulse()
+    if not pulse:
+        return None
+    result = {
+        "generated_at": pulse["generated_at"],
+        "summary": pulse["summary"],
+        "travel_ok": pulse["travel_ok"],
+        "categories": pulse["categories"],
+        "recommendation": pulse["recommendation"],
+        "alert_count": pulse["alert_count"],
+    }
+    if include_history:
+        recent = db.get_recent_pulses(3)
+        result["recent_pulses"] = [
+            {"generated_at": p["generated_at"], "summary": p["summary"],
+             "travel_ok": p["travel_ok"], "categories": p["categories"]}
+            for p in recent
+        ]
+        dailies = db.get_recent_daily_summaries(1)
+        result["latest_daily_summary"] = dailies[0] if dailies else None
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     from starlette.routing import Mount
