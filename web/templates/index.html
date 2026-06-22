@@ -1211,12 +1211,12 @@ const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
 const SOURCE = {
   rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
-  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
+  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
-  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
-  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
-  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: null },
+  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
+  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: 'https://www.eintracht.de/tickets/' },
+  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
 };
 
 const SVC_ICON = {
@@ -1575,28 +1575,32 @@ function _radarRelLabel(i) {
   return mins > 0 ? `+${mins}m` : `${mins}m`;
 }
 
+async function _loadRadarFrames() {
+  const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
+  if (!r.ok) return;
+  const data = await r.json();
+  if (!data.obs?.length || !data.forecast?.length) return;
+  radarFrames.forEach(f => { if (f.layer) f.layer.remove(); });
+  radarFrames = [
+    ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
+    ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
+  ];
+  radarNowIdx = data.obs.length;
+  radarFrameIdx = 0;
+  for (let i = 0; i < radarFrames.length; i++) {
+    await new Promise(resolve => {
+      const overlay = L.imageOverlay(radarFrames[i].url, RADAR_IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
+      radarFrames[i].layer = overlay;
+      overlay.once('load', resolve);
+      overlay.once('error', resolve);
+      setTimeout(resolve, 8000);
+    });
+  }
+  radarPreloaded = radarFrames.length > 0;
+}
+
 async function startRadarPreload() {
-  try {
-    const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (!data.obs?.length || !data.forecast?.length) return;
-    radarFrames = [
-      ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
-      ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
-    ];
-    radarNowIdx = data.obs.length;
-    for (let i = 0; i < radarFrames.length; i++) {
-      await new Promise(resolve => {
-        const overlay = L.imageOverlay(radarFrames[i].url, RADAR_IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
-        radarFrames[i].layer = overlay;
-        overlay.once('load', resolve);
-        overlay.once('error', resolve);
-        setTimeout(resolve, 8000);
-      });
-    }
-    radarPreloaded = radarFrames.length > 0;
-  } catch { /* non-critical — radar is enhancement, not core */ }
+  try { await _loadRadarFrames(); } catch { /* non-critical */ }
 }
 
 function _buildRadarHud() {
@@ -1640,7 +1644,7 @@ function _stepRadarFrame() {
 function _startRadarAnim() { radarAnimTimer = setInterval(_stepRadarFrame, RADAR_SPEED_MS); }
 function _stopRadarAnim()  { clearInterval(radarAnimTimer); clearTimeout(radarAnimTimer); radarAnimTimer = null; }
 
-function openRadarView() {
+async function openRadarView() {
   if (!radarPreloaded || !radarFrames.length) return;
   _track('weather_popup_radar');
   inRadarView = true;
@@ -1656,6 +1660,7 @@ function openRadarView() {
   map.touchZoom.disable();
   map.doubleClickZoom.disable();
   map.boxZoom.disable();
+  try { await _loadRadarFrames(); } catch { /* use existing frames */ }
   _buildRadarHud();
   document.getElementById('radar-hud').style.display = '';
   _showRadarFrame(radarNowIdx);
@@ -2750,6 +2755,7 @@ async function init() {
         if (filters.sources[da.source] === false) { filters.sources[da.source] = true; saveFilters(); }
         if (da.stale && !showLongRunning) { showLongRunning = true; localStorage.setItem('fr_lr', '1'); document.getElementById('lr-switch').checked = true; }
         if (isFuture(da) && !showFutureEvents) { showFutureEvents = true; localStorage.setItem('fr_future', '1'); document.getElementById('future-switch').checked = true; }
+        if (da.removed_at && openSection !== 'removed') { openSection = 'removed'; _applyAccordionState(); }
         renderFeed(); buildFilterBar();
       }
       setTimeout(() => selectAlert(deepId), 100);
