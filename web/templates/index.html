@@ -685,8 +685,6 @@
     .pulse-cat-trend { }
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
-    .pulse-cat-trend.new       { color: #3b82f6; }
-    .pulse-cat-trend.resolved  { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     .dark .pulse-recommendation { background: #1a2332; }
@@ -708,8 +706,6 @@
     .pulse-btn-cat.stable    { opacity: 0.4; }
     .pulse-btn-cat.worsening { color: #ef4444; }
     .pulse-btn-cat.improving { color: #22c55e; }
-    .pulse-btn-cat.new       { color: #3b82f6; }
-    .pulse-btn-cat.resolved  { color: #22c55e; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -2173,8 +2169,6 @@ const TREND_DISPLAY = {
   worsening: '↗ worsening',
   improving: '↘ improving',
   stable:    '→ stable',
-  new:       '★ new',
-  resolved:  '✓ resolved',
 };
 
 function renderPulseOverlay(pulse) {
@@ -2192,7 +2186,7 @@ function renderPulseOverlay(pulse) {
     if (!cat) continue;
     const trend = cat.trend || 'stable';
     const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
-    const arrow = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'}[trend] || '';
+    const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
     catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
   }
 
@@ -2216,7 +2210,7 @@ function updatePulseButton(pulse) {
   btn.style.display = '';
   if (btnCats) {
     const cats = pulse.categories || {};
-    const arrows = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'};
+    const arrows = {worsening:'↗',improving:'↘',stable:'→'};
     let html = '';
     for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
       const cat = cats[key];

@@ -296,8 +296,7 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
         "incidents": "\U0001f6a8", "events": "\U0001f389",
     }
     trend_arrows = {
-        "worsening": "↗", "improving": "↘",
-        "stable": "→", "new": "★", "resolved": "✓",
+        "worsening": "↗", "improving": "↘", "stable": "→",
     }
     cat_lines = []
     for key, emoji in cat_emojis.items():
