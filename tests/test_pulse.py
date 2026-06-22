@@ -181,18 +181,22 @@ class TestGeneratePulse:
         }
         mocker.patch("pulse.db.get_all_active_alerts", return_value=alerts)
         mocker.patch("pulse.db.get_recent_pulses", return_value=[])
+        mocker.patch("pulse.db.get_pulses_since", return_value=[])
+        mocker.patch("pulse.db.get_latest_pulse", return_value=None)
+        mocker.patch("pulse.db.get_recent_daily_summaries", return_value=[])
         mocker.patch("pulse.db.store_pulse")
         mocker.patch("pulse.load_prompt", return_value=(
             {"model": "gemini-2.5-flash", "temperature": 0.3},
-            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section}"
+            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {categories_json}"
         ))
         mocker.patch("pulse._call_gemini", return_value=gemini_response)
 
         result = generate_pulse({"pulse": {"enabled": True}})
         assert result is not None
-        assert result["travel_ok"] is False
+        assert result["travel_ok"] is True
         assert result["summary"] == "S1 delays reported"
         assert result["alert_count"] == 1
+        assert result["categories"]["transport"]["status"] == "low"
 
 
 class TestGenerateDailySummary:

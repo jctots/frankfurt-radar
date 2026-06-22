@@ -13,6 +13,7 @@ import yaml
 import db
 from pulse_categories import (
     compute_categories,
+    compute_travel_ok,
     count_alerts_by_category,
     get_baseline_detail,
 )
@@ -261,7 +262,7 @@ def generate_pulse(config: dict) -> dict | None:
     pulse = {
         "generated_at": generated_at,
         "summary": result.get("summary", ""),
-        "travel_ok": result.get("travel_ok", True),
+        "travel_ok": compute_travel_ok(categories),
         "categories": categories,
         "recommendation": result.get("recommendation", ""),
         "alert_count": len(alerts),

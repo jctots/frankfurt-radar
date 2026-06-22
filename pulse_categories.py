@@ -163,3 +163,11 @@ def compute_categories(
         categories[cat_name] = {"status": status, "trend": trend, "count": count}
 
     return categories
+
+
+def compute_travel_ok(categories: dict) -> bool:
+    for cat_name in ("transport", "roadworks"):
+        cat = categories.get(cat_name, {})
+        if cat.get("status") in ("moderate", "high"):
+            return False
+    return True

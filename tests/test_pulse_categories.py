@@ -4,6 +4,7 @@ from pulse_categories import (
     CATEGORY_SOURCES,
     STATUS_LEVELS,
     compute_categories,
+    compute_travel_ok,
     count_alerts_by_category,
     determine_status,
     determine_trend,
@@ -168,3 +169,28 @@ class TestComputeCategories:
 
         result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
         assert result["transport"]["status"] == "high"
+
+
+class TestComputeTravelOk:
+    def test_all_clear(self):
+        cats = {c: {"status": "clear"} for c in CATEGORY_SOURCES}
+        assert compute_travel_ok(cats) is True
+
+    def test_all_low(self):
+        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
+        assert compute_travel_ok(cats) is True
+
+    def test_transport_moderate(self):
+        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
+        cats["transport"] = {"status": "moderate"}
+        assert compute_travel_ok(cats) is False
+
+    def test_roadworks_high(self):
+        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
+        cats["roadworks"] = {"status": "high"}
+        assert compute_travel_ok(cats) is False
+
+    def test_weather_high_still_ok(self):
+        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
+        cats["weather"] = {"status": "high"}
+        assert compute_travel_ok(cats) is True
