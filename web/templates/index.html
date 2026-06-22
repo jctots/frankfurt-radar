@@ -677,9 +677,9 @@
     .pulse-close:hover { color: var(--clr-text); }
     .dark .pulse-close:hover { color: #e5e7eb; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
-    .pulse-trends-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
+    .pulse-trends-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
     .pulse-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 0; }
-    .pulse-cat { display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.4; }
+    .pulse-cat { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.4; }
     .pulse-cat.stable { opacity: 0.5; }
     .pulse-cat-label { font-weight: 600; }
     .pulse-cat-trend { }
@@ -2183,7 +2183,7 @@ function renderPulseOverlay(pulse) {
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
-    <div class="pulse-trends-label">Trends</div>
+    <div class="pulse-trends-label">Hourly Trend</div>
     <div class="pulse-categories">${catsHtml}</div>
     <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
     ${staleHtml}`;

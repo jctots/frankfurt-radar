@@ -313,7 +313,7 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
 
     parts = [f"{dot} {summary}{time_str}"]
     if cat_lines:
-        parts.append(f"<b>Trends</b>\n" + "\n".join(cat_lines))
+        parts.append(f"<b>Hourly Trend</b>\n" + "\n".join(cat_lines))
     if recommendation:
         parts.append(f"\U0001f4a1 <b>Recommendation:</b> {recommendation}")
     if site_url:
