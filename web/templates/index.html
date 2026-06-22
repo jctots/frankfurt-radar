@@ -1453,7 +1453,8 @@ function initMap() {
       Math.abs(c.lat - FRANKFURT[0]) < 0.001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.001;
     resetBtn.style.display = atDefault ? 'none' : '';
-    if (!atDefault && _pulseVisible) closePulse();
+    if (atDefault && _pulseData && !inRadarView && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
+    else if (!atDefault) { const el = document.getElementById('pulse-overlay'); if (el) el.style.display = 'none'; _pulseVisible = false; _pulseManualClose = false; }
   }
   map.on('moveend zoomend', _updateResetBtn);
   _updateResetBtn();
@@ -1837,7 +1838,6 @@ function applyData(data) {
 
   _pulseData = data.pulse || null;
   updatePulseButton(_pulseData);
-  if (_pulseData && !selectedId && !inRadarView && !isMobileView()) _showPulseOverlay();
 
   const dot = document.getElementById('health-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
@@ -2160,6 +2160,7 @@ function closeMobileMap() {
 // ── City Pulse ────────────────────────────────────────────────────────────────
 let _pulseData = null;
 let _pulseVisible = false;
+let _pulseManualClose = false;
 
 const PULSE_CAT_META = {
   weather:   { emoji: '⛈️',  label: 'Weather' },
@@ -2200,7 +2201,7 @@ function renderPulseOverlay(pulse) {
   return `<div class="pulse-header">
       <span class="pulse-title"><span class="pulse-dot ${dot}"></span> City Pulse</span>
       <span class="pulse-time">as of ${time}</span>
-      <button class="pulse-close" onclick="closePulse()" title="Close">✕</button>
+      <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
     <div class="pulse-trends-label">Trends</div>
@@ -2238,6 +2239,7 @@ function updatePulseButton(pulse) {
 
 function openPulse() {
   if (!_pulseData) return;
+  _pulseManualClose = false;
   if (isMobileView()) {
     openMobileMap(() => { _showPulseOverlay(); });
   } else {
@@ -2255,16 +2257,14 @@ function _showPulseOverlay() {
   _pulseVisible = true;
 }
 
-function closePulse() {
+function closePulse(manual = false) {
   const el = document.getElementById('pulse-overlay');
   if (el) el.style.display = 'none';
   _pulseVisible = false;
+  if (manual) _pulseManualClose = true;
   _track('pulse_close');
 }
 
-function _autoShowPulse() {
-  if (_pulseData && !isMobileView() && !selectedId && !inRadarView) _showPulseOverlay();
-}
 
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
@@ -2277,7 +2277,6 @@ function resetState() {
   });
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
   selectedId = null;
-  _autoShowPulse();
 }
 
 function selectAlert(id, fromMap = false) {
