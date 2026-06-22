@@ -38,7 +38,7 @@ _RATE_WINDOW = 60
 _rate_hits: dict[int, list[float]] = defaultdict(list)
 _rate_cooldown: dict[int, float] = {}
 _RATE_COOLDOWN = 300
-_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban"))
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/pulse", "/ban", "/unban"))
 _SEARCH_PAGE_SIZE = 3
 _ban_notified: set[int] = set()
 
@@ -463,6 +463,8 @@ def _handle_admin_cmd(cmd: str, text: str, chat_id: int, config: dict) -> None:
         _admin_visits(chat_id, config)
     elif cmd == "/poll":
         _admin_poll(chat_id, config)
+    elif cmd == "/pulse":
+        _admin_pulse(chat_id, config)
     elif cmd == "/ban":
         _admin_ban(chat_id, text)
     elif cmd == "/unban":
@@ -629,6 +631,22 @@ def _admin_poll(chat_id: int, config: dict) -> None:
             _send(chat_id, "✅ Poll complete")
     except requests.RequestException as e:
         _send(chat_id, f"❌ Poll error: {e}")
+
+
+def _admin_pulse(chat_id: int, config: dict) -> None:
+    trigger_url = os.environ.get("POLLER_TRIGGER_URL", "")
+    if not trigger_url:
+        _send(chat_id, "⛔ POLLER_TRIGGER_URL not configured")
+        return
+    pulse_url = trigger_url.rsplit("/", 1)[0] + "/pulse"
+    try:
+        resp = requests.post(pulse_url, timeout=65)
+        if resp.status_code != 200:
+            _send(chat_id, f"❌ Pulse failed: {resp.text[-200:]}")
+        else:
+            _send(chat_id, "✅ Pulse generated")
+    except requests.RequestException as e:
+        _send(chat_id, f"❌ Pulse error: {e}")
 
 
 def _admin_ban(chat_id: int, text: str) -> None:

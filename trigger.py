@@ -82,6 +82,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/poll":
             self._handle_poll()
+        elif self.path == "/pulse":
+            self._handle_pulse()
         else:
             self._json(404, {"error": "not found"})
 
@@ -138,6 +140,34 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return
         if proc.returncode != 0:
             log.error("Poll failed (exit %d)", proc.returncode)
+            self._json(500, {"error": "\n".join(output_lines[-20:])})
+        else:
+            self._json(200, {"status": "ok"})
+
+    def _handle_pulse(self):
+        log.info("Admin API: manual pulse triggered")
+        pulse_py = MAIN_PY.parent / "pulse.py"
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, str(pulse_py)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(MAIN_PY.parent),
+            )
+            output_lines = []
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    log.info("[pulse] %s", line)
+                    output_lines.append(line)
+            proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self._json(504, {"error": "pulse timed out"})
+            return
+        if proc.returncode != 0:
+            log.error("Pulse failed (exit %d)", proc.returncode)
             self._json(500, {"error": "\n".join(output_lines[-20:])})
         else:
             self._json(200, {"status": "ok"})

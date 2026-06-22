@@ -649,7 +649,12 @@ def get_all_active_alerts() -> list[dict]:
 
 
 def store_pulse(pulse: dict) -> None:
+    hour_prefix = pulse["generated_at"][:13]
     with _conn() as conn:
+        conn.execute(
+            "DELETE FROM pulse_history WHERE generated_at LIKE ?",
+            (hour_prefix + "%",),
+        )
         conn.execute(
             """INSERT INTO pulse_history
                (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count)
