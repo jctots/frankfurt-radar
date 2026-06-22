@@ -665,7 +665,6 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
       pointer-events: auto;
       scrollbar-width: thin;
-      display: none;
     }
     .dark #pulse-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     @media (max-width: 767px) {
@@ -1488,6 +1487,7 @@ function initMap() {
 
   const pulseEl = document.createElement('div');
   pulseEl.id = 'pulse-overlay';
+  pulseEl.style.display = 'none';
   L.DomEvent.disableClickPropagation(pulseEl);
   L.DomEvent.disableScrollPropagation(pulseEl);
   map.getContainer().appendChild(pulseEl);
