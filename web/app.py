@@ -158,7 +158,7 @@ def _web_config() -> dict | None:
 def _allow_manual_poll() -> bool:
     web = _web_config()
     if web is None:
-        return True
+        return False
     return bool(web.get("allow_manual_poll", False))
 
 

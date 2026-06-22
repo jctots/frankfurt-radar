@@ -71,6 +71,25 @@ CREATE TABLE IF NOT EXISTS quiet_buffer (
     buffered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (subscriber_id, alert_id)
 );
+
+CREATE TABLE IF NOT EXISTS pulse_history (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    generated_at   TEXT NOT NULL,
+    summary        TEXT NOT NULL,
+    travel_ok      INTEGER NOT NULL DEFAULT 1,
+    categories     TEXT NOT NULL DEFAULT '{}',
+    avoid          TEXT NOT NULL DEFAULT '[]',
+    crowding       TEXT NOT NULL DEFAULT '[]',
+    recommendation TEXT NOT NULL DEFAULT '',
+    alert_count    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pulse_daily_summary (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    date         TEXT NOT NULL UNIQUE,
+    summary      TEXT NOT NULL,
+    generated_at TEXT NOT NULL
+);
 """
 
 
@@ -122,6 +141,34 @@ def init_db() -> None:
             conn.execute("ALTER TABLE subscribers ADD COLUMN last_briefing_at TEXT")
         except Exception:
             pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS pulse_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                generated_at TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                travel_ok INTEGER NOT NULL DEFAULT 1,
+                categories TEXT NOT NULL DEFAULT '{}',
+                avoid TEXT NOT NULL DEFAULT '[]',
+                crowding TEXT NOT NULL DEFAULT '[]',
+                recommendation TEXT NOT NULL DEFAULT '',
+                alert_count INTEGER NOT NULL DEFAULT 0
+            )""")
+        except Exception:
+            pass
+        for col in ("avoid", "crowding"):
+            try:
+                conn.execute(f"ALTER TABLE pulse_history ADD COLUMN {col} TEXT NOT NULL DEFAULT '[]'")
+            except Exception:
+                pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS pulse_daily_summary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL UNIQUE,
+                summary TEXT NOT NULL,
+                generated_at TEXT NOT NULL
+            )""")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -163,6 +210,7 @@ def expire_processed_alerts() -> None:
     now = datetime.now(timezone.utc)
     exp = (now - timedelta(hours=1)).isoformat()
     ttl = (now - timedelta(days=7)).isoformat()
+    pulse_cutoff = (now - timedelta(days=30)).isoformat()
     with _conn() as conn:
         cur = conn.execute(
             """DELETE FROM processed_alerts WHERE
@@ -172,6 +220,17 @@ def expire_processed_alerts() -> None:
         )
         if cur.rowcount:
             log.info("Expired %d processed_alerts entries", cur.rowcount)
+        pulse_cur = conn.execute(
+            "DELETE FROM pulse_history WHERE generated_at < ?", (pulse_cutoff,)
+        )
+        if pulse_cur.rowcount:
+            log.info("Expired %d pulse_history entries", pulse_cur.rowcount)
+        daily_cutoff = (now - timedelta(days=90)).strftime("%Y-%m-%d")
+        daily_cur = conn.execute(
+            "DELETE FROM pulse_daily_summary WHERE date < ?", (daily_cutoff,)
+        )
+        if daily_cur.rowcount:
+            log.info("Expired %d pulse_daily_summary entries", daily_cur.rowcount)
 
 
 # ── alert_cache (replaces status.json) ───────────────────────────────────────
@@ -333,7 +392,7 @@ def get_status_json() -> dict:
     source_health_raw = get_meta("source_health")
     source_health = json.loads(source_health_raw) if source_health_raw else {}
 
-    return {"updated_at": updated_at, "alerts": alerts, "removed_alerts": removed_alerts, "source_health": source_health}
+    return {"updated_at": updated_at, "alerts": alerts, "removed_alerts": removed_alerts, "source_health": source_health, "pulse": get_latest_pulse()}
 
 
 # ── Cold-start published_at patch ────────────────────────────────────────────
@@ -587,6 +646,87 @@ def get_all_active_alerts() -> list[dict]:
             "SELECT * FROM alert_cache WHERE removed_at IS NULL ORDER BY cached_at"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def store_pulse(pulse: dict) -> None:
+    hour_prefix = pulse["generated_at"][:13]
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM pulse_history WHERE generated_at LIKE ?",
+            (hour_prefix + "%",),
+        )
+        conn.execute(
+            """INSERT INTO pulse_history
+               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                pulse["generated_at"],
+                pulse["summary"],
+                1 if pulse.get("travel_ok", True) else 0,
+                json.dumps(pulse.get("categories", {})),
+                json.dumps(pulse.get("avoid", [])),
+                json.dumps(pulse.get("crowding", [])),
+                pulse.get("recommendation", ""),
+                pulse.get("alert_count", 0),
+            ),
+        )
+
+
+def _parse_pulse_row(row) -> dict:
+    d = dict(row)
+    d["travel_ok"] = bool(d["travel_ok"])
+    d["categories"] = json.loads(d["categories"])
+    d["avoid"] = json.loads(d.get("avoid") or "[]")
+    d["crowding"] = json.loads(d.get("crowding") or "[]")
+    return d
+
+
+def get_latest_pulse() -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM pulse_history ORDER BY generated_at DESC LIMIT 1"
+        ).fetchone()
+    if not row:
+        return None
+    return _parse_pulse_row(row)
+
+
+def get_recent_pulses(limit: int = 3) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM pulse_history ORDER BY generated_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [_parse_pulse_row(row) for row in rows]
+
+
+def store_daily_summary(date: str, summary: str, generated_at: str) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO pulse_daily_summary (date, summary, generated_at)
+               VALUES (?, ?, ?)""",
+            (date, summary, generated_at),
+        )
+
+
+def get_recent_daily_summaries(limit: int = 3) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM pulse_daily_summary ORDER BY date DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_pulses_for_date(date: str) -> list[dict]:
+    start = f"{date}T00:00:00Z"
+    end = f"{date}T23:59:59Z"
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM pulse_history WHERE generated_at >= ? AND generated_at <= ? ORDER BY generated_at",
+            (start, end),
+        ).fetchall()
+    return [_parse_pulse_row(row) for row in rows]
 
 
 def search_active_alerts(query: str) -> list[dict]:

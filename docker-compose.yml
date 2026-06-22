@@ -54,7 +54,7 @@ services:
     volumes:
       - radar_data:/app/data
     ports:
-      - "8080:8080"
+      - "${BIND_ADDR:-0.0.0.0}:8080:8080"
     restart: unless-stopped
     deploy:
       resources:
@@ -85,7 +85,7 @@ services:
     volumes:
       - radar_data:/app/data
     ports:
-      - "${MCP_PORT:-8811}:8811"
+      - "${BIND_ADDR:-0.0.0.0}:8811:8811"
     restart: unless-stopped
     deploy:
       resources:
@@ -99,7 +99,7 @@ services:
     container_name: umami
     init: true
     ports:
-      - "8880:3000"
+      - "${BIND_ADDR:-0.0.0.0}:3000:3000"
     environment:
       - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD:-unused}@umami-db:5432/umami
       - APP_SECRET=${UMAMI_APP_SECRET:-unused}

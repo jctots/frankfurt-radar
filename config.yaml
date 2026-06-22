@@ -13,6 +13,9 @@ transport:
   #       - S4             ← only S3 and S4
   services:
 
+pulse:
+  enabled: false           # opt-in; set true in production config
+
 polling:
   interval_minutes: 10   # min 1, max 60 — drives cron poll schedule
 

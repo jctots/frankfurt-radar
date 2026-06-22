@@ -146,7 +146,7 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .pulse-dot {
+    .health-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
@@ -154,25 +154,25 @@
       flex-shrink: 0;
       animation: pulseDot 2s ease-in-out infinite;
     }
-    .pulse-dot.degraded {
+    .health-dot.degraded {
       background: #eab308;
       animation: pulseDotYellow 2s ease-in-out infinite;
     }
-    .pulse-dot.down {
+    .health-dot.down {
       background: #ef4444;
       animation: pulseDotRed 2s ease-in-out infinite;
     }
     @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(34,197,94,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0);   }
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0); }
     }
     @keyframes pulseDotYellow {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(234,179,8,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(234,179,8,0);   }
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(234,179,8,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(234,179,8,0); }
     }
     @keyframes pulseDotRed {
-      0%, 100% { opacity: 1; transform: scale(1);    box-shadow: 0 0 0 0   rgba(239,68,68,0.5); }
-      50%       { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(239,68,68,0);   }
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(239,68,68,0); }
     }
     .updated-full  { font-size: 11px; color: rgba(255,255,255,0.45); }
     .updated-short { display: none; font-size: 11px; color: rgba(255,255,255,0.45); }
@@ -589,6 +589,7 @@
       flex: 1;
       height: 100%;
       z-index: 1;
+      position: relative;
     }
 
     .map-controls-row {
@@ -653,6 +654,58 @@
     #hud-t0   { flex: 18; text-align: left; }
     #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
     #hud-tend { flex: 12; text-align: right; }
+
+    /* ── City Pulse overlay ──────────────────────────────── */
+    #pulse-overlay {
+      position: absolute; bottom: 24px; right: 12px; z-index: 1000;
+      background: rgba(255,255,255,0.95); color: #1e293b;
+      border-radius: 12px; padding: 14px 16px 12px;
+      max-width: 340px; max-height: 60vh; overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      pointer-events: auto;
+      scrollbar-width: thin;
+    }
+    .dark #pulse-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    @media (max-width: 767px) {
+      #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: 50vh; }
+    }
+    .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex: 1; }
+    .pulse-time { font-size: 11px; color: var(--clr-muted); }
+    .pulse-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
+    .pulse-close:hover { color: var(--clr-text); }
+    .dark .pulse-close:hover { color: #e5e7eb; }
+    .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+    .pulse-trends-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
+    .pulse-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 0; }
+    .pulse-cat { display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.4; }
+    .pulse-cat.stable { opacity: 0.5; }
+    .pulse-cat-label { font-weight: 600; }
+    .pulse-cat-trend { }
+    .pulse-cat-trend.worsening { color: #ef4444; }
+    .pulse-cat-trend.improving { color: #22c55e; }
+    .pulse-cat-trend.stable    { color: var(--clr-muted); }
+    .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+    .dark .pulse-recommendation { background: #1a2332; }
+    .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
+
+    .pulse-btn {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 14px;
+      font-size: 13px; font-weight: 600;
+      background: none; border: none;
+      cursor: pointer; color: var(--clr-text);
+      white-space: nowrap; width: 100%; justify-content: center;
+    }
+    .pulse-btn:hover { background: #f1f5f9; }
+    .dark .pulse-btn { color: #d1d5db; }
+    .dark .pulse-btn:hover { background: #222c3a; }
+    .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
+    .pulse-btn-cat { white-space: nowrap; }
+    .pulse-btn-cat.stable    { opacity: 0.4; }
+    .pulse-btn-cat.worsening { color: #ef4444; }
+    .pulse-btn-cat.improving { color: #22c55e; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -1035,7 +1088,7 @@
   <div class="ticker-wrap" id="ticker-wrap"></div>
   <div class="header-actions">
     <div class="pulse-wrap">
-      <div class="pulse-dot" id="pulse-dot"></div>
+      <div class="health-dot" id="health-dot"></div>
       <span class="updated-full" id="updated-full">Updated just now</span>
       <span class="updated-short" id="updated-short">—</span>
     </div>
@@ -1051,9 +1104,13 @@
 <div class="status-area" id="status">
   <div class="feed-panel">
     <div class="search-section">
+    <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
+      📊 City Pulse
+      <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
+    </button>
     <div class="search-bar">
       <span style="font-size:13px;color:var(--clr-muted)">🔍</span>
-      <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Search alerts, e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-toggle-panel">
@@ -1211,12 +1268,12 @@ const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
 const SOURCE = {
   rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
-  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: null },
+  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
-  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: null },
-  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: null },
-  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: null },
+  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
+  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: 'https://www.eintracht.de/tickets/' },
+  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
 };
 
 const SVC_ICON = {
@@ -1389,6 +1446,8 @@ function initMap() {
       Math.abs(c.lat - FRANKFURT[0]) < 0.001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.001;
     resetBtn.style.display = atDefault ? 'none' : '';
+    if (atDefault && _pulseData && !inRadarView && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
+    else if (!atDefault) { const el = document.getElementById('pulse-overlay'); if (el) el.style.display = 'none'; _pulseVisible = false; _pulseManualClose = false; }
   }
   map.on('moveend zoomend', _updateResetBtn);
   _updateResetBtn();
@@ -1426,6 +1485,13 @@ function initMap() {
     '<div class="radar-dots" id="radar-dots"></div>' +
     '<div id="hud-range"><span id="hud-t0">—</span><span id="hud-tnow">▼</span><span id="hud-tend">—</span></div>';
   map.getContainer().appendChild(hudEl);
+
+  const pulseEl = document.createElement('div');
+  pulseEl.id = 'pulse-overlay';
+  pulseEl.style.display = 'none';
+  L.DomEvent.disableClickPropagation(pulseEl);
+  L.DomEvent.disableScrollPropagation(pulseEl);
+  map.getContainer().appendChild(pulseEl);
   L.DomEvent.disableClickPropagation(hudEl);
 }
 
@@ -1575,28 +1641,32 @@ function _radarRelLabel(i) {
   return mins > 0 ? `+${mins}m` : `${mins}m`;
 }
 
+async function _loadRadarFrames() {
+  const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
+  if (!r.ok) return;
+  const data = await r.json();
+  if (!data.obs?.length || !data.forecast?.length) return;
+  radarFrames.forEach(f => { if (f.layer) f.layer.remove(); });
+  radarFrames = [
+    ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
+    ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
+  ];
+  radarNowIdx = data.obs.length;
+  radarFrameIdx = 0;
+  for (let i = 0; i < radarFrames.length; i++) {
+    await new Promise(resolve => {
+      const overlay = L.imageOverlay(radarFrames[i].url, RADAR_IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
+      radarFrames[i].layer = overlay;
+      overlay.once('load', resolve);
+      overlay.once('error', resolve);
+      setTimeout(resolve, 8000);
+    });
+  }
+  radarPreloaded = radarFrames.length > 0;
+}
+
 async function startRadarPreload() {
-  try {
-    const r = await fetch('/api/radar/frames', { signal: AbortSignal.timeout(3000) });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (!data.obs?.length || !data.forecast?.length) return;
-    radarFrames = [
-      ...data.obs.map(ts => ({ ts, url: `/api/radar/obs/${ts}.png` })),
-      ...data.forecast.map(ts => ({ ts, url: `/api/radar/forecast/${ts}.png` })),
-    ];
-    radarNowIdx = data.obs.length;
-    for (let i = 0; i < radarFrames.length; i++) {
-      await new Promise(resolve => {
-        const overlay = L.imageOverlay(radarFrames[i].url, RADAR_IMAGE_BOUNDS, { opacity: 0 }).addTo(map);
-        radarFrames[i].layer = overlay;
-        overlay.once('load', resolve);
-        overlay.once('error', resolve);
-        setTimeout(resolve, 8000);
-      });
-    }
-    radarPreloaded = radarFrames.length > 0;
-  } catch { /* non-critical — radar is enhancement, not core */ }
+  try { await _loadRadarFrames(); } catch { /* non-critical */ }
 }
 
 function _buildRadarHud() {
@@ -1640,8 +1710,9 @@ function _stepRadarFrame() {
 function _startRadarAnim() { radarAnimTimer = setInterval(_stepRadarFrame, RADAR_SPEED_MS); }
 function _stopRadarAnim()  { clearInterval(radarAnimTimer); clearTimeout(radarAnimTimer); radarAnimTimer = null; }
 
-function openRadarView() {
+async function openRadarView() {
   if (!radarPreloaded || !radarFrames.length) return;
+  closePulse();
   _track('weather_popup_radar');
   inRadarView = true;
   radarHiddenMarkers = [];
@@ -1656,6 +1727,7 @@ function openRadarView() {
   map.touchZoom.disable();
   map.doubleClickZoom.disable();
   map.boxZoom.disable();
+  try { await _loadRadarFrames(); } catch { /* use existing frames */ }
   _buildRadarHud();
   document.getElementById('radar-hud').style.display = '';
   _showRadarFrame(radarNowIdx);
@@ -1757,7 +1829,12 @@ function applyData(data) {
     updateRelativeTime();
   }
 
-  const dot = document.getElementById('pulse-dot');
+  const hadPulse = !!_pulseData;
+  _pulseData = data.pulse || null;
+  updatePulseButton(_pulseData);
+  if (_pulseData && !hadPulse && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
+
+  const dot = document.getElementById('health-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
     const sources = Object.entries(data.source_health);
     const failed = sources.filter(([, ok]) => !ok).map(([name]) => name.replace('Poller', ''));
@@ -2075,6 +2152,107 @@ function closeMobileMap() {
   if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
+// ── City Pulse ────────────────────────────────────────────────────────────────
+let _pulseData = null;
+let _pulseVisible = false;
+let _pulseManualClose = false;
+
+const PULSE_CAT_META = {
+  weather:   { emoji: '⛈️',  label: 'Weather' },
+  transport: { emoji: '🚇', label: 'Transport' },
+  roadworks: { emoji: '🚧', label: 'Roadworks' },
+  incidents: { emoji: '🚨', label: 'Incidents' },
+  events:    { emoji: '🎉', label: 'Events' },
+};
+
+const TREND_DISPLAY = {
+  worsening: '↗ worsening',
+  improving: '↘ improving',
+  stable:    '→ stable',
+};
+
+function renderPulseOverlay(pulse) {
+  if (!pulse) return '';
+  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+
+  const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
+  const staleHtml = ageMs > 2 * 3600_000
+    ? `<div class="pulse-stale">Last updated ${Math.round(ageMs / 3600_000)}h ago</div>` : '';
+
+  let catsHtml = '';
+  const cats = pulse.categories || {};
+  for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
+    const cat = cats[key];
+    if (!cat) continue;
+    const trend = cat.trend || 'stable';
+    const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
+    const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
+    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
+  }
+
+  return `<div class="pulse-header">
+      <span class="pulse-title">📊 City Pulse</span>
+      <span class="pulse-time">as of ${time}</span>
+      <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
+    </div>
+    <div class="pulse-summary">${pulse.summary || ''}</div>
+    <div class="pulse-trends-label">Trends</div>
+    <div class="pulse-categories">${catsHtml}</div>
+    <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
+    ${staleHtml}`;
+}
+
+function updatePulseButton(pulse) {
+  const btn = document.getElementById('pulse-btn');
+  const btnCats = document.getElementById('pulse-btn-cats');
+  if (!btn) return;
+  if (!pulse) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  if (btnCats) {
+    const cats = pulse.categories || {};
+    const arrows = {worsening:'↗',improving:'↘',stable:'→'};
+    let html = '';
+    for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
+      const cat = cats[key];
+      if (!cat) continue;
+      const trend = cat.trend || 'stable';
+      const baseline = ['good','clear','normal','none'].includes(cat.status) && trend === 'stable';
+      const cls = baseline ? 'stable' : trend;
+      html += `<span class="pulse-btn-cat ${cls}" title="${meta.label}: ${cat.status} ${arrows[trend] || ''}">${meta.emoji}${baseline ? '' : arrows[trend] || ''}</span>`;
+    }
+    btnCats.innerHTML = html;
+  }
+}
+
+function openPulse() {
+  if (!_pulseData) return;
+  _pulseManualClose = false;
+  if (isMobileView()) {
+    openMobileMap(() => { _showPulseOverlay(); });
+  } else {
+    resetState();
+    map.setView(FRANKFURT, 12, { animate: true });
+  }
+  _track('pulse_open');
+}
+
+function _showPulseOverlay() {
+  const el = document.getElementById('pulse-overlay');
+  if (!el || !_pulseData) return;
+  el.innerHTML = renderPulseOverlay(_pulseData);
+  el.style.display = '';
+  _pulseVisible = true;
+}
+
+function closePulse(manual = false) {
+  const el = document.getElementById('pulse-overlay');
+  if (el) el.style.display = 'none';
+  _pulseVisible = false;
+  if (manual) _pulseManualClose = true;
+  _track('pulse_close');
+}
+
+
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
   closeRadarView();
@@ -2093,6 +2271,7 @@ function selectAlert(id, fromMap = false) {
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
+  closePulse();
   closeRadarView();
   map.closePopup();
 
@@ -2750,6 +2929,7 @@ async function init() {
         if (filters.sources[da.source] === false) { filters.sources[da.source] = true; saveFilters(); }
         if (da.stale && !showLongRunning) { showLongRunning = true; localStorage.setItem('fr_lr', '1'); document.getElementById('lr-switch').checked = true; }
         if (isFuture(da) && !showFutureEvents) { showFutureEvents = true; localStorage.setItem('fr_future', '1'); document.getElementById('future-switch').checked = true; }
+        if (da.removed_at && openSection !== 'removed') { openSection = 'removed'; _applyAccordionState(); }
         renderFeed(); buildFilterBar();
       }
       setTimeout(() => selectAlert(deepId), 100);

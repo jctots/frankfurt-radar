@@ -58,13 +58,14 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `TELEGRAM_WEBHOOK_SECRET` | Recommended | Validates incoming webhook requests (generate with `openssl rand -hex 32`) |
 | `GOOGLE_TRANSLATE_API_KEY` | If `translator.backend: google` | Google Cloud Translation API key |
 | `LIBRETRANSLATE_API_KEY` | No | Auth key for an external LibreTranslate instance |
-| `GEMINI_API_KEY` | If strike poller enabled | Google Gemini API key (Gemini Flash for strike date/location extraction) |
+| `GEMINI_API_KEY` | If strike poller or City Pulse enabled | Google Gemini API key (Gemini Flash for strike extraction and City Pulse synthesis) |
 | `TICKETMASTER_API_KEY` | No | Ticketmaster Discovery API key (for Deutsche Bank Park events) |
 | `STADIA_API_KEY` | No | Stadia Maps API key (dark mode map tiles) |
 | `RADAR_TAG` | No | Container image tag for version pinning |
 | `MCP_PORT` | No | Host port for MCP server (default: 8811) |
 | `MCP_ADMIN_KEY` | No | Admin API key for MCP server (unlimited, no rate limiting) |
 | `MCP_API_KEYS` | No | Comma-separated API keys for MCP consumers (rate-limited) |
+| `BIND_ADDR` | No | Bind address for host port mappings — set to `127.0.0.1` when using Caddy (default: `0.0.0.0`) |
 
 Production profile variables (only needed with `--profile production`):
 

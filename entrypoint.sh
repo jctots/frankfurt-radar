@@ -6,6 +6,7 @@ DATA_DIR="${DATA_DIR:-/app/data}"
 # Seed config and events on first start so users can edit them from the data dir
 [ -f "$DATA_DIR/config.yaml" ]      || cp /app/config.yaml      "$DATA_DIR/config.yaml"
 [ -f "$DATA_DIR/city_events.yaml" ] || cp /app/city_events.yaml "$DATA_DIR/city_events.yaml"
+[ -d "$DATA_DIR/prompts" ] || [ ! -d /app/prompts ] || cp -r /app/prompts "$DATA_DIR/prompts"
 
 # Generate crontab from config — injects all runtime env vars
 python3 - "$DATA_DIR/config.yaml" <<'PYEOF'
@@ -31,6 +32,10 @@ job_block = "\n".join([
     f"# Poll every {interval_min} min, 24/7",
     f"{poll_minutes} * * * * root cd /app && python main.py --mode poll >> /proc/1/fd/1 2>&1",
     f"{poll_minutes} * * * * root cd /app && python radar.py >> /proc/1/fd/1 2>&1",
+    "# City Pulse — hourly situational summary",
+    "0 * * * * root cd /app && python pulse.py >> /proc/1/fd/1 2>&1",
+    "# City Pulse — daily summary at 23:00 Frankfurt time",
+    "0 23 * * * root cd /app && python pulse.py --daily >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 

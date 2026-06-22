@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py .
 COPY config.yaml .
+COPY prompts/ prompts/
 
 ENV DATA_DIR=/app/data
 RUN mkdir -p /app/data

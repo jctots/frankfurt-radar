@@ -149,9 +149,10 @@ SOURCE_URL: dict[str, Optional[str]] = {
     "dwd":        "https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd",
     "polizei":    "https://www.presseportal.de/blaulicht/nr/4970",
     "autobahn":   "https://www.autobahn.de/betrieb-verkehr/verkehrsmeldungen",
-    "baustellen": None,
+    "baustellen": "https://mainziel.de/en/here-for-you/construction-site-overview",
     "events":     "https://www.visitfrankfurt.travel/erleben/veranstaltungskalender",
-    "sports":     None,
+    "sports":     "https://www.eintracht.de/tickets/",
+    "strike":     "https://hessen.verdi.de/presse/pressemitteilungen/",
 }
 
 

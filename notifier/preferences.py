@@ -25,6 +25,7 @@ def default_preferences() -> dict:
             "end": "07:00",
             "timezone": "Europe/Berlin",
         },
+        "pulse_time": "12:00",
         "language": "en",
     }
 

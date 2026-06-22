@@ -73,6 +73,27 @@ class TestStatusEndpoint:
         assert "body" in alert_data
 
 
+    def test_status_includes_pulse_key(self):
+        resp = _client.get("/api/status")
+        data = resp.get_json()
+        assert "pulse" in data
+
+    def test_status_pulse_with_data(self):
+        import db
+        db.store_pulse({
+            "generated_at": "2026-06-22T10:00:00Z",
+            "summary": "Web test pulse",
+            "travel_ok": True,
+            "categories": {},
+            "recommendation": "",
+            "alert_count": 0,
+        })
+        resp = _client.get("/api/status")
+        pulse = resp.get_json()["pulse"]
+        assert pulse is not None
+        assert pulse["summary"] == "Web test pulse"
+
+
 class TestPollEndpoint:
     def test_disabled_returns_403(self):
         _write_config(allow_poll=False)

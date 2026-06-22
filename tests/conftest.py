@@ -44,6 +44,8 @@ def clean_db():
         conn.execute("DELETE FROM subscribers")
         conn.execute("DELETE FROM sent_alerts")
         conn.execute("DELETE FROM quiet_buffer")
+        conn.execute("DELETE FROM pulse_history")
+        conn.execute("DELETE FROM pulse_daily_summary")
         conn.execute("DELETE FROM meta")
     yield
 

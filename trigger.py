@@ -46,11 +46,20 @@ def _reload_crontab(cfg: dict) -> None:
         f"RMV_API_KEY={os.environ.get('RMV_API_KEY', '')}",
         f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
         f"GOOGLE_TRANSLATE_API_KEY={os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')}",
+        f"GEMINI_API_KEY={os.environ.get('GEMINI_API_KEY', '')}",
         f"NOTIFIER_DISPATCH_URL={os.environ.get('NOTIFIER_DISPATCH_URL', '')}",
     ])
     job = (
         f"# Poll every {interval_min} min\n"
         f"{poll_minutes} * * * * root cd /app && python main.py --mode poll"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"{poll_minutes} * * * * root cd /app && python radar.py"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"# City Pulse — hourly\n"
+        f"0 * * * * root cd /app && python pulse.py"
+        f" >> /proc/1/fd/1 2>&1\n"
+        f"# City Pulse — daily summary at 23:00 Frankfurt time\n"
+        f"0 23 * * * root cd /app && python pulse.py --daily"
         f" >> /proc/1/fd/1 2>&1\n"
     )
     CRON_FILE.write_text(env_block + "\n\n" + job)
@@ -73,6 +82,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/poll":
             self._handle_poll()
+        elif self.path == "/pulse":
+            self._handle_pulse()
         else:
             self._json(404, {"error": "not found"})
 
@@ -129,6 +140,34 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return
         if proc.returncode != 0:
             log.error("Poll failed (exit %d)", proc.returncode)
+            self._json(500, {"error": "\n".join(output_lines[-20:])})
+        else:
+            self._json(200, {"status": "ok"})
+
+    def _handle_pulse(self):
+        log.info("Admin API: manual pulse triggered")
+        pulse_py = MAIN_PY.parent / "pulse.py"
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, str(pulse_py)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(MAIN_PY.parent),
+            )
+            output_lines = []
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    log.info("[pulse] %s", line)
+                    output_lines.append(line)
+            proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self._json(504, {"error": "pulse timed out"})
+            return
+        if proc.returncode != 0:
+            log.error("Pulse failed (exit %d)", proc.returncode)
             self._json(500, {"error": "\n".join(output_lines[-20:])})
         else:
             self._json(200, {"status": "ok"})
