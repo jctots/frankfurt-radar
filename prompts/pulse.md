@@ -19,7 +19,7 @@ Long-running background (not new — summarize only if noteworthy): {stale_summa
 Produce a JSON object with these fields:
 
 {{
-  "summary": "2-4 sentences of ANALYSIS, not repetition. Correlate alerts from different sources about the same issue (e.g. police report + transit disruption on the same line = likely incident). Flag severity escalation. Note when multiple alerts converge on the same area. If certain stations or roads should be avoided, say so naturally here — don't list, explain. If an event is creating crowd pressure at specific stations, mention it. Lead with the highest-impact insight.",
+  "summary": "2-3 SHORT sentences MAX. ANALYSIS, not repetition. Correlate cross-source alerts, flag severity, note convergence on same area. Weave in avoidance advice and crowding naturally. Lead with highest-impact insight. MUST be under 200 characters.",
   "travel_ok": true or false — false if transit or roads have significant active disruptions affecting commuters,
   "categories": {{
     "weather": {{"status": "good|minor|severe|extreme", "trend": "stable|improving|worsening|new|resolved"}},
@@ -28,7 +28,7 @@ Produce a JSON object with these fields:
     "incidents": {{"status": "normal|elevated|high", "trend": "stable|improving|worsening|new|resolved"}},
     "events": {{"status": "none|upcoming|active", "trend": "stable|new|resolved"}}
   }},
-  "recommendation": "One actionable sentence. Be PROACTIVE, not just defensive. If there are disruptions: name the alternative (e.g. 'Take S-Bahn instead of U5 today'). If conditions are good and there's a festival or event: suggest it (e.g. 'Great weather — Schweizer Strassenfest in Sachsenhausen is worth a visit this afternoon'). If nothing notable: 'No special action needed.' Think like a helpful local friend, not a warning system."
+  "recommendation": "One SHORT actionable sentence (under 100 characters). Be PROACTIVE: name the alternative route or suggest an event. Think like a helpful local friend. If nothing notable: 'No special action needed.'"
 }}
 
 Rules:
@@ -39,6 +39,6 @@ Rules:
 - Categories map to sources: weather=dwd, transport=rmv, roadworks=autobahn+baustellen, incidents=polizei+strike, events=events+sports.
 - If a category has zero alerts, set status to the baseline (good/normal/none) and trend to "stable".
 - "trend" compares to the PREVIOUS pulse if provided. First pulse: all trends are "stable" unless alerts are clearly new.
-- Keep summary under 400 characters.
+- STRICT: summary MUST be under 200 characters. Recommendation MUST be under 100 characters. Brevity is critical — this is a glanceable overlay, not an article.
 - Be specific: "U5 suspended between Konstablerwache and Preungesheim" not "some transit issues".
 - Do not mention the number of long-running roadworks unless they affect a major route.

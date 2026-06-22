@@ -676,25 +676,25 @@
     .pulse-close:hover { color: var(--clr-text); }
     .dark .pulse-close:hover { color: #e5e7eb; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
-    .pulse-categories { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
-    .pulse-cat { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.3; }
+    .pulse-trends-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
+    .pulse-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 0; }
+    .pulse-cat { display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.4; }
     .pulse-cat.stable { opacity: 0.5; }
-    .pulse-cat-emoji { width: 20px; text-align: center; flex-shrink: 0; }
-    .pulse-cat-label { width: 65px; font-weight: 600; flex-shrink: 0; }
-    .pulse-cat-status { flex-shrink: 0; }
-    .pulse-cat-trend { font-size: 11px; text-align: center; min-width: 80px; }
+    .pulse-cat-label { font-weight: 600; }
+    .pulse-cat-trend { }
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.new       { color: #3b82f6; }
     .pulse-cat-trend.resolved  { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
-    .pulse-recommendation { font-size: 13px; line-height: 1.5; border-top: 1px solid var(--clr-border); padding-top: 8px; }
+    .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+    .dark .pulse-recommendation { background: #1a2332; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
     .pulse-btn {
       display: flex; align-items: center; gap: 6px;
       padding: 4px 14px 4px 12px;
-      font-size: 12px; font-weight: 600;
+      font-size: 13px; font-weight: 600;
       background: none; border: none;
       cursor: pointer; color: var(--clr-text);
       white-space: nowrap; width: 100%; text-align: left;
@@ -702,10 +702,10 @@
     .pulse-btn:hover { background: #f1f5f9; }
     .dark .pulse-btn { color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
-    .pulse-btn .pulse-dot-wrap { width: 13px; text-align: center; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .pulse-btn .toggle-icon { display: inline-flex; align-items: center; justify-content: center; }
     .pulse-btn .pulse-dot { width: 10px; height: 10px; }
     .pulse-btn-label { flex: 1; }
-    .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
+    .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
     .pulse-btn-cat { white-space: nowrap; }
     .pulse-btn-cat.stable    { opacity: 0.4; }
     .pulse-btn-cat.worsening { color: #ef4444; }
@@ -1111,7 +1111,7 @@
   <div class="feed-panel">
     <div class="search-section">
     <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
-      <span class="pulse-dot-wrap"><span class="pulse-dot ok" id="pulse-btn-dot"></span></span>
+      <span class="toggle-icon"><span class="pulse-dot ok" id="pulse-btn-dot"></span></span>
       <span class="pulse-btn-label">City Pulse</span>
       <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
     </button>
@@ -2193,7 +2193,8 @@ function renderPulseOverlay(pulse) {
     if (!cat) continue;
     const trend = cat.trend || 'stable';
     const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
-    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}"><span class="pulse-cat-emoji">${meta.emoji}</span><span class="pulse-cat-label">${meta.label}</span><span class="pulse-cat-status">${cat.status}</span><span class="pulse-cat-trend ${trend}">${TREND_DISPLAY[trend] || trend}</span></div>`;
+    const arrow = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'}[trend] || '';
+    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
   }
 
   return `<div class="pulse-header">
@@ -2202,6 +2203,7 @@ function renderPulseOverlay(pulse) {
       <button class="pulse-close" onclick="closePulse()" title="Close">✕</button>
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
+    <div class="pulse-trends-label">Trends</div>
     <div class="pulse-categories">${catsHtml}</div>
     <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
     ${staleHtml}`;
