@@ -40,7 +40,7 @@ Rules:
 - Naturally weave avoidance advice and crowding warnings into the summary when relevant — don't create separate lists.
 - Categories map to sources: weather=dwd, transport=rmv, roadworks=autobahn+baustellen, incidents=polizei+strike, events=events+sports.
 - If a category has zero alerts, set status to the baseline (good/normal/none) and trend to "stable".
-- "trend" is determined from history. HOURLY PULSES (timestamped, last 3 hours): compare for short-term changes (new disruptions, resolved issues). DAILY SUMMARIES (dated, last 3 days): compare for multi-day patterns (ongoing roadworks, recurring delays). If only daily summaries exist (e.g. first pulse of the day), use those for trend. If no history at all, all trends are "stable" unless alerts are clearly new.
+- "trend" is determined ONLY from HOURLY PULSES (what changed in the last few hours). Compare the current situation against the previous hourly pulses to set worsening/improving/stable/new/resolved. DAILY SUMMARIES are background context for writing a better summary text (multi-day patterns, recurring issues) — do NOT use them for trend values. If no hourly history exists, all trends are "stable" unless alerts are clearly new.
 - STRICT: summary MUST be under 200 characters. Recommendation MUST be under 100 characters. Brevity is critical — this is a glanceable overlay, not an article.
 - Be specific: "U5 suspended between Konstablerwache and Preungesheim" not "some transit issues".
 - Do not mention the number of long-running roadworks unless they affect a major route.
