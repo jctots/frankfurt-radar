@@ -682,13 +682,13 @@
     .pulse-cat-emoji { width: 20px; text-align: center; flex-shrink: 0; }
     .pulse-cat-label { width: 65px; font-weight: 600; flex-shrink: 0; }
     .pulse-cat-status { flex-shrink: 0; }
-    .pulse-cat-trend { font-size: 11px; }
+    .pulse-cat-trend { font-size: 11px; text-align: center; min-width: 80px; }
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.new       { color: #3b82f6; }
     .pulse-cat-trend.resolved  { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
-    .pulse-recommendation { font-size: 12px; color: var(--clr-muted); border-top: 1px solid var(--clr-border); padding-top: 8px; }
+    .pulse-recommendation { font-size: 13px; line-height: 1.5; border-top: 1px solid var(--clr-border); padding-top: 8px; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
     .pulse-btn {
@@ -702,7 +702,8 @@
     .pulse-btn:hover { background: #f1f5f9; }
     .dark .pulse-btn { color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
-    .pulse-btn .pulse-dot { width: 13px; height: 13px; }
+    .pulse-btn .pulse-dot-wrap { width: 13px; text-align: center; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .pulse-btn .pulse-dot { width: 10px; height: 10px; }
     .pulse-btn-label { flex: 1; }
     .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
     .pulse-btn-cat { white-space: nowrap; }
@@ -1110,7 +1111,7 @@
   <div class="feed-panel">
     <div class="search-section">
     <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
-      <span class="pulse-dot ok" id="pulse-btn-dot"></span>
+      <span class="pulse-dot-wrap"><span class="pulse-dot ok" id="pulse-btn-dot"></span></span>
       <span class="pulse-btn-label">City Pulse</span>
       <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
     </button>
@@ -2202,7 +2203,7 @@ function renderPulseOverlay(pulse) {
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
     <div class="pulse-categories">${catsHtml}</div>
-    <div class="pulse-recommendation">💡 ${pulse.recommendation || 'No special action needed.'}</div>
+    <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
     ${staleHtml}`;
 }
 
