@@ -152,15 +152,27 @@
       border-radius: 50%;
       background: #22c55e;
       flex-shrink: 0;
-      box-shadow: 0 0 0 2px rgba(34,197,94,0.25);
+      animation: pulseDot 2s ease-in-out infinite;
     }
     .health-dot.degraded {
       background: #eab308;
-      box-shadow: 0 0 0 2px rgba(234,179,8,0.25);
+      animation: pulseDotYellow 2s ease-in-out infinite;
     }
     .health-dot.down {
       background: #ef4444;
-      box-shadow: 0 0 0 2px rgba(239,68,68,0.25);
+      animation: pulseDotRed 2s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+    }
+    @keyframes pulseDotYellow {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(234,179,8,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(234,179,8,0); }
+    }
+    @keyframes pulseDotRed {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      50%      { opacity: 0.8; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(239,68,68,0); }
     }
     .updated-full  { font-size: 11px; color: rgba(255,255,255,0.45); }
     .updated-short { display: none; font-size: 11px; color: rgba(255,255,255,0.45); }
@@ -660,17 +672,6 @@
     }
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex: 1; }
-    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .pulse-dot.ok   { background: #22c55e; animation: pulseDotGreen 2s ease-in-out infinite; }
-    .pulse-dot.warn { background: #ef4444; animation: pulseDotRed 2s ease-in-out infinite; }
-    @keyframes pulseDotGreen {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
-      50%      { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
-    }
-    @keyframes pulseDotRed {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-      50%      { box-shadow: 0 0 0 4px rgba(239,68,68,0); }
-    }
     .pulse-time { font-size: 11px; color: var(--clr-muted); }
     .pulse-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
     .pulse-close:hover { color: var(--clr-text); }
@@ -702,9 +703,6 @@
     .pulse-btn:hover { background: #f1f5f9; }
     .dark .pulse-btn { color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
-    .pulse-btn .toggle-icon { display: inline-flex; align-items: center; justify-content: center; }
-    .pulse-btn .pulse-dot { width: 10px; height: 10px; }
-    .pulse-btn-label { flex: 1; }
     .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
     .pulse-btn-cat { white-space: nowrap; }
     .pulse-btn-cat.stable    { opacity: 0.4; }
@@ -1111,8 +1109,7 @@
   <div class="feed-panel">
     <div class="search-section">
     <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
-      <span class="toggle-icon"><span class="pulse-dot ok" id="pulse-btn-dot"></span></span>
-      <span class="pulse-btn-label">City Pulse</span>
+      📊 City Pulse
       <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
     </button>
     <div class="search-bar">
@@ -2182,7 +2179,6 @@ const TREND_DISPLAY = {
 
 function renderPulseOverlay(pulse) {
   if (!pulse) return '';
-  const dot = pulse.travel_ok ? 'ok' : 'warn';
   const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
 
   const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
@@ -2201,7 +2197,7 @@ function renderPulseOverlay(pulse) {
   }
 
   return `<div class="pulse-header">
-      <span class="pulse-title"><span class="pulse-dot ${dot}"></span> City Pulse</span>
+      <span class="pulse-title">📊 City Pulse</span>
       <span class="pulse-time">as of ${time}</span>
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
@@ -2214,15 +2210,10 @@ function renderPulseOverlay(pulse) {
 
 function updatePulseButton(pulse) {
   const btn = document.getElementById('pulse-btn');
-  const btnDot = document.getElementById('pulse-btn-dot');
   const btnCats = document.getElementById('pulse-btn-cats');
   if (!btn) return;
   if (!pulse) { btn.style.display = 'none'; return; }
   btn.style.display = '';
-  if (btnDot) {
-    btnDot.classList.toggle('ok', pulse.travel_ok);
-    btnDot.classList.toggle('warn', !pulse.travel_ok);
-  }
   if (btnCats) {
     const cats = pulse.categories || {};
     const arrows = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'};
