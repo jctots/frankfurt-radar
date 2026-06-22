@@ -33,6 +33,16 @@ Filter selections are saved in your browser and restored on your next visit.
 
 Alerts with location data appear as markers on an interactive map. Markers are clustered when zoomed out — click a cluster to expand. Weather warnings appear as a floating panel (city-wide, no point location).
 
+### 📊 City Pulse
+
+The City Pulse overlay appears on the map when you're at the default view (zoom level 12, centered on Frankfurt). It shows an AI-generated situational summary updated every hour, with category trends and an actionable recommendation.
+
+- **Summary** — a concise synthesis of active alerts, highlighting what's new, what's worsening, and how different alerts relate
+- **Trends** — five categories (Weather, Transport, Roadworks, Incidents, Events) shown in a compact grid with directional arrows
+- **Recommendation** — a proactive suggestion: alternative routes during disruptions, or events worth visiting when conditions are good
+
+The overlay auto-hides when you pan or zoom the map, and reappears when you return to the default view. Close it with the X button — it won't reopen until you navigate away and back. The City Pulse button above the search bar shows category trends at a glance and resets the view when clicked.
+
 ### 🌧️ Weather radar
 
 The radar overlay shows precipitation observations and forecasts animated over the map. Use the playback controls to scrub through frames.

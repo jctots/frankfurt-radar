@@ -32,7 +32,7 @@ Frankfurt Radar aggregates alerts from public German data feeds, translates them
 | **Festivals** | Local events with dates, locations, and images | Curated YAML |
 | **Sports** | Eintracht Frankfurt home games, Deutsche Bank Park events | OpenLigaDB, Ticketmaster |
 
-All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky. Strike alerts use Gemini Flash for structured date/location extraction from German press releases.
+All alerts are translated from German to English via Google Cloud Translation or a self-hosted LibreTranslate instance. DWD weather warnings arrive pre-translated from BrightSky. Strike alerts use Gemini Flash for structured date/location extraction from German press releases. City Pulse (see below) uses Gemini Flash for hourly situational synthesis.
 
 ### 🖥️ Live status page
 
@@ -53,6 +53,19 @@ The web interface at [frankfurt-radar.com](https://frankfurt-radar.com) provides
 
 No cookies, no accounts, no personal data collected. Anonymous usage analytics via self-hosted Umami (cookie-free, no IP storage).
 
+### 📊 City Pulse — AI situational summary
+
+City Pulse uses Google Gemini Flash to synthesize all active alerts into an actionable situational overview, updated every hour. Rather than repeating individual alert titles, it correlates alerts across sources, flags severity escalation, and identifies when multiple alerts point to the same underlying event.
+
+- **Hourly pulse** — floating overlay on the map showing a concise summary, category trends, and a proactive recommendation
+- **Daily summary** — compresses 24 hourly pulses into a one-paragraph daily digest at 23:00, fed as multi-day trend context into future pulses
+- **Telegram delivery** — subscribers choose a delivery time (08:00, 12:00, or 18:00) during onboarding to receive the latest pulse via DM
+- **Trend tracking** — five categories (Weather, Transport, Roadworks, Incidents, Events) with directional trends (worsening, improving, stable, new, resolved)
+- **Alert age priority** — new alerts are emphasized; long-running low-severity alerts are deprioritized
+- **Thinking-enabled inference** — extended thinking budget for better spatial reasoning and cross-source correlation
+
+City Pulse is opt-in (`pulse.enabled: true` in config). Cost: approximately €1–2/month for hourly + daily generation on Gemini Flash.
+
 ### 📢 Telegram channel
 
 [@FrankfurtRadar](https://t.me/FrankfurtRadar) — a public channel that receives all alerts, unfiltered. Follow it for a simple, zero-configuration feed.
@@ -69,6 +82,7 @@ No cookies, no accounts, no personal data collected. Anonymous usage analytics v
 - **Autobahn filter** — select specific highways (A3, A5, A66, A661, etc.)
 - **Road closure filter** — full closures, partial closures, or both
 - **Quiet hours** — buffer alerts overnight and receive a morning briefing at your chosen wake-up time
+- **City Pulse delivery** — choose when to receive the AI situational summary (08:00, 12:00, 18:00, or off)
 
 **Bot commands:**
 
@@ -109,16 +123,20 @@ main.py                    bot.py                    app.py
 ├── AutobahnPoller         ├── /status (admin)       ├── /legal
 ├── BaustellenPoller       ├── /alerts (admin)       └── /robots.txt
 ├── StrikePoller           ├── /poll   (admin)
-├── StaticEventsPoller     └── subscriber dispatch
-├── StaticSportsPoller          │
+├── StaticEventsPoller     ├── /pulse  (admin)
+├── StaticSportsPoller     └── subscriber dispatch
 ├── OpenLigaPoller              │
-└── TicketmasterPoller          │
+├── TicketmasterPoller          │
+│                               │
+pulse.py (hourly cron)          │
+├── City Pulse synthesis        │
+└── Daily summary (23:00)       │
        │                        │
        ▼                        ▼
   SQLite (radar.db) — shared volume
        │                        │
-  translator backend      extraction (Gemini Flash)    MCP server (optional)
-  (Google / LibreTranslate)  (strike dates/locations)     SSE :8811
+  translator backend      Gemini Flash LLM             MCP server (optional)
+  (Google / LibreTranslate)  (extraction + pulse)         SSE :8811
 ```
 
 The poller fetches alerts on a configurable cron schedule (default: every 2 minutes), translates them, and writes to the database. The notifier handles Telegram bot webhooks and dispatches personalized alerts to subscribers. The web container serves the status page and API — read-only, no API keys. The MCP server exposes alerts to AI assistants like Claude Code via SSE.

@@ -1836,8 +1836,10 @@ function applyData(data) {
     updateRelativeTime();
   }
 
+  const hadPulse = !!_pulseData;
   _pulseData = data.pulse || null;
   updatePulseButton(_pulseData);
+  if (_pulseData && !hadPulse && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
 
   const dot = document.getElementById('health-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
