@@ -72,7 +72,7 @@ class TestBuildAlertData:
 
 class TestBuildHistorySection:
     def test_empty_history(self):
-        assert _build_history_section([]) == ""
+        assert "first pulse" in _build_history_section([]).lower()
 
     def test_with_pulses(self):
         pulses = [
@@ -80,7 +80,7 @@ class TestBuildHistorySection:
             {"generated_at": "2026-06-22T09:00:00Z", "summary": "S1 delay", "travel_ok": False},
         ]
         result = _build_history_section(pulses)
-        assert "Previous pulses" in result
+        assert "HOURLY PULSES" in result
         assert "All clear" in result
         assert "travel_ok=False" in result
 
@@ -240,15 +240,15 @@ class TestBuildHistorySectionWithDaily:
         pulses = [{"generated_at": "2026-06-22T10:00:00Z", "summary": "Test", "travel_ok": True}]
         dailies = [{"date": "2026-06-21", "summary": "Yesterday was calm"}]
         result = _build_history_section(pulses, dailies)
-        assert "Previous pulses" in result
-        assert "Previous daily summaries" in result
+        assert "HOURLY PULSES" in result
+        assert "DAILY SUMMARIES" in result
         assert "Yesterday was calm" in result
 
     def test_daily_only(self):
         dailies = [{"date": "2026-06-21", "summary": "Calm day"}]
         result = _build_history_section([], dailies)
-        assert "Previous daily summaries" in result
-        assert "Previous pulses" not in result
+        assert "DAILY SUMMARIES" in result
+        assert "HOURLY PULSES" not in result
 
 
 class TestPulseDB:

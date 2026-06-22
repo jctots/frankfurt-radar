@@ -282,13 +282,22 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
     summary = pulse.get("summary", "")
     recommendation = pulse.get("recommendation", "")
 
+    generated = pulse.get("generated_at", "")
+    time_str = ""
+    if generated:
+        try:
+            dt = datetime.fromisoformat(generated).astimezone(ZoneInfo("Europe/Berlin"))
+            time_str = f" (as of {dt.strftime('%H:%M')})"
+        except ValueError:
+            pass
+
     cat_emojis = {
         "weather": "⛈️", "transport": "\U0001f687", "roadworks": "\U0001f6a7",
         "incidents": "\U0001f6a8", "events": "\U0001f389",
     }
-    trend_icons = {
-        "worsening": "↗ worsening", "improving": "↘ improving",
-        "stable": "→ stable", "new": "★ new", "resolved": "✓ resolved",
+    trend_arrows = {
+        "worsening": "↗", "improving": "↘",
+        "stable": "→", "new": "★", "resolved": "✓",
     }
     cat_lines = []
     for key, emoji in cat_emojis.items():
@@ -297,14 +306,14 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
             continue
         status = cat.get("status", "")
         trend = cat.get("trend", "stable")
-        trend_text = trend_icons.get(trend, trend)
-        cat_lines.append(f"{emoji} {key.title()}: {status} {trend_text}")
+        arrow = trend_arrows.get(trend, "")
+        cat_lines.append(f"{emoji} {key.title()}  {status}  {arrow}")
 
-    parts = [f"{dot} {summary}"]
+    parts = [f"{dot} {summary}{time_str}"]
     if cat_lines:
-        parts.append("\n".join(cat_lines))
+        parts.append(f"<b>Trends</b>\n" + "\n".join(cat_lines))
     if recommendation:
-        parts.append(f"\U0001f4a1 {recommendation}")
+        parts.append(f"\U0001f4a1 <b>Recommendation:</b> {recommendation}")
     if site_url:
         parts.append(f'<a href="{site_url}">View on Frankfurt Radar</a>')
 

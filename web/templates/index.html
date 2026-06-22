@@ -692,12 +692,12 @@
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
     .pulse-btn {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 14px 4px 12px;
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 14px;
       font-size: 13px; font-weight: 600;
       background: none; border: none;
       cursor: pointer; color: var(--clr-text);
-      white-space: nowrap; width: 100%; text-align: left;
+      white-space: nowrap; width: 100%; justify-content: center;
     }
     .pulse-btn:hover { background: #f1f5f9; }
     .dark .pulse-btn { color: #d1d5db; }
@@ -1117,7 +1117,7 @@
     </button>
     <div class="search-bar">
       <span style="font-size:13px;color:var(--clr-muted)">🔍</span>
-      <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
+      <input type="text" id="search-input" placeholder="Search alerts, e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-toggle-panel">

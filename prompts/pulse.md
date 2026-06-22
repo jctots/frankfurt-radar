@@ -14,6 +14,7 @@ Fresh active alerts ({alert_count}):
 
 Long-running background (not new — summarize only if noteworthy): {stale_summary}
 
+History (use for trend comparison):
 {history_section}
 
 Produce a JSON object with these fields:
@@ -34,11 +35,12 @@ Produce a JSON object with these fields:
 Rules:
 - NEVER just restate alert titles. Your value is SYNTHESIS: connecting dots across sources, assessing real severity, identifying correlated events.
 - If multiple alerts from different sources describe the same underlying event (e.g. police report + transit alert for the same location), say so explicitly.
+- Each alert has an "age" field. Prioritize NEW and recent alerts in the summary. Alerts older than 7 days marked "low priority" should only be mentioned if they have high severity or correlate with newer alerts.
 - Severity assessment: a single minor delay is "minor". Multiple delays on the same corridor, or delays plus a police incident, are "disrupted". Total line suspension is "suspended".
 - Naturally weave avoidance advice and crowding warnings into the summary when relevant — don't create separate lists.
 - Categories map to sources: weather=dwd, transport=rmv, roadworks=autobahn+baustellen, incidents=polizei+strike, events=events+sports.
 - If a category has zero alerts, set status to the baseline (good/normal/none) and trend to "stable".
-- "trend" compares to the PREVIOUS pulse if provided. First pulse: all trends are "stable" unless alerts are clearly new.
+- "trend" is determined from history. HOURLY PULSES (timestamped, last 3 hours): compare for short-term changes (new disruptions, resolved issues). DAILY SUMMARIES (dated, last 3 days): compare for multi-day patterns (ongoing roadworks, recurring delays). If only daily summaries exist (e.g. first pulse of the day), use those for trend. If no history at all, all trends are "stable" unless alerts are clearly new.
 - STRICT: summary MUST be under 200 characters. Recommendation MUST be under 100 characters. Brevity is critical — this is a glanceable overlay, not an article.
 - Be specific: "U5 suspended between Konstablerwache and Preungesheim" not "some transit issues".
 - Do not mention the number of long-running roadworks unless they affect a major route.

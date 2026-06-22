@@ -44,6 +44,29 @@ def load_prompt(name: str) -> tuple[dict, str]:
     return config, template
 
 
+def _age_label(valid_from: str | None) -> str:
+    if not valid_from:
+        return "unknown"
+    try:
+        dt = datetime.fromisoformat(valid_from)
+        age = datetime.now(timezone.utc) - dt.astimezone(timezone.utc)
+        hours = age.total_seconds() / 3600
+        if hours < 1:
+            return "NEW (< 1h)"
+        if hours < 6:
+            return f"recent ({int(hours)}h ago)"
+        if hours < 24:
+            return "today"
+        days = int(hours / 24)
+        if days == 1:
+            return "yesterday"
+        if days < 7:
+            return f"{days} days ago"
+        return f"{days} days ago (low priority)"
+    except (ValueError, TypeError):
+        return "unknown"
+
+
 def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
     fresh = []
     stale_counts: dict[str, int] = {}
@@ -61,7 +84,10 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
                 "severity": a.get("severity"),
                 "valid_from": a.get("valid_from"),
                 "valid_until": a.get("valid_until"),
+                "age": _age_label(a.get("valid_from")),
             })
+
+    fresh.sort(key=lambda x: x.get("valid_from") or "", reverse=True)
 
     alerts_json = json.dumps(fresh, ensure_ascii=False, indent=2)
     if stale_counts:
@@ -74,15 +100,17 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
 def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | None = None) -> str:
     parts = []
     if pulses:
-        lines = ["Previous pulses (most recent first):"]
+        lines = ["HOURLY PULSES (last 3 hours — use for short-term trend changes):"]
         for p in pulses:
             lines.append(f"- {p['generated_at']}: {p['summary']} (travel_ok={p['travel_ok']})")
         parts.append("\n".join(lines))
     if daily_summaries:
-        lines = ["Previous daily summaries (most recent first):"]
+        lines = ["DAILY SUMMARIES (last 3 days — use for multi-day pattern detection):"]
         for ds in daily_summaries:
             lines.append(f"- {ds['date']}: {ds['summary']}")
         parts.append("\n".join(lines))
+    if not parts:
+        return "No history available — this is the first pulse."
     return "\n\n".join(parts)
 
 
