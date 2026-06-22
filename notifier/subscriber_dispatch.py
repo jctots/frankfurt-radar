@@ -283,8 +283,8 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
     recommendation = pulse.get("recommendation", "")
 
     cat_emojis = {
-        "weather": "⛈️", "transit": "\U0001f687", "roads": "\U0001f6a7",
-        "highways": "\U0001f6e3️", "safety": "\U0001f6a8", "events": "\U0001f389",
+        "weather": "⛈️", "transport": "\U0001f687", "roadworks": "\U0001f6a7",
+        "incidents": "\U0001f6a8", "events": "\U0001f389",
     }
     trend_icons = {
         "worsening": "↗ worsening", "improving": "↘ improving",

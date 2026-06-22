@@ -22,11 +22,10 @@ Produce a JSON object with these fields:
   "summary": "2-4 sentences of ANALYSIS, not repetition. Correlate alerts from different sources about the same issue (e.g. police report + transit disruption on the same line = likely incident). Flag severity escalation. Note when multiple alerts converge on the same area. If certain stations or roads should be avoided, say so naturally here — don't list, explain. If an event is creating crowd pressure at specific stations, mention it. Lead with the highest-impact insight.",
   "travel_ok": true or false — false if transit or roads have significant active disruptions affecting commuters,
   "categories": {{
-    "weather": {{"status": "clear|minor|severe|extreme", "trend": "stable|improving|worsening|new|resolved"}},
-    "transit": {{"status": "normal|minor|disrupted|suspended", "trend": "stable|improving|worsening|new|resolved"}},
-    "roads": {{"status": "normal|minor|disrupted|closed", "trend": "stable|improving|worsening|new|resolved"}},
-    "highways": {{"status": "normal|minor|disrupted|closed", "trend": "stable|improving|worsening|new|resolved"}},
-    "safety": {{"status": "normal|elevated|high", "trend": "stable|improving|worsening|new|resolved"}},
+    "weather": {{"status": "good|minor|severe|extreme", "trend": "stable|improving|worsening|new|resolved"}},
+    "transport": {{"status": "normal|minor|disrupted|suspended", "trend": "stable|improving|worsening|new|resolved"}},
+    "roadworks": {{"status": "normal|minor|disrupted|closed", "trend": "stable|improving|worsening|new|resolved"}},
+    "incidents": {{"status": "normal|elevated|high", "trend": "stable|improving|worsening|new|resolved"}},
     "events": {{"status": "none|upcoming|active", "trend": "stable|new|resolved"}}
   }},
   "recommendation": "One actionable sentence. Be PROACTIVE, not just defensive. If there are disruptions: name the alternative (e.g. 'Take S-Bahn instead of U5 today'). If conditions are good and there's a festival or event: suggest it (e.g. 'Great weather — Schweizer Strassenfest in Sachsenhausen is worth a visit this afternoon'). If nothing notable: 'No special action needed.' Think like a helpful local friend, not a warning system."
@@ -37,7 +36,8 @@ Rules:
 - If multiple alerts from different sources describe the same underlying event (e.g. police report + transit alert for the same location), say so explicitly.
 - Severity assessment: a single minor delay is "minor". Multiple delays on the same corridor, or delays plus a police incident, are "disrupted". Total line suspension is "suspended".
 - Naturally weave avoidance advice and crowding warnings into the summary when relevant — don't create separate lists.
-- If a category has zero alerts, set status to the baseline (clear/normal/none) and trend to "stable".
+- Categories map to sources: weather=dwd, transport=rmv, roadworks=autobahn+baustellen, incidents=polizei+strike, events=events+sports.
+- If a category has zero alerts, set status to the baseline (good/normal/none) and trend to "stable".
 - "trend" compares to the PREVIOUS pulse if provided. First pulse: all trends are "stable" unless alerts are clearly new.
 - Keep summary under 400 characters.
 - Be specific: "U5 suspended between Konstablerwache and Preungesheim" not "some transit issues".

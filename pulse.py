@@ -123,7 +123,8 @@ def _call_gemini(prompt_config: dict, prompt_text: str) -> dict:
                 log.error("Gemini returned no candidates for pulse")
                 _health["ok"] = False
                 return {}
-            raw = candidates[0]["content"]["parts"][0]["text"]
+            parts = candidates[0]["content"]["parts"]
+            raw = parts[-1]["text"]
             return json.loads(raw)
         except requests.RequestException as e:
             log.error("Gemini pulse request failed: %s", e)
@@ -143,11 +144,10 @@ _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
     "travel_ok": True,
     "categories": {
-        "weather": {"status": "clear", "trend": "stable"},
-        "transit": {"status": "normal", "trend": "stable"},
-        "roads": {"status": "normal", "trend": "stable"},
-        "highways": {"status": "normal", "trend": "stable"},
-        "safety": {"status": "normal", "trend": "stable"},
+        "weather": {"status": "good", "trend": "stable"},
+        "transport": {"status": "normal", "trend": "stable"},
+        "roadworks": {"status": "normal", "trend": "stable"},
+        "incidents": {"status": "normal", "trend": "stable"},
         "events": {"status": "none", "trend": "stable"},
     },
     "recommendation": "No special action needed.",

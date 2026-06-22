@@ -676,8 +676,8 @@
     .pulse-close:hover { color: var(--clr-text); }
     .dark .pulse-close:hover { color: #e5e7eb; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
-    .pulse-categories { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-    .pulse-cat { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }
+    .pulse-categories { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
+    .pulse-cat { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.3; }
     .pulse-cat.stable { opacity: 0.5; }
     .pulse-cat-emoji { width: 20px; text-align: center; flex-shrink: 0; }
     .pulse-cat-label { width: 65px; font-weight: 600; flex-shrink: 0; }
@@ -702,8 +702,8 @@
     .pulse-btn:hover { background: #f1f5f9; }
     .dark .pulse-btn { color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
+    .pulse-btn .pulse-dot { width: 13px; height: 13px; }
     .pulse-btn-label { flex: 1; }
-    .pulse-btn .pulse-dot { width: 6px; height: 6px; }
     .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
     .pulse-btn-cat { white-space: nowrap; }
     .pulse-btn-cat.stable    { opacity: 0.4; }
@@ -2161,12 +2161,11 @@ let _pulseData = null;
 let _pulseVisible = false;
 
 const PULSE_CAT_META = {
-  weather:  { emoji: '⛈️',  label: 'Weather' },
-  transit:  { emoji: '🚇', label: 'Transit' },
-  roads:    { emoji: '🚧', label: 'Roads' },
-  highways: { emoji: '🛣️', label: 'Highways' },
-  safety:   { emoji: '🚨', label: 'Safety' },
-  events:   { emoji: '🎉', label: 'Events' },
+  weather:   { emoji: '⛈️',  label: 'Weather' },
+  transport: { emoji: '🚇', label: 'Transport' },
+  roadworks: { emoji: '🚧', label: 'Roadworks' },
+  incidents: { emoji: '🚨', label: 'Incidents' },
+  events:    { emoji: '🎉', label: 'Events' },
 };
 
 const TREND_DISPLAY = {
@@ -2193,12 +2192,7 @@ function renderPulseOverlay(pulse) {
     if (!cat) continue;
     const trend = cat.trend || 'stable';
     const isStable = trend === 'stable' && (cat.status === 'clear' || cat.status === 'normal' || cat.status === 'none');
-    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">
-      <span class="pulse-cat-emoji">${meta.emoji}</span>
-      <span class="pulse-cat-label">${meta.label}</span>
-      <span class="pulse-cat-status">${cat.status}</span>
-      <span class="pulse-cat-trend ${trend}">${TREND_DISPLAY[trend] || trend}</span>
-    </div>`;
+    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}"><span class="pulse-cat-emoji">${meta.emoji}</span><span class="pulse-cat-label">${meta.label}</span><span class="pulse-cat-status">${cat.status}</span><span class="pulse-cat-trend ${trend}">${TREND_DISPLAY[trend] || trend}</span></div>`;
   }
 
   return `<div class="pulse-header">
@@ -2231,7 +2225,7 @@ function updatePulseButton(pulse) {
       const cat = cats[key];
       if (!cat) continue;
       const trend = cat.trend || 'stable';
-      const baseline = ['clear','normal','none'].includes(cat.status) && trend === 'stable';
+      const baseline = ['good','clear','normal','none'].includes(cat.status) && trend === 'stable';
       const cls = baseline ? 'stable' : trend;
       html += `<span class="pulse-btn-cat ${cls}" title="${meta.label}: ${cat.status} ${arrows[trend] || ''}">${meta.emoji}${baseline ? '' : arrows[trend] || ''}</span>`;
     }
