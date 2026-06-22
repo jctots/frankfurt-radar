@@ -123,17 +123,20 @@ def flush_quiet_buffers(config: dict) -> int:
 
 
 def _briefing_already_sent(sub: dict, qh: dict) -> bool:
-    last = sub.get("last_briefing_at")
-    if not last:
-        return False
     tz_name = qh.get("timezone", "Europe/Berlin")
     tz = ZoneInfo(tz_name)
-    last_dt = datetime.fromisoformat(last).astimezone(tz)
     now_local = datetime.now(tz)
     end_minutes = _parse_time_minutes(qh.get("end", "07:00"))
     today_end = now_local.replace(
         hour=end_minutes // 60, minute=end_minutes % 60, second=0, microsecond=0,
     )
+
+    last = sub.get("last_briefing_at")
+    if not last:
+        now_minutes = now_local.hour * 60 + now_local.minute
+        return now_minutes >= end_minutes + 60
+
+    last_dt = datetime.fromisoformat(last).astimezone(tz)
     return last_dt >= today_end
 
 

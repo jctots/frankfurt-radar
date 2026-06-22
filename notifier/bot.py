@@ -13,6 +13,7 @@ from db import (
     add_subscriber,
     deactivate_subscriber,
     get_all_active_alerts,
+    get_latest_pulse,
     get_meta,
     get_status_json,
     get_subscriber_by_chat_id,
@@ -38,7 +39,7 @@ _RATE_WINDOW = 60
 _rate_hits: dict[int, list[float]] = defaultdict(list)
 _rate_cooldown: dict[int, float] = {}
 _RATE_COOLDOWN = 300
-_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/pulse", "/ban", "/unban"))
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban"))
 _SEARCH_PAGE_SIZE = 3
 _ban_notified: set[int] = set()
 
@@ -237,6 +238,9 @@ def handle_update(update: dict, config: dict) -> None:
     elif cmd == "/deletedata":
         _track_command("deletedata", config, chat_id)
         _cmd_deletedata(chat_id)
+    elif cmd == "/pulse":
+        _track_command("pulse", config, chat_id)
+        _cmd_pulse(chat_id, config)
     elif cmd in _ADMIN_CMDS and _is_admin(chat_id, config):
         _handle_admin_cmd(cmd, text, chat_id, config)
     elif cmd:
@@ -352,10 +356,33 @@ def _cmd_help(chat_id: int) -> None:
         "/settings — Change your alert preferences\n"
         "/mystatus — Show your current preferences\n"
         "/search — Search active alerts (e.g. /search tram 12)\n"
+        "/pulse — City Pulse — AI situational summary\n"
         "/stop — Pause alerts (keeps your settings)\n"
         "/deletedata — Delete all your data (GDPR)\n"
         "/help — This message"
     ))
+
+
+def _cmd_pulse(chat_id: int, config: dict) -> None:
+    from notifier.subscriber_dispatch import _fmt_pulse_message
+
+    is_admin = _is_admin(chat_id, config)
+    if not is_admin:
+        sub = get_subscriber_by_chat_id(chat_id)
+        if not sub or not sub["active"]:
+            _send(chat_id, "You're not subscribed yet. Send /start to set up alerts.")
+            return
+
+    if is_admin:
+        _admin_pulse(chat_id, config)
+
+    pulse = get_latest_pulse()
+    if not pulse:
+        _send(chat_id, "No City Pulse available yet. Try again later.")
+        return
+
+    body = _fmt_pulse_message(pulse, config)
+    _send(chat_id, f"\U0001f4ca <b>City Pulse</b>\n\n{body}")
 
 
 def _cmd_stop(chat_id: int) -> None:
@@ -463,8 +490,6 @@ def _handle_admin_cmd(cmd: str, text: str, chat_id: int, config: dict) -> None:
         _admin_visits(chat_id, config)
     elif cmd == "/poll":
         _admin_poll(chat_id, config)
-    elif cmd == "/pulse":
-        _admin_pulse(chat_id, config)
     elif cmd == "/ban":
         _admin_ban(chat_id, text)
     elif cmd == "/unban":

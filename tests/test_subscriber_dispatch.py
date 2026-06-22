@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -8,6 +9,22 @@ from zoneinfo import ZoneInfo
 import db
 from notifier.preferences import default_preferences
 from notifier.subscriber_dispatch import dispatch_to_subscribers, flush_quiet_buffers
+
+BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def _mock_morning_time(mocker, hour=7, minute=15):
+    """Patch datetime.now in subscriber_dispatch to return a time in the post-quiet-hours window."""
+    morning = datetime.now(BERLIN).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    original_now = datetime.now
+
+    def _fake_now(tz=None):
+        if tz is not None:
+            return morning.astimezone(tz)
+        return original_now(tz)
+
+    mocker.patch("notifier.subscriber_dispatch.datetime", wraps=datetime)
+    mocker.patch("notifier.subscriber_dispatch.datetime.now", side_effect=_fake_now)
 
 
 def _insert_alert(alert_id, source="rmv", title="Alert", body="Body", service=None,
@@ -163,6 +180,7 @@ class TestFlushQuietBuffers:
         db.buffer_quiet_alert(sub["id"], "B2")
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         count = flush_quiet_buffers(config)
 
@@ -206,6 +224,7 @@ class TestFlushQuietBuffers:
         _make_subscriber(303, prefs)
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         count = flush_quiet_buffers(config)
 
@@ -223,6 +242,7 @@ class TestFlushQuietBuffers:
         _make_subscriber(304, prefs)
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         flush_quiet_buffers(config)
 
@@ -241,6 +261,7 @@ class TestFlushQuietBuffers:
         db.buffer_quiet_alert(sub["id"], "B5")
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         flush_quiet_buffers(config)
 
@@ -259,6 +280,7 @@ class TestFlushQuietBuffers:
         db.buffer_quiet_alert(sub["id"], "B6")
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         flush_quiet_buffers(config)
 
@@ -292,10 +314,7 @@ class TestFlushQuietBuffers:
         prefs["quiet_hours"]["end"] = "07:00"
         _make_subscriber(308, prefs)
 
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        berlin = ZoneInfo("Europe/Berlin")
-        today_berlin = datetime.now(berlin)
+        today_berlin = datetime.now(BERLIN)
         event_time = today_berlin.replace(hour=18, minute=0, second=0, microsecond=0)
         valid_from = event_time.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
         _insert_alert("F1", source="events", title="Frankfurt Marathon")
@@ -303,6 +322,7 @@ class TestFlushQuietBuffers:
             conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F1'", (valid_from,))
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
         mocker.patch("notifier.subscriber_dispatch.get_future_alerts", return_value=[
             {"alert_id": "F1", "source": "events", "title_en": "Frankfurt Marathon",
              "valid_from": valid_from, "severity": None, "affected_lines": None,
@@ -330,6 +350,7 @@ class TestFlushQuietBuffers:
             conn.execute("UPDATE alert_cache SET valid_from = ? WHERE alert_id = 'F2'", (future,))
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         flush_quiet_buffers(config)
 
@@ -346,8 +367,25 @@ class TestFlushQuietBuffers:
         sub = _make_subscriber(310, prefs)
 
         mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker)
 
         flush_quiet_buffers(config)
 
         updated = db.get_subscriber_by_chat_id(310)
         assert updated["last_briefing_at"] is not None
+
+    def test_new_subscriber_no_spurious_briefing(self, mocker, config):
+        mock_dm = mocker.patch("notifier.subscriber_dispatch.notify_subscriber_dm", return_value=True)
+        prefs = default_preferences()
+        prefs["quiet_hours"]["enabled"] = True
+        prefs["quiet_hours"]["start"] = "22:00"
+        prefs["quiet_hours"]["end"] = "07:00"
+        _make_subscriber(311, prefs)
+
+        mocker.patch("notifier.subscriber_dispatch.is_quiet_hours", return_value=False)
+        _mock_morning_time(mocker, hour=14, minute=0)
+
+        count = flush_quiet_buffers(config)
+
+        assert count == 0
+        mock_dm.assert_not_called()

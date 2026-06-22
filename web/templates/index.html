@@ -690,22 +690,6 @@
     .dark .pulse-recommendation { background: #1a2332; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
-    .pulse-btn {
-      display: flex; align-items: center; gap: 4px;
-      padding: 4px 14px;
-      font-size: 13px; font-weight: 600;
-      background: none; border: none;
-      cursor: pointer; color: var(--clr-text);
-      white-space: nowrap; width: 100%; justify-content: center;
-    }
-    .pulse-btn:hover { background: #f1f5f9; }
-    .dark .pulse-btn { color: #d1d5db; }
-    .dark .pulse-btn:hover { background: #222c3a; }
-    .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
-    .pulse-btn-cat { white-space: nowrap; }
-    .pulse-btn-cat.stable    { opacity: 0.4; }
-    .pulse-btn-cat.worsening { color: #ef4444; }
-    .pulse-btn-cat.improving { color: #22c55e; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -1054,6 +1038,8 @@
       .ws-desc { display: none; }
       .ws-temp { font-size: 13px; }
       #btn-poll { display: none !important; }
+      #btn-notify { display: none !important; }
+      #btn-cityview { display: inline-flex !important; }
       .btn-label { display: none; }
       .brand { font-size: 20px; }
       header { padding: 0 8px; }
@@ -1094,6 +1080,7 @@
     </div>
     <button class="btn btn-ghost" id="btn-poll" onclick="forcePoll()" style="display:none">⚡ <span class="btn-label">Poll now</span></button>
     <button class="btn btn-ghost" id="btn-notify" onclick="toggleNotifications()"><span id="btn-notify-icon">🔔</span><span class="btn-label" id="btn-notify-label"> Notifications</span></button>
+    <button class="btn btn-ghost mobile-only" id="btn-cityview" onclick="openMobileMap()" style="display:none">🗺️<span class="btn-label"> City View</span></button>
     <button class="btn btn-ghost" onclick="openInfoModal()">ℹ️ <span class="btn-label">More info</span></button>
     <button class="btn btn-ghost" id="btn-dark" onclick="toggleDark()"><span id="btn-dark-icon">🌙</span><span class="btn-label" id="btn-dark-label"> Dark mode</span></button>
   </div>
@@ -1104,10 +1091,6 @@
 <div class="status-area" id="status">
   <div class="feed-panel">
     <div class="search-section">
-    <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
-      📊 City Pulse
-      <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
-    </button>
     <div class="search-bar">
       <span style="font-size:13px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Search alerts, e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
@@ -1446,7 +1429,7 @@ function initMap() {
       Math.abs(c.lat - FRANKFURT[0]) < 0.001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.001;
     resetBtn.style.display = atDefault ? 'none' : '';
-    if (atDefault && _pulseData && !inRadarView && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
+    if (atDefault && _pulseData && !inRadarView && !_pulseManualClose) _showPulseOverlay();
     else if (!atDefault) { const el = document.getElementById('pulse-overlay'); if (el) el.style.display = 'none'; _pulseVisible = false; _pulseManualClose = false; }
   }
   map.on('moveend zoomend', _updateResetBtn);
@@ -1831,8 +1814,7 @@ function applyData(data) {
 
   const hadPulse = !!_pulseData;
   _pulseData = data.pulse || null;
-  updatePulseButton(_pulseData);
-  if (_pulseData && !hadPulse && !isMobileView() && !_pulseManualClose) _showPulseOverlay();
+  if (_pulseData && !hadPulse && !_pulseManualClose) _showPulseOverlay();
 
   const dot = document.getElementById('health-dot');
   if (dot && data.source_health && Object.keys(data.source_health).length > 0) {
@@ -2202,39 +2184,6 @@ function renderPulseOverlay(pulse) {
     ${staleHtml}`;
 }
 
-function updatePulseButton(pulse) {
-  const btn = document.getElementById('pulse-btn');
-  const btnCats = document.getElementById('pulse-btn-cats');
-  if (!btn) return;
-  if (!pulse) { btn.style.display = 'none'; return; }
-  btn.style.display = '';
-  if (btnCats) {
-    const cats = pulse.categories || {};
-    const arrows = {worsening:'↗',improving:'↘',stable:'→'};
-    let html = '';
-    for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
-      const cat = cats[key];
-      if (!cat) continue;
-      const trend = cat.trend || 'stable';
-      const baseline = ['good','clear','normal','none'].includes(cat.status) && trend === 'stable';
-      const cls = baseline ? 'stable' : trend;
-      html += `<span class="pulse-btn-cat ${cls}" title="${meta.label}: ${cat.status} ${arrows[trend] || ''}">${meta.emoji}${baseline ? '' : arrows[trend] || ''}</span>`;
-    }
-    btnCats.innerHTML = html;
-  }
-}
-
-function openPulse() {
-  if (!_pulseData) return;
-  _pulseManualClose = false;
-  if (isMobileView()) {
-    openMobileMap(() => { _showPulseOverlay(); });
-  } else {
-    resetState();
-    map.setView(FRANKFURT, 12, { animate: true });
-  }
-  _track('pulse_open');
-}
 
 function _showPulseOverlay() {
   const el = document.getElementById('pulse-overlay');
