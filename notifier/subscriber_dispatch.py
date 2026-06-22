@@ -303,12 +303,6 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
     parts = [f"{dot} {summary}"]
     if cat_lines:
         parts.append("\n".join(cat_lines))
-    avoid = [a for a in (pulse.get("avoid") or []) if a]
-    if avoid:
-        parts.append("\U0001f6ab <b>Avoid</b>\n" + "\n".join(f"• {a}" for a in avoid))
-    crowding_items = [c for c in (pulse.get("crowding") or []) if c]
-    if crowding_items:
-        parts.append("\U0001f465 <b>Expect crowds</b>\n" + "\n".join(f"• {c}" for c in crowding_items))
     if recommendation:
         parts.append(f"\U0001f4a1 {recommendation}")
     if site_url:

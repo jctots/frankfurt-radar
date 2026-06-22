@@ -688,30 +688,29 @@
     .pulse-cat-trend.new       { color: #3b82f6; }
     .pulse-cat-trend.resolved  { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
-    .pulse-section { margin-bottom: 8px; }
-    .pulse-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--clr-muted); display: block; margin-bottom: 3px; }
-    .pulse-section-item { font-size: 12px; padding: 2px 0; }
     .pulse-recommendation { font-size: 12px; color: var(--clr-muted); border-top: 1px solid var(--clr-border); padding-top: 8px; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
 
     .pulse-btn {
       display: flex; align-items: center; gap: 6px;
-      padding: 5px 12px;
+      padding: 4px 14px 4px 12px;
       font-size: 12px; font-weight: 600;
-      background: var(--clr-surface); border: 1px solid var(--clr-border);
-      border-radius: 8px; cursor: pointer; color: var(--clr-text);
-      white-space: nowrap;
+      background: none; border: none;
+      cursor: pointer; color: var(--clr-text);
+      white-space: nowrap; width: 100%; text-align: left;
     }
     .pulse-btn:hover { background: #f1f5f9; }
-    .dark .pulse-btn { background: #1a2332; border-color: #2a3344; color: #d1d5db; }
+    .dark .pulse-btn { color: #d1d5db; }
     .dark .pulse-btn:hover { background: #222c3a; }
+    .pulse-btn-label { flex: 1; }
     .pulse-btn .pulse-dot { width: 6px; height: 6px; }
-    .pulse-btn-trend { font-size: 11px; }
-    .pulse-btn-trend.worsening { color: #ef4444; }
-    .pulse-btn-trend.improving { color: #22c55e; }
-    .pulse-btn-trend.new       { color: #3b82f6; }
-    .pulse-btn-trend.resolved  { color: #22c55e; }
-    .pulse-btn-trend.stable    { color: var(--clr-muted); }
+    .pulse-btn-cats { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; }
+    .pulse-btn-cat { white-space: nowrap; }
+    .pulse-btn-cat.stable    { opacity: 0.4; }
+    .pulse-btn-cat.worsening { color: #ef4444; }
+    .pulse-btn-cat.improving { color: #22c55e; }
+    .pulse-btn-cat.new       { color: #3b82f6; }
+    .pulse-btn-cat.resolved  { color: #22c55e; }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -1110,17 +1109,17 @@
 <div class="status-area" id="status">
   <div class="feed-panel">
     <div class="search-section">
+    <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
+      <span class="pulse-dot ok" id="pulse-btn-dot"></span>
+      <span class="pulse-btn-label">City Pulse</span>
+      <span class="pulse-btn-cats" id="pulse-btn-cats"></span>
+    </button>
     <div class="search-bar">
       <span style="font-size:13px;color:var(--clr-muted)">🔍</span>
       <input type="text" id="search-input" placeholder="e.g. Tram 14, Mainzer Landstrasse…" oninput="onSearchInput(this.value)" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear">✕</button>
     </div>
     <div class="feed-toggle-panel">
-      <button class="pulse-btn" id="pulse-btn" onclick="openPulse()" style="display:none" title="City Pulse — AI situational summary">
-        <span class="pulse-dot ok" id="pulse-btn-dot"></span>
-        City Pulse
-        <span class="pulse-btn-trend" id="pulse-btn-trend"></span>
-      </button>
       <div class="feed-toggle">
         <span class="toggle-icon">⏳</span>
         <span class="toggle-label">Show long-running disruptions</span>
@@ -2202,25 +2201,13 @@ function renderPulseOverlay(pulse) {
     </div>`;
   }
 
-  const avoid = (pulse.avoid || []).filter(Boolean);
-  const crowding = (pulse.crowding || []).filter(Boolean);
-  let avoidHtml = '';
-  if (avoid.length) {
-    avoidHtml = `<div class="pulse-section"><span class="pulse-section-label">🚫 Avoid</span>${avoid.map(a => `<div class="pulse-section-item">${a}</div>`).join('')}</div>`;
-  }
-  let crowdHtml = '';
-  if (crowding.length) {
-    crowdHtml = `<div class="pulse-section"><span class="pulse-section-label">👥 Expect crowds</span>${crowding.map(c => `<div class="pulse-section-item">${c}</div>`).join('')}</div>`;
-  }
-
   return `<div class="pulse-header">
       <span class="pulse-title"><span class="pulse-dot ${dot}"></span> City Pulse</span>
-      <span class="pulse-time">${time}</span>
+      <span class="pulse-time">as of ${time}</span>
       <button class="pulse-close" onclick="closePulse()" title="Close">✕</button>
     </div>
     <div class="pulse-summary">${pulse.summary || ''}</div>
     <div class="pulse-categories">${catsHtml}</div>
-    ${avoidHtml}${crowdHtml}
     <div class="pulse-recommendation">💡 ${pulse.recommendation || 'No special action needed.'}</div>
     ${staleHtml}`;
 }
@@ -2228,7 +2215,7 @@ function renderPulseOverlay(pulse) {
 function updatePulseButton(pulse) {
   const btn = document.getElementById('pulse-btn');
   const btnDot = document.getElementById('pulse-btn-dot');
-  const btnTrend = document.getElementById('pulse-btn-trend');
+  const btnCats = document.getElementById('pulse-btn-cats');
   if (!btn) return;
   if (!pulse) { btn.style.display = 'none'; return; }
   btn.style.display = '';
@@ -2236,32 +2223,20 @@ function updatePulseButton(pulse) {
     btnDot.classList.toggle('ok', pulse.travel_ok);
     btnDot.classList.toggle('warn', !pulse.travel_ok);
   }
-  if (btnTrend) {
+  if (btnCats) {
     const cats = pulse.categories || {};
-    const worst = _worstTrend(cats);
-    if (worst) {
-      const meta = PULSE_CAT_META[worst.key];
-      const arrow = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'}[worst.trend] || '';
-      btnTrend.innerHTML = `${meta ? meta.emoji : ''} ${arrow}`;
-      btnTrend.className = 'pulse-btn-trend ' + worst.trend;
-    } else {
-      btnTrend.textContent = '';
+    const arrows = {worsening:'↗',improving:'↘',stable:'→',new:'★',resolved:'✓'};
+    let html = '';
+    for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
+      const cat = cats[key];
+      if (!cat) continue;
+      const trend = cat.trend || 'stable';
+      const baseline = ['clear','normal','none'].includes(cat.status) && trend === 'stable';
+      const cls = baseline ? 'stable' : trend;
+      html += `<span class="pulse-btn-cat ${cls}" title="${meta.label}: ${cat.status} ${arrows[trend] || ''}">${meta.emoji}${baseline ? '' : arrows[trend] || ''}</span>`;
     }
+    btnCats.innerHTML = html;
   }
-}
-
-function _worstTrend(cats) {
-  const priority = {worsening:0, new:1, stable:2, improving:3, resolved:4};
-  let worst = null;
-  for (const [key, cat] of Object.entries(cats)) {
-    const trend = cat.trend || 'stable';
-    const baseline = ['clear','normal','none'].includes(cat.status);
-    if (baseline && trend === 'stable') continue;
-    if (!worst || (priority[trend] ?? 5) < (priority[worst.trend] ?? 5)) {
-      worst = {key, trend, status: cat.status};
-    }
-  }
-  return worst;
 }
 
 function openPulse() {
