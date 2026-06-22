@@ -84,6 +84,57 @@ The pipeline operates at three time scales:
 
 **History context** — Each hourly pulse receives the last 3 hourly pulses and last 3 daily summaries as context, enabling the LLM to write summaries that reference multi-day patterns ("roadworks on A5 entering their second week") without needing a full alert archive.
 
+## Debug log
+
+Each hourly pulse writes a structured JSON debug file to `data/pulse_debug/` (e.g., `2026-06-22T23.json`). Files are retained for 30 days.
+
+The log structure mirrors the three analysis layers:
+
+```json
+{
+  "generated_at": "2026-06-22T23:00:00Z",
+  "current_hour_utc": 21,
+  "layer_1_deterministic": {
+    "alert_counts_by_category": {"weather": 1, "transport": 8, ...},
+    "total_alerts": 42,
+    "fresh_alerts": 15,
+    "stale_summary": "12 autobahn, 8 baustellen",
+    "baseline_7day": {
+      "transport": {"avg": 6.5, "samples": 14},
+      ...
+    },
+    "previous_pulse_categories": {
+      "transport": {"status": "low", "count": 5},
+      ...
+    },
+    "computed_categories": {
+      "transport": {"status": "moderate", "trend": "worsening", "count": 8},
+      ...
+    }
+  },
+  "layer_2_llm": {
+    "model": "gemini-2.5-flash",
+    "prompt": "full prompt text sent to the LLM",
+    "response": {"summary": "...", "travel_ok": true, "recommendation": "..."}
+  },
+  "layer_3_output": {
+    "generated_at": "...",
+    "summary": "...",
+    "travel_ok": true,
+    "categories": {...},
+    "recommendation": "...",
+    "alert_count": 42
+  }
+}
+```
+
+Use the debug log to review why a pulse produced a particular output:
+- **Layer 1**: Were the alert counts correct? What was the baseline average? Why did a category get `moderate` vs. `low`?
+- **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules?
+- **Layer 3**: Does the final output match what the deterministic layer computed?
+
+Provide a debug log file together with this document as context when asking an LLM to suggest improvements.
+
 ## Current limitations
 
 - **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.

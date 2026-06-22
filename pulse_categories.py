@@ -78,6 +78,35 @@ def get_baseline(pulses: list[dict], current_hour: int) -> dict[str, float]:
     }
 
 
+def get_baseline_detail(pulses: list[dict], current_hour: int) -> dict[str, dict]:
+    hour_window = {(current_hour - 1) % 24, current_hour, (current_hour + 1) % 24}
+
+    totals: dict[str, list[int]] = {cat: [] for cat in CATEGORY_SOURCES}
+    for p in pulses:
+        generated_at = p.get("generated_at", "")
+        if len(generated_at) < 13:
+            continue
+        try:
+            pulse_hour = int(generated_at[11:13])
+        except (ValueError, IndexError):
+            continue
+        if pulse_hour not in hour_window:
+            continue
+
+        cats = p.get("categories") or {}
+        for cat_name in CATEGORY_SOURCES:
+            cat_data = cats.get(cat_name, {})
+            count = cat_data.get("count")
+            if count is not None:
+                totals[cat_name].append(count)
+
+    return {
+        cat: {"avg": round(sum(counts) / len(counts), 2), "samples": len(counts)}
+        for cat, counts in totals.items()
+        if counts
+    }
+
+
 def determine_status(alert_count: int, baseline_avg: float | None) -> str:
     if alert_count == 0:
         return "clear"

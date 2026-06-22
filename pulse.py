@@ -11,7 +11,11 @@ import requests
 import yaml
 
 import db
-from pulse_categories import compute_categories
+from pulse_categories import (
+    compute_categories,
+    count_alerts_by_category,
+    get_baseline_detail,
+)
 
 log = logging.getLogger(__name__)
 
@@ -179,6 +183,26 @@ def _call_gemini(prompt_config: dict, prompt_text: str) -> dict:
     return {}
 
 
+_PULSE_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "pulse_debug"
+_PULSE_DEBUG_RETENTION_DAYS = 30
+
+
+def _write_debug_log(debug_data: dict) -> None:
+    try:
+        _PULSE_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        ts = debug_data.get("generated_at", "")[:13].replace(":", "")
+        path = _PULSE_DEBUG_DIR / f"{ts}.json"
+        path.write_text(json.dumps(debug_data, ensure_ascii=False, indent=2))
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_PULSE_DEBUG_RETENTION_DAYS)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H")
+        for old in _PULSE_DEBUG_DIR.glob("*.json"):
+            if old.stem < cutoff_str:
+                old.unlink(missing_ok=True)
+    except OSError as e:
+        log.warning("Pulse debug log write failed: %s", e)
+
+
 _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
     "travel_ok": True,
@@ -244,6 +268,36 @@ def generate_pulse(config: dict) -> dict | None:
     }
     db.store_pulse(pulse)
     log.info("Pulse generated: %d alerts, travel_ok=%s", len(alerts), pulse["travel_ok"])
+
+    alert_counts = count_alerts_by_category(alerts)
+    baseline_detail = get_baseline_detail(history_pulses, now.hour)
+    prev_cats = (previous_pulse or {}).get("categories") or {}
+    _write_debug_log({
+        "generated_at": generated_at,
+        "current_hour_utc": now.hour,
+        "layer_1_deterministic": {
+            "alert_counts_by_category": alert_counts,
+            "total_alerts": len(alerts),
+            "fresh_alerts": fresh_count,
+            "stale_summary": stale_summary,
+            "baseline_7day": {
+                cat: baseline_detail.get(cat, {"avg": None, "samples": 0})
+                for cat in alert_counts
+            },
+            "previous_pulse_categories": {
+                cat: {"status": d.get("status"), "count": d.get("count")}
+                for cat, d in prev_cats.items()
+            } if prev_cats else None,
+            "computed_categories": categories,
+        },
+        "layer_2_llm": {
+            "model": prompt_config.get("model", "gemini-2.5-flash"),
+            "prompt": prompt_text,
+            "response": result,
+        },
+        "layer_3_output": pulse,
+    })
+
     return pulse
 
 

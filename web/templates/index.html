@@ -665,7 +665,9 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
       pointer-events: auto;
       scrollbar-width: thin;
+      opacity: 0; transition: opacity 0.3s ease;
     }
+    #pulse-overlay.visible { opacity: 1; }
     .dark #pulse-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     @media (max-width: 767px) {
       #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: 50vh; }
@@ -1430,7 +1432,7 @@ function initMap() {
       Math.abs(c.lng - FRANKFURT[1]) < 0.001;
     resetBtn.style.display = atDefault ? 'none' : '';
     if (atDefault && _pulseData && !inRadarView && !_pulseManualClose) _showPulseOverlay();
-    else if (!atDefault) { const el = document.getElementById('pulse-overlay'); if (el) el.style.display = 'none'; _pulseVisible = false; _pulseManualClose = false; }
+    else if (!atDefault) { const el = document.getElementById('pulse-overlay'); if (el) { el.classList.remove('visible'); el.style.display = 'none'; } _pulseVisible = false; _pulseManualClose = false; }
   }
   map.on('moveend zoomend', _updateResetBtn);
   _updateResetBtn();
@@ -2195,12 +2197,13 @@ function _showPulseOverlay() {
   if (!el || !_pulseData) return;
   el.innerHTML = renderPulseOverlay(_pulseData);
   el.style.display = '';
+  requestAnimationFrame(() => el.classList.add('visible'));
   _pulseVisible = true;
 }
 
 function closePulse(manual = false) {
   const el = document.getElementById('pulse-overlay');
-  if (el) el.style.display = 'none';
+  if (el) { el.classList.remove('visible'); setTimeout(() => { if (!el.classList.contains('visible')) el.style.display = 'none'; }, 300); }
   _pulseVisible = false;
   if (manual) _pulseManualClose = true;
   _track('pulse_close');
