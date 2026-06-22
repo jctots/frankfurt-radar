@@ -69,7 +69,7 @@
 
 <main>
   <h1>🛡️ Security Policy</h1>
-  <p class="meta">Last updated: 2026-06-18</p>
+  <p class="meta">Last updated: 2026-06-22</p>
 
   <h2>📦 Supported Versions</h2>
   <p>Only the latest release on <code>main</code> is actively maintained. Older releases do not receive security fixes.</p>
@@ -102,10 +102,12 @@
     <li>Cloud firewall: only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) inbound</li>
     <li>SSH: key-only authentication, password login disabled, fail2ban active</li>
     <li>Automated OS security updates via <code>unattended-upgrades</code></li>
+    <li>Docker resource limits (CPU/memory) on all containers</li>
   </ul>
 
   <h3>Network</h3>
   <ul>
+    <li>Caddy reverse proxy with Let's Encrypt auto-TLS (origin HTTPS); SSL Full (Strict) between Cloudflare and origin</li>
     <li>Cloudflare proxy: origin IP protected, DDoS mitigation, Bot Fight Mode active</li>
     <li>TLS 1.2 minimum enforced at the edge</li>
     <li>HSTS enabled (<code>max-age=31536000</code>)</li>
@@ -126,7 +128,7 @@
   <h3>Supply chain</h3>
   <ul>
     <li><code>pip audit</code> runs weekly via GitHub Actions — results published as CI badge</li>
-    <li><code>gitleaks</code> secret scanning on every commit</li>
+    <li><code>gitleaks</code> secret scanning runs weekly via GitHub Actions</li>
   </ul>
 
   <hr>

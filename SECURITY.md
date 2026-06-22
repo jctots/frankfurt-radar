@@ -29,8 +29,10 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - Cloud firewall: only ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) inbound
 - SSH: key-only authentication, password login disabled, fail2ban active
 - Automated OS security updates via `unattended-upgrades`
+- Docker resource limits (CPU/memory) on all containers
 
 **Network**
+- Caddy reverse proxy with Let's Encrypt auto-TLS (origin HTTPS); SSL Full (Strict) between Cloudflare and origin
 - Cloudflare proxy: origin IP protected, DDoS mitigation, Bot Fight Mode active
 - TLS 1.2 minimum enforced at the edge
 - HSTS enabled (`max-age=31536000`)
@@ -47,7 +49,7 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 
 **Supply chain**
 - `pip audit` runs weekly via GitHub Actions — results published as CI badge
-- `gitleaks` secret scanning on every commit
+- `gitleaks` secret scanning runs weekly via GitHub Actions
 
 ## 📊 Data Handling
 

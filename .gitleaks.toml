@@ -1,0 +1,7 @@
+[extend]
+
+[[allowlist.commits]]
+
+[[allowlist.paths]]
+  paths = ["docs/self-hosting.md"]
+  description = "Example MCP_API_KEYS value (consumer_key_1,consumer_key_2) triggers generic-api-key false positive"

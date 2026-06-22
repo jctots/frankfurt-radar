@@ -65,6 +65,7 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `MCP_PORT` | No | Host port for MCP server (default: 8811) |
 | `MCP_ADMIN_KEY` | No | Admin API key for MCP server (unlimited, no rate limiting) |
 | `MCP_API_KEYS` | No | Comma-separated API keys for MCP consumers (rate-limited) |
+| `BIND_ADDR` | No | Bind address for host port mappings — set to `127.0.0.1` when using Caddy (default: `0.0.0.0`) |
 
 Production profile variables (only needed with `--profile production`):
 
