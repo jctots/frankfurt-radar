@@ -239,7 +239,7 @@ def generate_pulse(config: dict) -> dict | None:
     since = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_pulses = db.get_pulses_since(since)
     previous_pulse = db.get_latest_pulse()
-    categories = compute_categories(alerts, previous_pulse, history_pulses, now.hour)
+    categories = compute_categories(alerts, previous_pulse, history_pulses, now.hour, now=now)
 
     prompt_config, template = load_prompt("pulse")
     alerts_json, stale_summary = _build_alert_data(alerts)

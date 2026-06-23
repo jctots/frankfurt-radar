@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from pulse_categories import (
     CATEGORY_SOURCES,
     EWMA_ALPHA,
     STATUS_LEVELS,
+    _compute_weight,
     compute_categories,
     compute_ewma,
     compute_travel_ok,
@@ -13,8 +16,26 @@ from pulse_categories import (
 )
 
 
-def _alert(source, stale=False):
-    return {"source": source, "stale": 1 if stale else 0}
+def _alert(source, stale=False, valid_from=None, valid_until=None,
+           severity=None, service=None, title=None):
+    d = {"source": source, "stale": 1 if stale else 0}
+    if valid_from is not None:
+        d["valid_from"] = valid_from
+    if valid_until is not None:
+        d["valid_until"] = valid_until
+    if severity is not None:
+        d["severity"] = severity
+    if service is not None:
+        d["service"] = service
+    if title is not None:
+        d["title_en"] = title
+    return d
+
+
+_NOW = datetime(2026, 6, 23, 12, 0, 0, tzinfo=timezone.utc)
+_NOW_ISO = "2026-06-23T12:00:00Z"
+_PAST = "2026-06-23T10:00:00Z"
+_FUTURE = "2026-06-24T10:00:00Z"
 
 
 class TestCountAlertsByCategory:
@@ -44,6 +65,119 @@ class TestCountAlertsByCategory:
         counts = count_alerts_by_category(alerts)
         assert counts["transport"] == 1
         assert sum(counts.values()) == 1
+
+
+class TestTemporalFiltering:
+    def test_future_alert_excluded(self):
+        alerts = [_alert("rmv", valid_from=_FUTURE, valid_until="2026-06-25T10:00:00Z")]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 0.0
+
+    def test_ongoing_alert_counted(self):
+        alerts = [_alert("rmv", valid_from=_PAST, valid_until=_FUTURE)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 1.0
+
+    def test_expired_alert_excluded(self):
+        alerts = [_alert("rmv", valid_from="2026-06-22T10:00:00Z", valid_until=_PAST)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 0.0
+
+    def test_open_ended_alert_counted(self):
+        alerts = [_alert("rmv", valid_from=_PAST)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 1.0
+
+    def test_no_valid_from_with_valid_until_future(self):
+        alerts = [_alert("rmv", valid_until=_FUTURE)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 1.0
+
+    def test_incidents_always_counted(self):
+        alerts = [
+            _alert("polizei"),
+            _alert("strike", valid_from=_FUTURE),
+        ]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["incidents"] == 2.0
+
+    def test_no_temporal_fields_non_incident_counted(self):
+        alerts = [_alert("rmv")]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == 1.0
+
+
+class TestSeverityWeighting:
+    def test_dwd_severity_weights(self):
+        alerts = [
+            _alert("dwd", valid_from=_PAST, severity=1),
+            _alert("dwd", valid_from=_PAST, severity=4),
+        ]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["weather"] == pytest.approx(2.5)  # 0.5 + 2.0
+
+    def test_rmv_service_weights(self):
+        alerts = [
+            _alert("rmv", valid_from=_PAST, service="S-Bahn"),
+            _alert("rmv", valid_from=_PAST, service="Bus"),
+        ]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["transport"] == pytest.approx(2.5)  # 1.5 + 1.0
+
+    def test_autobahn_closure_weight(self):
+        alerts = [
+            _alert("autobahn", valid_from=_PAST, title="A5 Closure near Friedberg"),
+            _alert("autobahn", valid_from=_PAST, title="A3 Warning: roadworks"),
+        ]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["roadworks"] == pytest.approx(2.5)  # 1.5 + 1.0
+
+    def test_baustellen_full_closure_weight(self):
+        alerts = [
+            _alert("baustellen", valid_from=_PAST, service="City (Full)"),
+            _alert("baustellen", valid_from=_PAST, service="City (Partial)"),
+        ]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["roadworks"] == pytest.approx(2.5)  # 1.5 + 1.0
+
+    def test_events_weight(self):
+        alerts = [_alert("events", valid_from=_PAST)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["events"] == pytest.approx(2.0)
+
+    def test_sports_weight(self):
+        alerts = [_alert("sports", valid_from=_PAST)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["events"] == pytest.approx(2.0)
+
+    def test_default_weight_polizei(self):
+        alerts = [_alert("polizei")]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["incidents"] == pytest.approx(1.0)
+
+
+class TestComputeWeight:
+    def test_dwd_all_levels(self):
+        for sev, expected in [(1, 0.5), (2, 1.0), (3, 1.5), (4, 2.0)]:
+            assert _compute_weight({"source": "dwd", "severity": sev}) == expected
+
+    def test_dwd_missing_severity(self):
+        assert _compute_weight({"source": "dwd"}) == 1.0
+
+    def test_rmv_ubahn(self):
+        assert _compute_weight({"source": "rmv", "service": "U-Bahn"}) == 1.5
+
+    def test_rmv_tram(self):
+        assert _compute_weight({"source": "rmv", "service": "Tram"}) == 1.0
+
+    def test_autobahn_closure_case_insensitive(self):
+        assert _compute_weight({"source": "autobahn", "title_en": "Full CLOSURE of A5"}) == 1.5
+
+    def test_autobahn_warning(self):
+        assert _compute_weight({"source": "autobahn", "title_en": "A5 Warning"}) == 1.0
+
+    def test_unknown_source(self):
+        assert _compute_weight({"source": "unknown"}) == 1.0
 
 
 class TestComputeEwma:

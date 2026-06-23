@@ -168,10 +168,10 @@ class TestGeneratePulse:
         alerts = [
             {"source": "rmv", "title_en": "Delay", "body_en": "S1", "stale": False,
              "service": "S-Bahn", "lines": '["S1"]', "severity": 2,
-             "valid_from": "2026-06-22T10:00:00Z", "valid_until": "2026-06-22T18:00:00Z",
-             "published_at": "2026-06-22T10:00:00Z", "url": None, "lat": None, "lon": None,
+             "valid_from": "2020-01-01T00:00:00Z", "valid_until": "2099-12-31T23:59:59Z",
+             "published_at": "2020-01-01T00:00:00Z", "url": None, "lat": None, "lon": None,
              "location_label": None, "image": None, "icon": None, "alert_id": "HIM_1",
-             "cached_at": "2026-06-22T10:00:00Z", "removed_at": None},
+             "cached_at": "2020-01-01T00:00:00Z", "removed_at": None},
         ]
         gemini_response = {
             "summary": "S1 delays reported",

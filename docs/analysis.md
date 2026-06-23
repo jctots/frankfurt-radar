@@ -31,7 +31,27 @@ City Pulse processes data through three layers:
 
 This layer handles everything that can be computed precisely without interpretation:
 
-**Alert counting** — Active, non-stale alerts are grouped by category using the source mapping above. Each category gets a current alert count.
+**Ongoing-only filtering** — Only alerts with an active disruption window count toward trends. An alert announced today for a closure tomorrow does not inflate today's trend. The temporal filter:
+
+- `valid_from <= now` AND (`valid_until >= now` OR absent) → counted (ongoing)
+- `valid_from > now` → excluded (future, not yet a disruption)
+- `valid_until < now` → excluded (expired)
+- Sources without temporal data (polizei, strike — RSS feeds) → always counted
+
+Future-only alerts still appear in the feed and in the LLM prompt for narrative context — they just don't move the EWMA.
+
+**Severity weighting** — Each alert contributes a weight rather than a raw count of 1. Weights are deterministic, derived from existing alert fields:
+
+| Source | Field | Weight mapping |
+|--------|-------|----------------|
+| DWD (weather) | `severity` (1–4) | minor=0.5, moderate=1.0, severe=1.5, extreme=2.0 |
+| RMV (transport) | `service` | S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=1.0 |
+| Autobahn | `title_en` keyword | "closure"=1.5, else 1.0 |
+| Baustellen | `service` | "City (Full)"=1.5, "City (Partial)"=1.0 |
+| Events/Sports | — | Fixed 2.0 (one-off, high-impact) |
+| Polizei/Strike | — | Default 1.0 (no structured severity data) |
+
+The EWMA baseline and status/trend thresholds operate on these weighted scores, not raw alert counts.
 
 **Status classification and trend detection** use Exponential Weighted Moving Average (EWMA) — a standard technique for event-count anomaly detection (used by the CDC for disease outbreak surveillance). EWMA gives more weight to recent data while older observations gradually fade, providing a self-correcting baseline that adapts to long-running conditions.
 
@@ -39,7 +59,7 @@ This layer handles everything that can be computed precisely without interpretat
 
 **Core formula:**
 ```
-ewma = α × current_count + (1 - α) × previous_ewma
+ewma = α × current_weighted_count + (1 - α) × previous_ewma
 ```
 
 Where α (smoothing factor) controls responsiveness:
@@ -48,21 +68,23 @@ Where α (smoothing factor) controls responsiveness:
 
 **α = 0.3** for hourly data — smooth enough that long-running alerts (nearly half of all alerts run for >1 month) naturally become the baseline, while real changes surface within a few hours. EWMA is computed from the full 7-day pulse history (oldest-first traversal); the first count initializes the EWMA value.
 
-**Storage:** EWMA value stored per category in pulse_history alongside count:
+**Storage:** EWMA value stored per category in pulse_history alongside the weighted count:
 ```json
-{"transport": {"status": "low", "trend": "stable", "count": 8, "ewma": 6.2}}
+{"transport": {"status": "low", "trend": "stable", "count": 9.5, "ewma": 6.2}}
 ```
 
-**Status classification** — Compare current count against EWMA:
+`count` is the severity-weighted disruption score for ongoing alerts, not a raw alert count.
+
+**Status classification** — Compare current weighted count against EWMA:
 
 | Status | Condition |
 |--------|-----------|
-| `clear` | Zero alerts |
+| `clear` | Zero weighted count |
 | `low` | Count ≤ EWMA × 1.3 |
 | `moderate` | Count > EWMA × 1.3 |
 | `high` | Count > EWMA × 1.6 |
 
-**Trend detection** — Compare current count against EWMA (which encodes the trajectory of recent hours, not just the previous pulse):
+**Trend detection** — Compare current weighted count against EWMA (which encodes the trajectory of recent hours, not just the previous pulse):
 
 | Trend | Condition |
 |-------|-----------|
@@ -78,7 +100,13 @@ Where α (smoothing factor) controls responsiveness:
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-The LLM receives the active alerts, pre-computed categories, and recent history as context. It produces two outputs:
+The LLM receives the active alerts, pre-computed categories (with a field reference explaining status/trend/count/ewma), and recent history as context. The prompt provides explicit guidance on how to use each input:
+
+- **Categories**: feature only "moderate"/"high" status; reflect trend direction in language ("disruptions are increasing" for worsening, "easing" for improving)
+- **History**: use for narrative continuity (avoid repeating summaries, reference multi-day patterns), not for trend/status judgments
+- **Alerts**: synthesize across sources, don't enumerate — the feed already shows specifics
+
+It produces two outputs:
 
 - **Summary** (≤300 chars) — Cross-source correlation, impact synthesis using a synthesis hierarchy (aggregate patterns, don't enumerate specifics), spatial awareness of Frankfurt districts
 - **Recommendation** (≤100 chars) — One actionable sentence: practical and calm, no alarmist language
@@ -115,7 +143,7 @@ The log structure mirrors the three analysis layers:
   "generated_at": "2026-06-22T23:00:00Z",
   "current_hour_utc": 21,
   "layer_1_deterministic": {
-    "alert_counts_by_category": {"weather": 1, "transport": 8, ...},
+    "alert_counts_by_category": {"weather": 1.5, "transport": 9.5, ...},
     "total_alerts": 42,
     "fresh_alerts": 15,
     "stale_summary": "12 autobahn, 8 baustellen",
@@ -124,7 +152,7 @@ The log structure mirrors the three analysis layers:
       ...
     },
     "computed_categories": {
-      "transport": {"status": "moderate", "trend": "worsening", "count": 8, "ewma": 6.2},
+      "transport": {"status": "moderate", "trend": "worsening", "count": 9.5, "ewma": 6.2},
       ...
     }
   },
@@ -145,7 +173,7 @@ The log structure mirrors the three analysis layers:
 ```
 
 Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the alert counts correct? What was the EWMA? Why did a category get `moderate` vs. `low`?
+- **Layer 1**: Were the weighted counts correct? What was the EWMA? Why did a category get `moderate` vs. `low`?
 - **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules?
 - **Layer 3**: Does the final output match what the deterministic layer computed?
 
@@ -154,13 +182,11 @@ Provide a debug log file together with this document as context when asking an L
 ## Current limitations
 
 - **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
-- **No severity weighting** — All alerts count equally toward the EWMA baseline and status thresholds. A severe weather warning counts the same as a minor one.
 - **Single geographic scope** — All of Frankfurt is treated as one zone. A disruption in Sachsenhausen affects the same category as one in Bockenheim.
 
 ## Future improvements
 
 - **Alert archive** — Persist every alert lifecycle (appeared, updated, removed) for historical pattern detection and recurrence analysis
-- **Severity-weighted status** — Weight alert counts by severity level so a single extreme weather warning outweighs three minor ones
 - **Geographic clustering** — Detect when multiple alerts converge on the same area and flag spatial hotspots
 - **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences (e.g., only transit categories for a commuter)
 - **Tunable α and thresholds** — Expose EWMA smoothing factor and status multipliers in config.yaml for per-deployment tuning

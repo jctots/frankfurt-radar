@@ -14,16 +14,27 @@ Fresh active alerts ({alert_count}):
 
 Long-running background (not new — mention only if noteworthy): {stale_summary}
 
-History (context for writing a better summary — do NOT use for trend/status decisions):
+History (for narrative context only — trend/status are pre-computed in categories below):
 {history_section}
+
+How to use history:
+- Hourly pulses: avoid repeating the same summary. Note what changed since last hour.
+- Daily summaries: multi-day narrative context (e.g. "roadworks continue for a third day").
+- Do NOT derive trend or status judgments from history — those are pre-computed in categories.
 
 Pre-computed category statuses (calculated from alert counts and historical baselines — DO NOT override):
 {categories_json}
 
+Category field reference:
+- status: clear/low/moderate/high — overall severity level. Only feature "moderate" and "high" in the summary.
+- trend: improving/stable/worsening — direction compared to the 7-day EWMA baseline. If "worsening", mention the direction (e.g. "transit disruptions are increasing"). If "improving", note it's easing. "Stable" needs no trend mention.
+- count: weighted disruption score (severity-weighted, not raw alert count). Higher means more or more severe disruptions.
+- ewma: 7-day moving average baseline for context.
+
 Produce a JSON object with ONLY these fields:
 
 {{
-  "title": "Short informational headline. MUST be under 60 characters.",
+  "title": "Short informational headline. MUST be under 40 characters.",
   "summary": "2-3 short sentences. MUST be under 300 characters.",
   "recommendation": "One short actionable sentence. MUST be under 100 characters. If nothing notable: 'No special action needed.'",
   "references": ["alert_id_1", "alert_id_2", "alert_id_3"]

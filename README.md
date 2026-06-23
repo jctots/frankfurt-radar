@@ -60,8 +60,8 @@ City Pulse uses Google Gemini Flash to synthesize all active alerts into an acti
 - **Hourly pulse** — floating overlay on the map showing a concise summary, category trends, and a proactive recommendation
 - **Daily summary** — compresses 24 hourly pulses into a one-paragraph daily digest at 23:00, fed as multi-day trend context into future pulses
 - **Telegram delivery** — subscribers choose a delivery time (08:00, 12:00, or 18:00) during onboarding to receive the latest pulse via DM
-- **Trend tracking** — five categories (Weather, Transport, Roadworks, Incidents, Events) with directional trends (worsening, improving, stable, new, resolved)
-- **Alert age priority** — new alerts are emphasized; long-running low-severity alerts are deprioritized
+- **Trend tracking** — five categories (Weather, Transport, Roadworks, Incidents, Events) with severity-weighted EWMA trends; only ongoing alerts count (future/expired excluded)
+- **Severity weighting** — alerts weighted by impact: DWD severity level, transit service type, closure vs. warning, event impact
 - **Thinking-enabled inference** — extended thinking budget for better spatial reasoning and cross-source correlation
 
 City Pulse is opt-in (`pulse.enabled: true` in config). Cost: approximately €1–2/month for hourly + daily generation on Gemini Flash.
