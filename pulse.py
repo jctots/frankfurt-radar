@@ -81,6 +81,7 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
             stale_counts[src] = stale_counts.get(src, 0) + 1
         else:
             fresh.append({
+                "alert_id": a.get("alert_id"),
                 "source": a.get("source"),
                 "title": a.get("title_en", ""),
                 "body": (a.get("body_en") or "")[:200],
@@ -214,6 +215,7 @@ _ALL_CLEAR_PULSE = {
         "events": {"status": "clear", "trend": "stable", "count": 0},
     },
     "recommendation": "No special action needed.",
+    "references": [],
 }
 
 
@@ -258,6 +260,10 @@ def generate_pulse(config: dict) -> dict | None:
     if not result:
         return None
 
+    references = result.get("references") or []
+    valid_ids = {a.get("alert_id") for a in alerts if a.get("alert_id")}
+    references = [r for r in references if r in valid_ids][:3]
+
     pulse = {
         "generated_at": generated_at,
         "summary": result.get("summary", ""),
@@ -265,6 +271,7 @@ def generate_pulse(config: dict) -> dict | None:
         "categories": categories,
         "recommendation": result.get("recommendation", ""),
         "alert_count": len(alerts),
+        "references": references,
     }
     db.store_pulse(pulse)
     log.info("Pulse generated: %d alerts, travel_ok=%s", len(alerts), pulse["travel_ok"])

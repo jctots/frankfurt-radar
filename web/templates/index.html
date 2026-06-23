@@ -691,7 +691,42 @@
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     .dark .pulse-recommendation { background: #1a2332; }
+    .dark .pulse-disclaimer-toggle { color: #8892a4; text-decoration-color: #2a3344; }
+    .dark .pulse-disclaimer-toggle:hover { color: #d1d5db; text-decoration-color: #8892a4; }
+    .dark .pulse-ref { color: #d1d5db; }
+    .dark .pulse-ref:hover { color: #60a5fa; }
+    .dark .pulse-ref-arrow { color: #8892a4; }
+    .dark .pulse-ref:hover .pulse-ref-arrow { color: #60a5fa; }
+    .dark .pulse-method { color: #8892a4; }
+    .dark .pulse-method a { color: #8892a4; }
+    .dark .pulse-method a:hover { color: #d1d5db; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
+    .pulse-disclaimer-toggle {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 10px; color: var(--clr-muted); font-style: italic;
+      cursor: pointer; margin-top: 10px;
+      background: none; border: none; padding: 0;
+      font-family: inherit; line-height: 1.5; width: 100%;
+      text-decoration: underline; text-decoration-style: dotted;
+      text-underline-offset: 3px; text-decoration-color: var(--clr-border);
+      transition: color 0.15s, text-decoration-color 0.15s;
+    }
+    .pulse-disclaimer-toggle:hover { color: var(--clr-text); text-decoration-color: var(--clr-muted); }
+    .pulse-disclaimer-toggle .arrow { display: inline-block; transition: transform 0.2s; font-size: 8px; flex-shrink: 0; font-style: normal; text-decoration: none; }
+    .pulse-disclaimer-toggle.open .arrow { transform: rotate(90deg); }
+    .pulse-collapsible { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .pulse-collapsible.open { max-height: 400px; }
+    .pulse-refs-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-top: 8px; margin-bottom: 4px; }
+    .pulse-refs { list-style: none; padding: 0; margin: 0; }
+    .pulse-ref { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.4; padding: 3px 0; cursor: pointer; color: var(--clr-text); transition: color 0.15s; }
+    .pulse-ref:hover { color: var(--clr-transport); }
+    .pulse-ref-icon { font-size: 12px; flex-shrink: 0; width: 18px; text-align: center; }
+    .pulse-ref-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pulse-ref-arrow { font-size: 10px; color: var(--clr-muted); flex-shrink: 0; transition: color 0.15s; }
+    .pulse-ref:hover .pulse-ref-arrow { color: var(--clr-transport); }
+    .pulse-method { font-size: 11px; color: var(--clr-muted); line-height: 1.6; margin-top: 8px; }
+    .pulse-method a { color: var(--clr-muted); text-decoration: underline; text-underline-offset: 2px; }
+    .pulse-method a:hover { color: var(--clr-text); }
 
 
     /* Leaflet popup: match app design */
@@ -2182,6 +2217,25 @@ function renderPulseOverlay(pulse) {
     catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
   }
 
+  let refsHtml = '';
+  const refs = pulse.references || [];
+  if (refs.length) {
+    const allAlerts = [...(window.alerts || []), ...(window.removedAlerts || [])];
+    const refItems = refs.map(id => {
+      const a = allAlerts.find(x => x.id === id);
+      if (!a) return '';
+      const src = SOURCE[a.source] || {};
+      return `<li class="pulse-ref" onclick="selectAlert('${esc(id)}')"><span class="pulse-ref-icon">${src.emoji || '📋'}</span><span class="pulse-ref-title">${esc(a.title)}</span><span class="pulse-ref-arrow">›</span></li>`;
+    }).filter(Boolean).join('');
+    if (refItems) refsHtml = `<div class="pulse-refs-label">Based on</div><ul class="pulse-refs">${refItems}</ul>`;
+  }
+
+  const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
+
+  const collapsibleContent = refsHtml || methodHtml
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)">AI-generated summary · verify before acting <span class="arrow">▸</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
+    : '';
+
   return `<div class="pulse-header">
       <span class="pulse-title">📊 City Pulse</span>
       <span class="pulse-time">as of ${time}</span>
@@ -2191,7 +2245,14 @@ function renderPulseOverlay(pulse) {
     <div class="pulse-trends-label">Hourly Trend</div>
     <div class="pulse-categories">${catsHtml}</div>
     <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
+    ${collapsibleContent}
     ${staleHtml}`;
+}
+
+function togglePulseDetails(btn) {
+  btn.classList.toggle('open');
+  btn.nextElementSibling.classList.toggle('open');
+  _track('pulse_details_toggle');
 }
 
 

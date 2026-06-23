@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS pulse_history (
     avoid          TEXT NOT NULL DEFAULT '[]',
     crowding       TEXT NOT NULL DEFAULT '[]',
     recommendation TEXT NOT NULL DEFAULT '',
-    alert_count    INTEGER NOT NULL DEFAULT 0
+    alert_count    INTEGER NOT NULL DEFAULT 0,
+    references_json TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS pulse_daily_summary (
@@ -155,7 +156,7 @@ def init_db() -> None:
             )""")
         except Exception:
             pass
-        for col in ("avoid", "crowding"):
+        for col in ("avoid", "crowding", "references_json"):
             try:
                 conn.execute(f"ALTER TABLE pulse_history ADD COLUMN {col} TEXT NOT NULL DEFAULT '[]'")
             except Exception:
@@ -657,8 +658,8 @@ def store_pulse(pulse: dict) -> None:
         )
         conn.execute(
             """INSERT INTO pulse_history
-               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count, references_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 pulse["generated_at"],
                 pulse["summary"],
@@ -668,6 +669,7 @@ def store_pulse(pulse: dict) -> None:
                 json.dumps(pulse.get("crowding", [])),
                 pulse.get("recommendation", ""),
                 pulse.get("alert_count", 0),
+                json.dumps(pulse.get("references", [])),
             ),
         )
 
@@ -678,6 +680,8 @@ def _parse_pulse_row(row) -> dict:
     d["categories"] = json.loads(d["categories"])
     d["avoid"] = json.loads(d.get("avoid") or "[]")
     d["crowding"] = json.loads(d.get("crowding") or "[]")
+    d["references"] = json.loads(d.get("references_json") or "[]")
+    d.pop("references_json", None)
     return d
 
 
