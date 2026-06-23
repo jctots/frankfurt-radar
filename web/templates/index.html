@@ -653,11 +653,11 @@
     .radar-dot.now-frame    { background: #f59e0b; }
     .radar-dot.now-frame.on { background: #fbbf24; }
     .dark .radar-dot              { background: #2a3344; }
-    .dark .radar-dot.on           { background: #60a5fa; }
+    .dark .radar-dot.on           { background: #4a6a9a; }
     .dark .radar-dot.future       { background: #1e2d42; }
-    .dark .radar-dot.future.on    { background: #a78bfa; }
-    .dark .radar-dot.now-frame    { background: #f59e0b; }
-    .dark .radar-dot.now-frame.on { background: #fbbf24; }
+    .dark .radar-dot.future.on    { background: #3a5580; }
+    .dark .radar-dot.now-frame    { background: #3a4456; }
+    .dark .radar-dot.now-frame.on { background: #4a5568; }
     #hud-range { display: flex; font-size: 10px; color: #64748b; }
     #hud-t0   { flex: 18; text-align: left; }
     #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
@@ -698,7 +698,7 @@
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-    .dark .pulse-recommendation { background: #1f1a0e; border-color: #78650f; }
+    .dark .pulse-recommendation { background: #1a2030; border-color: #2a3344; }
     .dark .pulse-disclaimer-toggle { color: #8892a4; }
     .dark .pulse-disclaimer-toggle:hover { color: #d1d5db; }
     .dark .pulse-disclaimer-cta { text-decoration-color: #2a3344; }
@@ -988,13 +988,13 @@
     /* ── Responsive ─────────────────────────────────────── */
     /* ── Dark mode ──────────────────────────────────────── */
     .dark {
-      --clr-transport: #60a5fa;
-      --clr-weather:   #a78bfa;
-      --clr-police:    #f87171;
-      --clr-roads:     #fbbf24;
-      --clr-events:    #34d399;
-      --clr-sports:    #34d399;
-      --clr-strike:    #fb923c;
+      --clr-transport: #8892a4;
+      --clr-weather:   #8892a4;
+      --clr-police:    #8892a4;
+      --clr-roads:     #8892a4;
+      --clr-events:    #8892a4;
+      --clr-sports:    #8892a4;
+      --clr-strike:    #8892a4;
       --clr-bg:      #131921;
       --clr-surface: #1c2433;
       --clr-border:  #2a3344;
@@ -1002,54 +1002,29 @@
       --clr-muted:   #8892a4;
       --clr-header:  #0d1117;
     }
-    .dark .card.src-rmv        { border-left-color: var(--clr-transport); }
-    .dark .card.src-dwd        { background: #1f2038; border-left-color: var(--clr-weather); }
-    .dark .card.src-polizei    { border-left-color: var(--clr-police); }
-    .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
-    .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
-    .dark .card.src-events     { background: #182428; border-left-color: var(--clr-events); }
-    .dark .card.src-messe      { background: #182428; border-left-color: var(--clr-events); }
-    .dark .card.src-sports     { background: #182428; border-left-color: var(--clr-sports); }
-    .dark .card.src-strike     { background: #22201c; border-left-color: var(--clr-strike); }
-    .dark .card:hover              { background: #222c3a; }
-    .dark .card.src-rmv:hover      { background: #1e2d42; }
-    .dark .card.src-dwd:hover      { background: #262548; }
-    .dark .card.src-polizei:hover  { background: #2a2028; }
-    .dark .card.src-autobahn:hover { background: #2a2618; }
-    .dark .card.src-baustellen:hover { background: #2a2618; }
-    .dark .card.src-events:hover   { background: #1e2e2a; }
-    .dark .card.src-sports:hover   { background: #2e2618; }
-    .dark .card.src-strike:hover   { background: #2a2028; }
-    .dark .card.sel.src-rmv        { background: #1e3a5f; border-left-color: var(--clr-transport); }
-    .dark .card.sel.src-dwd        { background: #2d2860; border-left-color: var(--clr-weather); }
-    .dark .card.sel.src-polizei    { background: #3d2028; border-left-color: var(--clr-police); }
-    .dark .card.sel.src-autobahn   { background: #3d3018; border-left-color: var(--clr-roads); }
-    .dark .card.sel.src-baustellen { background: #3d3018; border-left-color: var(--clr-roads); }
-    .dark .card.sel.src-events     { background: #1e3d32; border-left-color: var(--clr-events); }
-    .dark .card.sel.src-messe      { background: #1e3d32; border-left-color: var(--clr-events); }
-    .dark .card.sel.src-sports     { background: #1e3d32; border-left-color: var(--clr-sports); }
-    .dark .card.sel.src-strike     { background: #3d2e18; border-left-color: var(--clr-strike); }
-    .dark .card.card-pulse         { background: #1c1a2e; border-left-color: #818cf8; }
-    .dark .card.card-pulse:hover   { background: #262548; }
-    .dark .card.card-pulse .card-src { color: #a5b4fc; }
-    .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
-    .dark .card.card-removed:hover { background: #222c3a !important; }
+    .dark .card[class*="src-"]        { border-left-color: var(--clr-border); }
+    .dark .card:hover                 { background: #222c3a; }
+    .dark .card.sel                   { background: #283040; border-left-color: #4a5568; }
+    .dark .card.card-pulse            { background: var(--clr-surface); border-left-color: var(--clr-border); }
+    .dark .card.card-pulse:hover      { background: #222c3a; }
+    .dark .card.card-pulse .card-src  { color: var(--clr-muted); }
+    .dark .card.card-removed          { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .dark .card.card-removed:hover    { background: #222c3a !important; }
+    .dark .card.card-pinned[class*="src-"] { background: var(--clr-surface); }
 
-    .dark .chip.src-sports.on        { background: #2e2618; }
-    .dark .chip.src-rmv.on           { background: #1e2d42; }
-    .dark .chip.src-dwd.on           { background: #262548; }
-    .dark .chip.src-polizei.on       { background: #2a2028; }
-    .dark .chip.src-autobahn.on      { background: #2a2618; }
-    .dark .chip.src-baustellen.on    { background: #2a2618; }
-    .dark .chip.src-events.on        { background: #1e2e2a; }
-    .dark .chip.src-strike.on        { background: #2a2028; }
+    .dark .chip[class*="src-"].on,
     .dark .chip.svc.on,
-    .dark .chip.line.on,
-    .dark .chip.line-picker          { background: #1e2d42; }
-    .dark .chip.line-picker.part     { background: #2a2618; border-color: #92400e; color: #fcd34d; }
-    .dark .chip.roads-picker         { background: #2a2618; }
-    .dark .chip.roads-picker.part    { background: #2a2618; border-color: #92400e; color: #fcd34d; }
+    .dark .chip.line.on              { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.line-picker          { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.line-picker.part     { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
+    .dark .chip.roads-picker         { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.roads-picker.part    { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip-count                { background: rgba(255,255,255,0.12); }
+
+    .dark .status-pill.ongoing     { background: #2a3f5e; color: #c8d6e8; border: 1px solid #3a5070; }
+    .dark .status-pill.upcoming    { background: #233350; color: #9bb0cc; border: 1px solid #2e4262; }
+    .dark .status-pill.longrunning { background: #1e2c44; color: #7a92b0; border: 1px solid #283a52; }
+    .dark .status-pill.neutral     { background: #1a2536; color: #5a6e84; border: 1px solid #222e3e; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -1057,6 +1032,13 @@
     .dark .feed::-webkit-scrollbar-track       { background: #131921; }
     .dark .feed::-webkit-scrollbar-thumb       { background: #2a3344; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #3a4456; }
+
+    .dark .marker-cluster-small           { background-color: rgba(35,51,80,0.5); }
+    .dark .marker-cluster-small div       { background-color: #233350; color: #9bb0cc; }
+    .dark .marker-cluster-medium          { background-color: rgba(42,63,94,0.5); }
+    .dark .marker-cluster-medium div      { background-color: #2a3f5e; color: #c8d6e8; }
+    .dark .marker-cluster-large           { background-color: rgba(58,80,112,0.5); }
+    .dark .marker-cluster-large div       { background-color: #3a5070; color: #e0e8f0; }
 
     .dark .lines-popup               { background: #1c2433; border-color: #2a3344; }
     .dark .lines-popup-actions       { border-color: #2a3344; }
