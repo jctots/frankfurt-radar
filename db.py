@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS quiet_buffer (
 CREATE TABLE IF NOT EXISTS pulse_history (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     generated_at   TEXT NOT NULL,
+    title          TEXT NOT NULL DEFAULT '',
     summary        TEXT NOT NULL,
     travel_ok      INTEGER NOT NULL DEFAULT 1,
     categories     TEXT NOT NULL DEFAULT '{}',
@@ -158,6 +159,10 @@ def init_db() -> None:
                 recommendation TEXT NOT NULL DEFAULT '',
                 alert_count INTEGER NOT NULL DEFAULT 0
             )""")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE pulse_history ADD COLUMN title TEXT NOT NULL DEFAULT ''")
         except Exception:
             pass
         for col in ("avoid", "crowding", "references_json"):
@@ -670,10 +675,11 @@ def store_pulse(pulse: dict) -> None:
         )
         conn.execute(
             """INSERT INTO pulse_history
-               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count, references_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (generated_at, title, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count, references_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 pulse["generated_at"],
+                pulse.get("title", ""),
                 pulse["summary"],
                 1 if pulse.get("travel_ok", True) else 0,
                 json.dumps(pulse.get("categories", {})),

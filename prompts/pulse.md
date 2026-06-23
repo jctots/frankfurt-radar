@@ -23,10 +23,13 @@ Pre-computed category statuses (calculated from alert counts and historical base
 Produce a JSON object with ONLY these fields:
 
 {{
+  "title": "Short informational headline. MUST be under 60 characters.",
   "summary": "2-3 short sentences. MUST be under 300 characters.",
   "recommendation": "One short actionable sentence. MUST be under 100 characters. If nothing notable: 'No special action needed.'",
   "references": ["alert_id_1", "alert_id_2", "alert_id_3"]
 }}
+
+title: A high-level headline for the current situation — what a user needs to know at a glance. Informational, not actionable (that's the recommendation). Examples: "Heat warning + nighttime S-Bahn disruptions", "IRONMAN road closures this weekend", "All clear — routine roadworks only". Shown in the alert feed alongside individual alert titles.
 
 references: Return the alert_id values (from the alerts JSON above) of the top 3 alerts that most influenced the summary. Order by significance. If fewer than 3 alerts are active, return fewer. These are shown to users as clickable source citations.
 
