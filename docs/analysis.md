@@ -35,17 +35,7 @@ This layer handles everything that can be computed precisely without interpretat
 
 **Status classification and trend detection** use Exponential Weighted Moving Average (EWMA) — a standard technique for event-count anomaly detection (used by the CDC for disease outbreak surveillance). EWMA gives more weight to recent data while older observations gradually fade, providing a self-correcting baseline that adapts to long-running conditions.
 
-### Current implementation (v0.9.3)
-
-Status uses a 7-day simple rolling average at the same hour (±1 hour window). Trend compares the current status level against the previous pulse's level. This approach has known issues:
-
-- **Cross-hour comparison problem** — A `low` at 7am (baseline: 20 alerts) and a `high` at 9am (baseline: 0 alerts) are not comparable, leading to misleading trends.
-- **7-day warm-up** — Cold start produces only `clear`/`low` until enough history accumulates.
-- **1-hour trend window** — Comparing only to the previous pulse is too noisy and doesn't show trajectory.
-
-### Planned: EWMA-based status and trend (v0.10)
-
-Replace the simple rolling average with EWMA for both status and trend from a single mechanism.
+### EWMA-based status and trend (v0.10)
 
 **Core formula:**
 ```
@@ -56,7 +46,7 @@ Where α (smoothing factor) controls responsiveness:
 - α close to 1 → reacts fast, noisy
 - α close to 0 → reacts slowly, smooth
 
-**Recommended α = 0.3** for hourly data — smooth enough that long-running alerts (nearly half of all alerts run for >1 month) naturally become the baseline, while real changes surface within a few hours.
+**α = 0.3** for hourly data — smooth enough that long-running alerts (nearly half of all alerts run for >1 month) naturally become the baseline, while real changes surface within a few hours. EWMA is computed from the full 7-day pulse history (oldest-first traversal); the first count initializes the EWMA value.
 
 **Storage:** EWMA value stored per category in pulse_history alongside count:
 ```json
@@ -80,12 +70,9 @@ Where α (smoothing factor) controls responsiveness:
 | `worsening` | Count > EWMA × 1.3 |
 | `improving` | Count < EWMA × 0.7 |
 
-**Advantages over current approach:**
-- No cross-hour comparison problem — EWMA encodes the actual trajectory, not hour-specific snapshots
-- No 7-day warm-up — works from the first pulse; first count = initial EWMA
-- Long-running alerts naturally fade into the baseline via exponential decay
-- Single parameter (α) to tune instead of multiple thresholds
-- Status and trend derived from the same mechanism
+**Cold start:** No history → EWMA is `None` → any non-zero count gets `moderate` status and `stable` trend. First pulse with data initializes the EWMA; subsequent pulses refine it.
+
+**Prior approach (v0.9.3):** Used a 7-day simple rolling average at the same hour (±1 hour window) for status, and compared status levels between consecutive pulses for trend. This had cross-hour comparison problems (a `low` at 7am and `high` at 9am were not comparable), required 7 days of data to warm up, and produced noisy trends from single-pulse comparisons.
 
 ### 2. LLM layer (Gemini Flash)
 
@@ -132,16 +119,12 @@ The log structure mirrors the three analysis layers:
     "total_alerts": 42,
     "fresh_alerts": 15,
     "stale_summary": "12 autobahn, 8 baustellen",
-    "baseline_7day": {
-      "transport": {"avg": 6.5, "samples": 14},
-      ...
-    },
-    "previous_pulse_categories": {
-      "transport": {"status": "low", "count": 5},
+    "ewma_per_category": {
+      "transport": 6.2,
       ...
     },
     "computed_categories": {
-      "transport": {"status": "moderate", "trend": "worsening", "count": 8},
+      "transport": {"status": "moderate", "trend": "worsening", "count": 8, "ewma": 6.2},
       ...
     }
   },
@@ -162,7 +145,7 @@ The log structure mirrors the three analysis layers:
 ```
 
 Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the alert counts correct? What was the baseline average? Why did a category get `moderate` vs. `low`?
+- **Layer 1**: Were the alert counts correct? What was the EWMA? Why did a category get `moderate` vs. `low`?
 - **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules?
 - **Layer 3**: Does the final output match what the deterministic layer computed?
 
@@ -170,14 +153,12 @@ Provide a debug log file together with this document as context when asking an L
 
 ## Current limitations
 
-- **Simple rolling average baseline (v0.9.3)** — Status uses a 7-day hour-matched average with known cross-hour comparison issues. EWMA replacement planned for v0.10.
 - **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
-- **No severity weighting** — All alerts count equally toward category status. A severe weather warning counts the same as a minor one.
+- **No severity weighting** — All alerts count equally toward the EWMA baseline and status thresholds. A severe weather warning counts the same as a minor one.
 - **Single geographic scope** — All of Frankfurt is treated as one zone. A disruption in Sachsenhausen affects the same category as one in Bockenheim.
 
 ## Future improvements
 
-- **EWMA-based status and trend (v0.10)** — Replace simple rolling average with exponential weighted moving average for both status and trend from a single mechanism. See "Planned: EWMA-based status and trend" section above.
 - **Alert archive** — Persist every alert lifecycle (appeared, updated, removed) for historical pattern detection and recurrence analysis
 - **Severity-weighted status** — Weight alert counts by severity level so a single extreme weather warning outweighs three minor ones
 - **Geographic clustering** — Detect when multiple alerts converge on the same area and flag spatial hotspots

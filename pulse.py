@@ -15,7 +15,6 @@ from pulse_categories import (
     compute_categories,
     compute_travel_ok,
     count_alerts_by_category,
-    get_baseline_detail,
 )
 
 log = logging.getLogger(__name__)
@@ -271,8 +270,6 @@ def generate_pulse(config: dict) -> dict | None:
     log.info("Pulse generated: %d alerts, travel_ok=%s", len(alerts), pulse["travel_ok"])
 
     alert_counts = count_alerts_by_category(alerts)
-    baseline_detail = get_baseline_detail(history_pulses, now.hour)
-    prev_cats = (previous_pulse or {}).get("categories") or {}
     _write_debug_log({
         "generated_at": generated_at,
         "current_hour_utc": now.hour,
@@ -281,14 +278,10 @@ def generate_pulse(config: dict) -> dict | None:
             "total_alerts": len(alerts),
             "fresh_alerts": fresh_count,
             "stale_summary": stale_summary,
-            "baseline_7day": {
-                cat: baseline_detail.get(cat, {"avg": None, "samples": 0})
+            "ewma_per_category": {
+                cat: categories.get(cat, {}).get("ewma")
                 for cat in alert_counts
             },
-            "previous_pulse_categories": {
-                cat: {"status": d.get("status"), "count": d.get("count")}
-                for cat, d in prev_cats.items()
-            } if prev_cats else None,
             "computed_categories": categories,
         },
         "layer_2_llm": {
