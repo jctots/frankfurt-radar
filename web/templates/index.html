@@ -2149,7 +2149,7 @@ function renderFeed() {
   // ── Active Alerts (recent + optional long-running, optional future hidden) ──
   const recentAll = visible();
   const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
-  const _pinnableSrc = s => s === 'events' || s === 'sports' || s === 'dwd';
+  const _pinnableSrc = s => s === 'events' || s === 'messe' || s === 'sports' || s === 'dwd';
   const _tomorrow = new Date(); _tomorrow.setDate(_tomorrow.getDate() + 1);
   const _isTodayOrTomorrow = a => a.valid_from && (new Date(a.valid_from).toDateString() === new Date().toDateString() || new Date(a.valid_from).toDateString() === _tomorrow.toDateString());
   const _shouldPin = a => _pinnableSrc(a.source) && (!isFuture(a) || _isTodayOrTomorrow(a));
