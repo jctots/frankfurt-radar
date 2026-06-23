@@ -452,6 +452,15 @@
     .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
     .card.card-pinned.src-sports { background: #fff7ed; }
+    .card.card-pulse { border-left-color: #6366f1; background: #f5f3ff; }
+    .card.card-pulse:hover { background: #ede9fe; }
+    .card.card-pulse .card-src { color: #6366f1; }
+    .pulse-card-cats { display: inline-flex; gap: 5px; margin-left: 6px; }
+    .pulse-card-cat { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; line-height: 1; }
+    .pulse-card-cat-arrow.worsening { color: #ef4444; }
+    .pulse-card-cat-arrow.improving { color: #22c55e; }
+    .pulse-card-cat-arrow.stable    { color: var(--clr-muted); }
+    .pulse-card-cat.cat-clear { opacity: 0.4; }
     .pin-badge { position: absolute; top: 4px; right: 6px; font-size: 12px; opacity: 0.45; line-height: 1; pointer-events: none; }
     .card:hover              { background: #f8fafc; }
     .card.src-rmv:hover      { background: #eff6ff; }
@@ -1021,6 +1030,9 @@
     .dark .card.sel.src-events     { background: #1e3d32; border-left-color: var(--clr-events); }
     .dark .card.sel.src-sports     { background: #3d2e18; border-left-color: var(--clr-sports); }
     .dark .card.sel.src-strike     { background: #3d2028; border-left-color: var(--clr-strike); }
+    .dark .card.card-pulse         { background: #1c1a2e; border-left-color: #818cf8; }
+    .dark .card.card-pulse:hover   { background: #262548; }
+    .dark .card.card-pulse .card-src { color: #a5b4fc; }
     .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .dark .card.card-removed:hover { background: #222c3a !important; }
 
@@ -2097,6 +2109,32 @@ function _renderRemovedCard(a) {
 </div>`;
 }
 
+function _renderPulseCard() {
+  if (!_pulseData) return '';
+  const pulse = _pulseData;
+  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+  const cats = pulse.categories || {};
+  let catsHtml = '';
+  for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
+    const cat = cats[key];
+    if (!cat) continue;
+    const trend = cat.trend || 'stable';
+    const isClear = cat.status === 'clear' && trend === 'stable';
+    const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
+    catsHtml += `<span class="pulse-card-cat${isClear ? ' cat-clear' : ''}"><span class="pulse-card-cat-icon">${meta.emoji}</span><span class="pulse-card-cat-arrow ${trend}">${arrow}</span></span>`;
+  }
+  return `<div class="card card-pulse card-pinned" onclick="resetState(); _pulseManualClose = false; _showPulseOverlay(); _track('pulse_card_click')">
+  <span class="pin-badge">📌</span><div class="card-inner">
+    <span class="card-icon">📊</span>
+    <div class="card-body">
+      <div class="card-labels"><span class="card-src">City Pulse</span></div>
+      <div class="card-title">${esc(pulse.summary || 'City Pulse')}</div>
+      <div class="card-meta"><span>as of ${time}</span><span class="pulse-card-cats">${catsHtml}</span></div>
+    </div>
+  </div>
+</div>`;
+}
+
 function renderFeed() {
   updateTicker();
 
@@ -2115,10 +2153,12 @@ function renderFeed() {
   document.getElementById('future-count').textContent = recentAll.filter(isFuture).length || '0';
 
   const activeFeed  = document.getElementById('feed');
+  const pulseCardHtml = _renderPulseCard();
   const pinnedHtml  = pinned.map(a => _renderCard(a, { pinned: true })).join('');
   const regularHtml = regular.map(_renderCard).join('');
   const longHtml    = longList.map(a => _renderCard(a, { showAge: true })).join('');
-  activeFeed.innerHTML = pinnedHtml + regularHtml + longHtml
+  const feedContent = pulseCardHtml + pinnedHtml + regularHtml + longHtml;
+  activeFeed.innerHTML = feedContent
     || '<div class="empty-state">No active alerts — Frankfurt is quiet.</div>';
 
   // ── Cleared ────────────────────────────────────────────────────────────────
