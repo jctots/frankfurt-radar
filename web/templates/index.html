@@ -2023,12 +2023,12 @@ function fmtPostedAge(iso) {
   const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
   if (dDay < today) return 'Posted at ' + fmtDateTimeShort(iso);
   const diffMs = now - d;
-  if (diffMs < 0) return 'Just now';
+  if (diffMs < 0) return 'Posted just now';
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return 'Posted just now';
+  if (mins < 60) return `Posted ${mins} min ago`;
   const hrs = Math.floor(diffMs / 3600000);
-  return `${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
+  return `Posted ${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
 }
 
 function fmtTime(iso) {
@@ -2251,8 +2251,6 @@ const TREND_DISPLAY = {
 
 function renderPulseOverlay(pulse) {
   if (!pulse) return '';
-  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
-
   const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
   const staleHtml = ageMs > 2 * 3600_000
     ? `<div class="pulse-stale">Last updated ${Math.round(ageMs / 3600_000)}h ago</div>` : '';
@@ -2291,7 +2289,7 @@ function renderPulseOverlay(pulse) {
 
   return `<div class="pulse-header">
       <span class="pulse-title">📊 City Pulse</span>
-      <span class="pulse-time">as of ${time}</span>
+      <span class="pulse-time">${fmtPostedAge(pulse.generated_at).replace(/^Posted /, '')}</span>
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
     ${pulse.title ? `<div class="pulse-subtitle">${esc(pulse.title)}</div>` : ''}
