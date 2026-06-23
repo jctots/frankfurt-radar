@@ -193,10 +193,10 @@ class TestGeneratePulse:
 
         result = generate_pulse({"pulse": {"enabled": True}})
         assert result is not None
-        assert result["travel_ok"] is True
+        assert result["travel_ok"] is False  # cold start: no EWMA → moderate → travel not ok
         assert result["summary"] == "S1 delays reported"
         assert result["alert_count"] == 1
-        assert result["categories"]["transport"]["status"] == "low"
+        assert result["categories"]["transport"]["status"] == "moderate"
 
 
 class TestGenerateDailySummary:

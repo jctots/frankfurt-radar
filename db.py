@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS pulse_history (
     avoid          TEXT NOT NULL DEFAULT '[]',
     crowding       TEXT NOT NULL DEFAULT '[]',
     recommendation TEXT NOT NULL DEFAULT '',
-    alert_count    INTEGER NOT NULL DEFAULT 0
+    alert_count    INTEGER NOT NULL DEFAULT 0,
+    references_json TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS pulse_daily_summary (
@@ -142,6 +143,10 @@ def init_db() -> None:
         except Exception:
             pass
         try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN last_pulse_at TEXT")
+        except Exception:
+            pass
+        try:
             conn.execute("""CREATE TABLE IF NOT EXISTS pulse_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 generated_at TEXT NOT NULL,
@@ -155,7 +160,7 @@ def init_db() -> None:
             )""")
         except Exception:
             pass
-        for col in ("avoid", "crowding"):
+        for col in ("avoid", "crowding", "references_json"):
             try:
                 conn.execute(f"ALTER TABLE pulse_history ADD COLUMN {col} TEXT NOT NULL DEFAULT '[]'")
             except Exception:
@@ -477,7 +482,7 @@ def remove_subscriber(chat_id: int) -> bool:
 def get_active_subscribers() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, chat_id, preferences, last_briefing_at FROM subscribers WHERE active = 1"
+            "SELECT id, chat_id, preferences, last_briefing_at, last_pulse_at FROM subscribers WHERE active = 1"
         ).fetchall()
     result = []
     for row in rows:
@@ -491,6 +496,14 @@ def update_last_briefing(subscriber_id: int) -> None:
     with _conn() as conn:
         conn.execute(
             "UPDATE subscribers SET last_briefing_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            (subscriber_id,),
+        )
+
+
+def update_last_pulse(subscriber_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET last_pulse_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             (subscriber_id,),
         )
 
@@ -657,8 +670,8 @@ def store_pulse(pulse: dict) -> None:
         )
         conn.execute(
             """INSERT INTO pulse_history
-               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (generated_at, summary, travel_ok, categories, avoid, crowding, recommendation, alert_count, references_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 pulse["generated_at"],
                 pulse["summary"],
@@ -668,6 +681,7 @@ def store_pulse(pulse: dict) -> None:
                 json.dumps(pulse.get("crowding", [])),
                 pulse.get("recommendation", ""),
                 pulse.get("alert_count", 0),
+                json.dumps(pulse.get("references", [])),
             ),
         )
 
@@ -678,6 +692,8 @@ def _parse_pulse_row(row) -> dict:
     d["categories"] = json.loads(d["categories"])
     d["avoid"] = json.loads(d.get("avoid") or "[]")
     d["crowding"] = json.loads(d.get("crowding") or "[]")
+    d["references"] = json.loads(d.get("references_json") or "[]")
+    d.pop("references_json", None)
     return d
 
 

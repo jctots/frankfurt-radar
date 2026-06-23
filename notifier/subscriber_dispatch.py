@@ -14,6 +14,7 @@ from db import (
     get_unsent_for_subscriber,
     record_sent_alert,
     update_last_briefing,
+    update_last_pulse,
 )
 from notifications import notify_subscriber_dm
 from models import format_alert_message
@@ -242,13 +243,21 @@ def dispatch_pulse_to_subscribers(config: dict) -> int:
     if not pulse:
         return 0
 
-    subscribers = get_active_subscribers()
-    if not subscribers:
-        return 0
-
     tz = ZoneInfo("Europe/Berlin")
     now_local = datetime.now(tz)
     current_hour = f"{now_local.hour:02d}:00"
+
+    pulse_gen = pulse.get("generated_at", "")
+    try:
+        pulse_hour = int(pulse_gen[11:13])
+    except (ValueError, IndexError):
+        return 0
+    if pulse_hour != now_local.hour:
+        return 0
+
+    subscribers = get_active_subscribers()
+    if not subscribers:
+        return 0
 
     total_sent = 0
     for sub in subscribers:
@@ -256,6 +265,16 @@ def dispatch_pulse_to_subscribers(config: dict) -> int:
         pulse_time = prefs.get("pulse_time")
         if not pulse_time or pulse_time != current_hour:
             continue
+
+        last_pulse = sub.get("last_pulse_at")
+        if last_pulse:
+            try:
+                last_dt = datetime.fromisoformat(last_pulse.replace("Z", "+00:00"))
+                last_local = last_dt.astimezone(tz)
+                if last_local.date() == now_local.date() and last_local.hour == now_local.hour:
+                    continue
+            except (ValueError, TypeError):
+                pass
 
         body = _fmt_pulse_message(pulse, config)
         ok = notify_subscriber_dm(
@@ -269,6 +288,7 @@ def dispatch_pulse_to_subscribers(config: dict) -> int:
         if not ok:
             deactivate_subscriber(sub["chat_id"])
             continue
+        update_last_pulse(sub["id"])
         total_sent += 1
 
     if total_sent:
