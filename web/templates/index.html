@@ -1486,7 +1486,6 @@ function initMap() {
   closeBtn.title = 'Close map';
   L.DomEvent.on(closeBtn, 'click', (e) => {
     L.DomEvent.stopPropagation(e);
-    resetState();
     closeMobileMap();
   });
   map.getContainer().appendChild(controlsRow);
@@ -2105,7 +2104,7 @@ function _renderRemovedCard(a) {
 function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
-  const dateLine = 'Posted at ' + esc(fmtDateTimeShort(pulse.generated_at));
+  const dateLine = esc(fmtDateTimeShort(pulse.generated_at));
   return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">📊</span>
@@ -2196,8 +2195,8 @@ function openMobileMap(cb) {
 }
 
 function closeMobileMap() {
+  resetState();
   document.body.classList.remove('mobile-map-open');
-  if (map) map.setView(FRANKFURT, 12, { animate: false });
 }
 
 function toggleMobileMap() {
