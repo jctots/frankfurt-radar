@@ -691,8 +691,10 @@
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     .dark .pulse-recommendation { background: #1a2332; }
-    .dark .pulse-disclaimer-toggle { color: #8892a4; text-decoration-color: #2a3344; }
-    .dark .pulse-disclaimer-toggle:hover { color: #d1d5db; text-decoration-color: #8892a4; }
+    .dark .pulse-disclaimer-toggle { color: #8892a4; }
+    .dark .pulse-disclaimer-toggle:hover { color: #d1d5db; }
+    .dark .pulse-disclaimer-cta { text-decoration-color: #2a3344; }
+    .dark .pulse-disclaimer-toggle:hover .pulse-disclaimer-cta { text-decoration-color: #8892a4; }
     .dark .pulse-ref { color: #d1d5db; }
     .dark .pulse-ref:hover { color: #60a5fa; }
     .dark .pulse-ref-arrow { color: #8892a4; }
@@ -702,17 +704,17 @@
     .dark .pulse-method a:hover { color: #d1d5db; }
     .pulse-stale { font-size: 11px; color: var(--clr-muted); font-style: italic; margin-top: 4px; }
     .pulse-disclaimer-toggle {
-      display: flex; align-items: center; gap: 4px;
+      display: flex; flex-direction: column; align-items: center;
       font-size: 10px; color: var(--clr-muted); font-style: italic;
       cursor: pointer; margin-top: 10px;
       background: none; border: none; padding: 0;
-      font-family: inherit; line-height: 1.5; width: 100%;
-      text-decoration: underline; text-decoration-style: dotted;
-      text-underline-offset: 3px; text-decoration-color: var(--clr-border);
-      transition: color 0.15s, text-decoration-color 0.15s;
+      font-family: inherit; line-height: 1.6; width: 100%;
+      transition: color 0.15s;
     }
-    .pulse-disclaimer-toggle:hover { color: var(--clr-text); text-decoration-color: var(--clr-muted); }
-    .pulse-disclaimer-toggle .arrow { display: inline-block; transition: transform 0.2s; font-size: 8px; flex-shrink: 0; font-style: normal; text-decoration: none; }
+    .pulse-disclaimer-toggle:hover { color: var(--clr-text); }
+    .pulse-disclaimer-cta { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; text-decoration-color: var(--clr-border); display: flex; align-items: center; gap: 4px; }
+    .pulse-disclaimer-toggle:hover .pulse-disclaimer-cta { text-decoration-color: var(--clr-muted); }
+    .pulse-disclaimer-toggle .arrow { display: inline-block; transition: transform 0.2s; font-size: 8px; font-style: normal; }
     .pulse-disclaimer-toggle.open .arrow { transform: rotate(90deg); }
     .pulse-collapsible { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
     .pulse-collapsible.open { max-height: 400px; }
@@ -2233,7 +2235,7 @@ function renderPulseOverlay(pulse) {
   const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)">AI-generated summary · verify before acting <span class="arrow">▸</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta"><span class="arrow">▸</span> Click for sources &amp; methodology</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">
