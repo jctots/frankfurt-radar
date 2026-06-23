@@ -455,7 +455,7 @@
     .card.card-pulse { border-left-color: #6366f1; background: #f5f3ff; }
     .card.card-pulse:hover { background: #ede9fe; }
     .card.card-pulse .card-src { color: #6366f1; }
-    .pulse-card-cats { display: inline-flex; gap: 5px; margin-left: 6px; }
+    .pulse-card-cats { display: inline-flex; gap: 5px; margin-left: auto; }
     .pulse-card-cat { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; line-height: 1; }
     .pulse-card-cat-arrow.worsening { color: #ef4444; }
     .pulse-card-cat-arrow.improving { color: #22c55e; }
@@ -2112,7 +2112,7 @@ function _renderRemovedCard(a) {
 function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
-  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+  const dateLine = 'Posted at ' + esc(fmtDateTimeShort(pulse.generated_at));
   const cats = pulse.categories || {};
   let catsHtml = '';
   for (const [key, meta] of Object.entries(PULSE_CAT_META)) {
@@ -2123,13 +2123,13 @@ function _renderPulseCard() {
     const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
     catsHtml += `<span class="pulse-card-cat${isClear ? ' cat-clear' : ''}"><span class="pulse-card-cat-icon">${meta.emoji}</span><span class="pulse-card-cat-arrow ${trend}">${arrow}</span></span>`;
   }
-  return `<div class="card card-pulse card-pinned" onclick="resetState(); _pulseManualClose = false; _showPulseOverlay(); _track('pulse_card_click')">
+  return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">📊</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.summary || 'City Pulse')}</div>
-      <div class="card-meta"><span>as of ${time}</span><span class="pulse-card-cats">${catsHtml}</span></div>
+      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="pulse-card-cats">${catsHtml}</span><span class="card-meta-spacer"></span></div>
     </div>
   </div>
 </div>`;
@@ -2295,6 +2295,18 @@ function togglePulseDetails(btn) {
   btn.classList.toggle('open');
   btn.nextElementSibling.classList.toggle('open');
   _track('pulse_details_toggle');
+}
+
+function selectPulseCard() {
+  const show = () => {
+    resetState();
+    map.setView(FRANKFURT, 12, { animate: true });
+    _pulseManualClose = false;
+    _showPulseOverlay();
+    _track('pulse_card_click');
+  };
+  if (isMobileView()) openMobileMap(show);
+  else show();
 }
 
 
