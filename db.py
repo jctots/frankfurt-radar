@@ -143,6 +143,10 @@ def init_db() -> None:
         except Exception:
             pass
         try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN last_pulse_at TEXT")
+        except Exception:
+            pass
+        try:
             conn.execute("""CREATE TABLE IF NOT EXISTS pulse_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 generated_at TEXT NOT NULL,
@@ -478,7 +482,7 @@ def remove_subscriber(chat_id: int) -> bool:
 def get_active_subscribers() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, chat_id, preferences, last_briefing_at FROM subscribers WHERE active = 1"
+            "SELECT id, chat_id, preferences, last_briefing_at, last_pulse_at FROM subscribers WHERE active = 1"
         ).fetchall()
     result = []
     for row in rows:
@@ -492,6 +496,14 @@ def update_last_briefing(subscriber_id: int) -> None:
     with _conn() as conn:
         conn.execute(
             "UPDATE subscribers SET last_briefing_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            (subscriber_id,),
+        )
+
+
+def update_last_pulse(subscriber_id: int) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE subscribers SET last_pulse_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             (subscriber_id,),
         )
 
