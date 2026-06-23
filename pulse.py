@@ -266,6 +266,7 @@ def generate_pulse(config: dict) -> dict | None:
 
     pulse = {
         "generated_at": generated_at,
+        "title": result.get("title", ""),
         "summary": result.get("summary", ""),
         "travel_ok": compute_travel_ok(categories),
         "categories": categories,
