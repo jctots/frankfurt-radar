@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
 from pipeline import process_alerts
 from extraction import extraction_ok, reset_extraction_health
-from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StaticSportsPoller, StrikePoller, TicketmasterPoller
+from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StrikePoller, TicketmasterPoller
 from translation import reset_translation_health, translation_ok
 
 load_dotenv()
@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 
 CONFIG_FILE  = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
 EVENTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "city_events.yaml"
+MESSE_FILE   = Path(os.getenv("DATA_DIR", "data")) / "messe_events.yaml"
 SPORTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "sports_events.yaml"
 
 
@@ -39,6 +40,13 @@ def load_city_events() -> list:
         log.warning("city_events.yaml not found — no city events will be shown")
         return []
     with EVENTS_FILE.open(encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
+
+
+def load_messe_events() -> list:
+    if not MESSE_FILE.exists():
+        return []
+    with MESSE_FILE.open(encoding="utf-8") as f:
         return yaml.safe_load(f) or []
 
 
@@ -128,12 +136,20 @@ def main() -> None:
             events=load_city_events(),
             advance_days=events_cfg.get("advance_days", 7),
         ))
+    messe_cfg = config.get("messe", {})
+    if messe_cfg.get("enabled", False):
+        pollers.append(StaticEventsPoller(
+            events=load_messe_events(),
+            advance_days=messe_cfg.get("advance_days", 14),
+            source="messe",
+        ))
     sports_cfg = config.get("sports", {})
     if sports_cfg.get("enabled", False):
         advance_days = sports_cfg.get("advance_days", 3)
-        pollers.append(StaticSportsPoller(
+        pollers.append(StaticEventsPoller(
             events=load_sports_events(),
             advance_days=advance_days,
+            source="sports",
         ))
         # Network sports pollers run at most once per day
         last_sports = get_meta("last_sports_polled_at")

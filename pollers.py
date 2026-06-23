@@ -427,10 +427,11 @@ def _fmt_event_date(dt: datetime) -> str:
 
 
 class StaticEventsPoller(BasePoller):
-    def __init__(self, events: list[dict], advance_days: int = 7):
+    def __init__(self, events: list[dict], advance_days: int = 7, source: str = "events"):
         super().__init__()
         self.events = events
         self.advance_days = advance_days
+        self._source = source
 
     def fetch(self) -> list[Alert]:
         now = datetime.now(timezone.utc)
@@ -446,15 +447,15 @@ class StaticEventsPoller(BasePoller):
                 continue
             slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
             alerts.append(Alert(
-                id=f"city-event-{slug}",
-                source="events",
+                id=f"{self._source}-event-{slug}",
+                source=self._source,
                 title=ev["name"],
                 body=ev.get("details", ""),
                 url=ev.get("url"),
                 published_at=(start - timedelta(days=self.advance_days)).isoformat(),
                 valid_from=start.isoformat(),
                 valid_until=end.isoformat(),
-                service=None,
+                service=ev.get("sport"),
                 lat=ev.get("lat"),
                 lon=ev.get("lon"),
                 location_label=ev.get("location"),
@@ -559,42 +560,6 @@ class TicketmasterPoller(BasePoller):
         )
 
 
-class StaticSportsPoller(BasePoller):
-    def __init__(self, events: list[dict], advance_days: int = 3):
-        super().__init__()
-        self.events = events
-        self.advance_days = advance_days
-
-    def fetch(self) -> list[Alert]:
-        now = datetime.now(timezone.utc)
-        alerts = []
-        for ev in self.events:
-            try:
-                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
-                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
-            except (KeyError, ValueError):
-                log.warning("StaticSports: skipping malformed entry %r", ev)
-                continue
-            if not (start - timedelta(days=self.advance_days) <= now <= end):
-                continue
-            slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
-            alerts.append(Alert(
-                id=f"sport-event-{slug}",
-                source="sports",
-                title=ev["name"],
-                body=ev.get("details", ""),
-                url=ev.get("url"),
-                published_at=(start - timedelta(days=self.advance_days)).isoformat(),
-                valid_from=start.isoformat(),
-                valid_until=end.isoformat(),
-                service=ev.get("sport"),
-                lat=ev.get("lat"),
-                lon=ev.get("lon"),
-                location_label=ev.get("location"),
-                image=ev.get("image") or None,
-            ))
-        log.info("StaticSports: %d events in window", len(alerts))
-        return alerts
 
 
 class OpenLigaPoller(BasePoller):

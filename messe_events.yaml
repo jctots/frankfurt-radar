@@ -1,0 +1,96 @@
+# Messe Frankfurt trade fairs — update dates each year
+#
+# Source: https://www.messefrankfurt.com and https://www.neventum.com/tradeshows/frankfurt
+#
+# Only major events with significant city impact (crowd size, transit load, hotel occupancy).
+# Small niche fairs (< 10k visitors) are excluded unless they cause notable disruption.
+#
+# Fields:
+#   name    : display name (required)
+#   start   : YYYY-MM-DD — Frankfurt local time (Europe/Berlin) (required)
+#   end     : YYYY-MM-DD — Frankfurt local time (Europe/Berlin) (required)
+#   location: venue (optional)
+#   lat/lon : Messe Frankfurt main entrance coordinates (optional)
+#   details : transit and crowd impact (optional)
+#   url     : official event page (optional)
+
+- name: "Eurobike"
+  start: "2026-06-24"
+  end: "2026-06-27"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "Europe's largest cycling trade fair. S-Bahn S3/S4/S5/S6 (Messe station) and U4 (Festhalle/Messe) heavily loaded; parking garages around Ludwig-Erhard-Anlage fill early."
+  url: "https://www.eurobike.com"
+
+- name: "Automechanika Frankfurt"
+  start: "2026-09-08"
+  end: "2026-09-12"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "World's largest automotive aftermarket trade fair — 130k+ visitors. Heavy transit load on S-Bahn and U4 to Messe; hotels across the city booked out."
+  url: "https://automechanika.messefrankfurt.com"
+
+- name: "Frankfurter Buchmesse (Book Fair)"
+  start: "2026-10-07"
+  end: "2026-10-11"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "World's largest book fair — 200k+ visitors over 5 days. Weekend public days are the busiest. S-Bahn and U4 to Messe extremely crowded; extra services usually scheduled. Hotels fully booked city-wide."
+  url: "https://www.buchmesse.de"
+
+- name: "Formnext"
+  start: "2026-11-17"
+  end: "2026-11-20"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "Leading additive manufacturing trade fair — 35k+ visitors. Moderate transit impact on S-Bahn and U4 to Messe."
+  url: "https://formnext.messefrankfurt.com"
+
+- name: "Heimtextil"
+  start: "2027-01-12"
+  end: "2027-01-15"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "International trade fair for home and contract textiles — 60k+ visitors. S-Bahn and U4 to Messe busy during morning arrival and evening departure peaks."
+  url: "https://heimtextil.messefrankfurt.com"
+
+- name: "Christmasworld"
+  start: "2027-01-29"
+  end: "2027-02-02"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "International trade fair for seasonal and festive decoration — runs alongside Ambiente and Creativeworld. Combined 130k+ visitors across all three fairs."
+  url: "https://christmasworld.messefrankfurt.com"
+
+- name: "Ambiente"
+  start: "2027-01-29"
+  end: "2027-02-02"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "World's leading consumer goods trade fair — runs alongside Christmasworld and Creativeworld. Combined 130k+ visitors; S-Bahn and U4 extremely crowded. Hotels booked out city-wide."
+  url: "https://ambiente.messefrankfurt.com"
+
+- name: "ISH Frankfurt"
+  start: "2027-03-15"
+  end: "2027-03-19"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "World's leading trade fair for HVAC, water, and energy — 190k+ visitors. One of the largest Messe events. Major transit and hotel impact across the city."
+  url: "https://ish.messefrankfurt.com"
+
+- name: "ACHEMA"
+  start: "2027-06-14"
+  end: "2027-06-18"
+  location: "Messe Frankfurt"
+  lat: 50.1121
+  lon: 8.6454
+  details: "World forum for chemical engineering and process industry — 100k+ visitors (triennial). Heavy transit load; international visitors fill hotels across the Rhine-Main region."
+  url: "https://www.achema.de"

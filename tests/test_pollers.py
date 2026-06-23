@@ -494,7 +494,7 @@ class TestStaticEventsPoller:
     def test_stable_id(self):
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
-        assert dippemess.id == "city-event-2026-autumn-dippemess"
+        assert dippemess.id == "events-event-2026-autumn-dippemess"
 
 
 # ── BaustellenPoller ─────────────────────────────────────────────────────────
@@ -707,8 +707,8 @@ class TestPollerOkFlag:
         assert poller.ok is True
 
     def test_ok_always_true_for_static_sports_poller(self):
-        from pollers import StaticSportsPoller
-        poller = StaticSportsPoller(events=[])
+        from pollers import StaticEventsPoller
+        poller = StaticEventsPoller(events=[], source="sports")
         poller.fetch()
 
         assert poller.ok is True

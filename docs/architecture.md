@@ -86,8 +86,9 @@ class BasePoller(ABC):
 | `AutobahnPoller` | Autobahn API | Road filter, radius_km, kind filter (warning/closure) |
 | `BaustellenPoller` | City of Frankfurt WFS | GeoJSON geometry parsing; sperrung filter |
 | `StrikePoller` | ver.di Hessen + hessenschau RSS | Gemini Flash LLM extraction for dates/location; cross-feed dedup |
-| `StaticEventsPoller` | `city_events.yaml` | advance_days, location-based, images supported |
-| `StaticSportsPoller` | `sports_events.yaml` | Static sports fixtures |
+| `StaticEventsPoller` | `city_events.yaml` | Festivals; `source="events"` (default) |
+| `StaticEventsPoller` | `messe_events.yaml` | Trade fairs; `source="messe"` |
+| `StaticEventsPoller` | `sports_events.yaml` | Sports fixtures; `source="sports"` |
 | `OpenLigaPoller` | OpenLigaDB API | Eintracht Frankfurt home games |
 | `TicketmasterPoller` | Ticketmaster API | Deutsche Bank Park events |
 

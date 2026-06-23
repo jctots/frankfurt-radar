@@ -123,9 +123,8 @@ main.py                    bot.py                    app.py
 ├── AutobahnPoller         ├── /status (admin)       ├── /legal
 ├── BaustellenPoller       ├── /alerts (admin)       └── /robots.txt
 ├── StrikePoller           ├── /poll   (admin)
-├── StaticEventsPoller     ├── /pulse  (admin)
-├── StaticSportsPoller     └── subscriber dispatch
-├── OpenLigaPoller              │
+├── StaticEventsPoller ×3  ├── /pulse  (admin)
+├── OpenLigaPoller         └── subscriber dispatch
 ├── TicketmasterPoller          │
 │                               │
 pulse.py (hourly cron)          │

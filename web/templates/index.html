@@ -52,8 +52,8 @@
       --clr-police:    #dc2626;
       --clr-roads:     #d97706;
       --clr-events:    #059669;
-      --clr-sports:    #ea580c;
-      --clr-strike:    #b91c1c;
+      --clr-sports:    #059669;
+      --clr-strike:    #ea580c;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -247,7 +247,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker { border-radius: 4px; padding-right: 4px; }
+    .chip.line-picker, .chip.roads-picker, .chip.events-picker { border-radius: 4px; padding-right: 4px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -256,8 +256,9 @@
     .chip.src-autobahn.on   { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-baustellen.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
-    .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #fff7ed; }
-    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fef2f2; }
+    .chip.src-messe.on    { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
+    .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #ecfdf5; }
+    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fff7ed; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -267,6 +268,8 @@
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip.roads-picker      { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.roads-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.events-picker      { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
+    .chip.events-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
@@ -372,23 +375,26 @@
     }
     .dark .search-section { background: #192030; }
     .search-bar {
-      padding: 4px 14px 4px 12px;
+      margin: 4px 14px 4px 12px;
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-    .search-bar input {
-      flex: 1;
       border: 1px solid var(--clr-border);
-      border-radius: 6px;
+      border-radius: 8px;
       background: var(--clr-bg);
-      color: var(--clr-text);
-      font-size: 12px;
       padding: 5px 10px;
-      outline: none;
       transition: border-color 0.15s;
     }
-    .search-bar input:focus { border-color: #1a73e8; }
+    .search-bar:focus-within { border-color: #1a73e8; }
+    .search-bar input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--clr-text);
+      font-size: 12px;
+      padding: 0;
+      outline: none;
+    }
     .search-bar input::placeholder { color: var(--clr-muted); font-style: italic; }
     .search-clear {
       background: none;
@@ -401,8 +407,8 @@
       display: none;
     }
     .search-clear.visible { display: block; }
-    .dark .search-bar input { background: #131921; border-color: #2a3344; }
-    .dark .search-bar input:focus { border-color: #60a5fa; }
+    .dark .search-bar { background: #131921; border-color: #2a3344; }
+    .dark .search-bar:focus-within { border-color: #4a5568; }
 
     .feed-header {
       background: var(--clr-surface);
@@ -447,11 +453,13 @@
     .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .card.src-baustellen { border-left-color: var(--clr-roads); }
     .card.src-events     { border-left-color: var(--clr-events); }
+    .card.src-messe      { border-left-color: var(--clr-events); }
     .card.src-sports     { border-left-color: var(--clr-sports); }
     .card.src-strike     { border-left-color: var(--clr-strike); }
     .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
-    .card.card-pinned.src-sports { background: #fff7ed; }
+    .card.card-pinned.src-messe  { background: #ecfdf5; }
+    .card.card-pinned.src-sports { background: #ecfdf5; }
     .card.card-pulse { border-left-color: #6366f1; background: #f5f3ff; }
     .card.card-pulse:hover { background: #ede9fe; }
     .card.card-pulse .card-src { color: #6366f1; }
@@ -471,8 +479,9 @@
     .card.sel.src-autobahn   { background: #fde68a; border-left-color: var(--clr-roads); }
     .card.sel.src-baustellen { background: #fde68a; border-left-color: var(--clr-roads); }
     .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
-    .card.sel.src-sports     { background: #fed7aa; border-left-color: var(--clr-sports); }
-    .card.sel.src-strike     { background: #fecaca; border-left-color: var(--clr-strike); }
+    .card.sel.src-messe      { background: #a7f3d0; border-left-color: var(--clr-events); }
+    .card.sel.src-sports     { background: #a7f3d0; border-left-color: var(--clr-sports); }
+    .card.sel.src-strike     { background: #fed7aa; border-left-color: var(--clr-strike); }
     .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .card.card-removed:hover { background: #f8fafc !important; }
 
@@ -649,11 +658,11 @@
     .radar-dot.now-frame    { background: #f59e0b; }
     .radar-dot.now-frame.on { background: #fbbf24; }
     .dark .radar-dot              { background: #2a3344; }
-    .dark .radar-dot.on           { background: #60a5fa; }
+    .dark .radar-dot.on           { background: #4a6a9a; }
     .dark .radar-dot.future       { background: #1e2d42; }
-    .dark .radar-dot.future.on    { background: #a78bfa; }
-    .dark .radar-dot.now-frame    { background: #f59e0b; }
-    .dark .radar-dot.now-frame.on { background: #fbbf24; }
+    .dark .radar-dot.future.on    { background: #3a5580; }
+    .dark .radar-dot.now-frame    { background: #3a4456; }
+    .dark .radar-dot.now-frame.on { background: #4a5568; }
     #hud-range { display: flex; font-size: 10px; color: #64748b; }
     #hud-t0   { flex: 18; text-align: left; }
     #hud-tnow { flex: 1; text-align: left; padding-left: 3px; color: #f59e0b; white-space: nowrap; }
@@ -694,7 +703,7 @@
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-    .dark .pulse-recommendation { background: #1f1a0e; border-color: #78650f; }
+    .dark .pulse-recommendation { background: #1a2030; border-color: #2a3344; }
     .dark .pulse-disclaimer-toggle { color: #8892a4; }
     .dark .pulse-disclaimer-toggle:hover { color: #d1d5db; }
     .dark .pulse-disclaimer-cta { text-decoration-color: #2a3344; }
@@ -984,13 +993,13 @@
     /* ── Responsive ─────────────────────────────────────── */
     /* ── Dark mode ──────────────────────────────────────── */
     .dark {
-      --clr-transport: #60a5fa;
-      --clr-weather:   #a78bfa;
-      --clr-police:    #f87171;
-      --clr-roads:     #fbbf24;
-      --clr-events:    #34d399;
-      --clr-sports:    #fb923c;
-      --clr-strike:    #f87171;
+      --clr-transport: #8892a4;
+      --clr-weather:   #8892a4;
+      --clr-police:    #8892a4;
+      --clr-roads:     #8892a4;
+      --clr-events:    #8892a4;
+      --clr-sports:    #8892a4;
+      --clr-strike:    #8892a4;
       --clr-bg:      #131921;
       --clr-surface: #1c2433;
       --clr-border:  #2a3344;
@@ -998,52 +1007,31 @@
       --clr-muted:   #8892a4;
       --clr-header:  #0d1117;
     }
-    .dark .card.src-rmv        { border-left-color: var(--clr-transport); }
-    .dark .card.src-dwd        { background: #1f2038; border-left-color: var(--clr-weather); }
-    .dark .card.src-polizei    { border-left-color: var(--clr-police); }
-    .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
-    .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
-    .dark .card.src-events     { background: #182428; border-left-color: var(--clr-events); }
-    .dark .card.src-sports     { background: #22201c; border-left-color: var(--clr-sports); }
-    .dark .card.src-strike     { background: #2a1c1c; border-left-color: var(--clr-strike); }
-    .dark .card:hover              { background: #222c3a; }
-    .dark .card.src-rmv:hover      { background: #1e2d42; }
-    .dark .card.src-dwd:hover      { background: #262548; }
-    .dark .card.src-polizei:hover  { background: #2a2028; }
-    .dark .card.src-autobahn:hover { background: #2a2618; }
-    .dark .card.src-baustellen:hover { background: #2a2618; }
-    .dark .card.src-events:hover   { background: #1e2e2a; }
-    .dark .card.src-sports:hover   { background: #2e2618; }
-    .dark .card.src-strike:hover   { background: #2a2028; }
-    .dark .card.sel.src-rmv        { background: #1e3a5f; border-left-color: var(--clr-transport); }
-    .dark .card.sel.src-dwd        { background: #2d2860; border-left-color: var(--clr-weather); }
-    .dark .card.sel.src-polizei    { background: #3d2028; border-left-color: var(--clr-police); }
-    .dark .card.sel.src-autobahn   { background: #3d3018; border-left-color: var(--clr-roads); }
-    .dark .card.sel.src-baustellen { background: #3d3018; border-left-color: var(--clr-roads); }
-    .dark .card.sel.src-events     { background: #1e3d32; border-left-color: var(--clr-events); }
-    .dark .card.sel.src-sports     { background: #3d2e18; border-left-color: var(--clr-sports); }
-    .dark .card.sel.src-strike     { background: #3d2028; border-left-color: var(--clr-strike); }
-    .dark .card.card-pulse         { background: #1c1a2e; border-left-color: #818cf8; }
-    .dark .card.card-pulse:hover   { background: #262548; }
-    .dark .card.card-pulse .card-src { color: #a5b4fc; }
-    .dark .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
-    .dark .card.card-removed:hover { background: #222c3a !important; }
+    .dark .card[class*="src-"]        { border-left-color: var(--clr-border); }
+    .dark .card:hover                 { background: #222c3a; }
+    .dark .card.sel                   { background: #283040; border-left-color: #4a5568; }
+    .dark .card.card-pulse            { background: var(--clr-surface); border-left-color: var(--clr-border); }
+    .dark .card.card-pulse:hover      { background: #222c3a; }
+    .dark .card.card-pulse .card-src  { color: var(--clr-muted); }
+    .dark .card.card-removed          { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
+    .dark .card.card-removed:hover    { background: #222c3a !important; }
+    .dark .card.card-pinned[class*="src-"] { background: var(--clr-surface); }
 
-    .dark .chip.src-sports.on        { background: #2e2618; }
-    .dark .chip.src-rmv.on           { background: #1e2d42; }
-    .dark .chip.src-dwd.on           { background: #262548; }
-    .dark .chip.src-polizei.on       { background: #2a2028; }
-    .dark .chip.src-autobahn.on      { background: #2a2618; }
-    .dark .chip.src-baustellen.on    { background: #2a2618; }
-    .dark .chip.src-events.on        { background: #1e2e2a; }
-    .dark .chip.src-strike.on        { background: #2a2028; }
+    .dark .chip[class*="src-"].on,
     .dark .chip.svc.on,
-    .dark .chip.line.on,
-    .dark .chip.line-picker          { background: #1e2d42; }
-    .dark .chip.line-picker.part     { background: #2a2618; border-color: #92400e; color: #fcd34d; }
-    .dark .chip.roads-picker         { background: #2a2618; }
-    .dark .chip.roads-picker.part    { background: #2a2618; border-color: #92400e; color: #fcd34d; }
+    .dark .chip.line.on              { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.line-picker          { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.line-picker.part     { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
+    .dark .chip.roads-picker         { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.roads-picker.part    { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
+    .dark .chip.events-picker        { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.events-picker.part   { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip-count                { background: rgba(255,255,255,0.12); }
+
+    .dark .status-pill.ongoing     { background: #2a3f5e; color: #c8d6e8; border: 1px solid #3a5070; }
+    .dark .status-pill.upcoming    { background: #233350; color: #9bb0cc; border: 1px solid #2e4262; }
+    .dark .status-pill.longrunning { background: #1e2c44; color: #7a92b0; border: 1px solid #283a52; }
+    .dark .status-pill.neutral     { background: #1a2536; color: #5a6e84; border: 1px solid #222e3e; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -1051,6 +1039,13 @@
     .dark .feed::-webkit-scrollbar-track       { background: #131921; }
     .dark .feed::-webkit-scrollbar-thumb       { background: #2a3344; }
     .dark .feed::-webkit-scrollbar-thumb:hover { background: #3a4456; }
+
+    .dark .marker-cluster-small           { background-color: rgba(35,51,80,0.5); }
+    .dark .marker-cluster-small div       { background-color: #233350; color: #9bb0cc; }
+    .dark .marker-cluster-medium          { background-color: rgba(42,63,94,0.5); }
+    .dark .marker-cluster-medium div      { background-color: #2a3f5e; color: #c8d6e8; }
+    .dark .marker-cluster-large           { background-color: rgba(58,80,112,0.5); }
+    .dark .marker-cluster-large div       { background-color: #3a5070; color: #e0e8f0; }
 
     .dark .lines-popup               { background: #1c2433; border-color: #2a3344; }
     .dark .lines-popup-actions       { border-color: #2a3344; }
@@ -1301,9 +1296,10 @@ const SOURCE = {
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
-  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
-  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: 'https://www.eintracht.de/tickets/' },
-  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
+  events:   { label: 'Events',     emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
+  messe:    { label: 'Events',     emoji: '🎪', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.messefrankfurt.com' },
+  sports:   { label: 'Events',     emoji: '⚽', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.eintracht.de/tickets/' },
+  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#ea580c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
 };
 
 const SVC_ICON = {
@@ -1414,6 +1410,7 @@ let _initialLoad   = true;
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
+let _eventsClosedBy = null;
 let _hiddenAlertIds = null;
 let _hiddenTimeout  = null;
 const WEBSITE_DISABLED_DEFAULT = new Set({{ website_disabled_default | tojson }});
@@ -1422,10 +1419,15 @@ let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: _srcOn('rmv'), dwd: _srcOn('dwd'), polizei: _srcOn('polizei'), autobahn: _srcOn('autobahn'), events: _srcOn('events'), sports: _srcOn('sports') }, services: {}, lines: {}, roads: {} };
 if (!filters.sources.hasOwnProperty('events'))     filters.sources.events     = _srcOn('events');
+if (!filters.sources.hasOwnProperty('messe'))      filters.sources.messe      = _srcOn('messe');
 if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
 if (!filters.roads) filters.roads = {};
+if (!filters.eventTypes) filters.eventTypes = {};
+if (!filters.eventTypes.hasOwnProperty('festivals'))   filters.eventTypes.festivals   = true;
+if (!filters.eventTypes.hasOwnProperty('trade_fairs')) filters.eventTypes.trade_fairs  = true;
+if (!filters.eventTypes.hasOwnProperty('sports'))      filters.eventTypes.sports       = true;
 if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
 if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
 if (!filters.roads.hasOwnProperty('city_full'))   filters.roads.city_full   = true;
@@ -1573,9 +1575,9 @@ function alertCoords(a) {
 function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   const meta = [];
-  const useDateOnly = a.source === 'events';
+  const useDateOnly = ['events', 'messe', 'sports'].includes(a.source);
   if (a.published_at) meta.push('Posted at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
@@ -1586,7 +1588,7 @@ function buildPopupHtml(a) {
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
   return `${imgHtml}<div class="popup-inner">
     ${locBadge}
-    <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}${svc}</div>
+    <div class="popup-src" style="color:${src.color}">${alertIconHtml(a)} ${src.label}${svc}</div>
     <div class="popup-title">${esc(a.title)}</div>
     ${metaText ? `<div class="popup-meta">${metaText}</div>` : ''}
     ${statusPill ? `<div class="popup-status-row">${statusPill}</div>` : ''}
@@ -1915,6 +1917,11 @@ function passesFilters(a) {
   if (a.source === 'baustellen' && filters.sources.autobahn  === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Partial)' && filters.roads.city_partial === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Full)'    && filters.roads.city_full    === false) return false;
+  if (a.source === 'events'  && filters.eventTypes.festivals   === false) return false;
+  if (a.source === 'messe'   && filters.sources.events         === false) return false;
+  if (a.source === 'messe'   && filters.eventTypes.trade_fairs  === false) return false;
+  if (a.source === 'sports'  && filters.sources.events         === false) return false;
+  if (a.source === 'sports'  && filters.eventTypes.sports       === false) return false;
   if (filters.sources[a.source] === false) return false;
   if (a.source === 'rmv') {
     if (a.lines && a.lines.length) {
@@ -2008,6 +2015,22 @@ function daysUntil(iso) {
   return `In ${dayDiff} days`;
 }
 
+function fmtPostedAge(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+  if (dDay < today) return 'Posted at ' + fmtDateTimeShort(iso);
+  const diffMs = now - d;
+  if (diffMs < 0) return 'Posted just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Posted just now';
+  if (mins < 60) return `Posted ${mins} min ago`;
+  const hrs = Math.floor(diffMs / 3600000);
+  return `Posted ${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
+}
+
 function fmtTime(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
@@ -2037,15 +2060,18 @@ function fmtOngoing(iso) {
   return years === 1 ? 'over 1 year' : `over ${years} years`;
 }
 
-function _renderRoadSvc(a) {
+function _renderSvc(a) {
   if (a.source === 'autobahn') return ' · Autobahn';
+  if (a.source === 'events')   return ' · Festivals';
+  if (a.source === 'messe')    return ' · Trade Fairs';
+  if (a.source === 'sports')   return ' · Sports';
   if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service.replace(/_/g, ' '))}`;
   return '';
 }
 
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   let dateLine = '';
   if (opts.pinned) {
     if (a.valid_from && a.valid_until) {
@@ -2058,7 +2084,7 @@ function _renderCard(a, opts = {}) {
   } else if (opts.showAge) {
     dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   } else {
-    dateLine = 'Posted at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
+    dateLine = esc(fmtPostedAge(a.published_at || a.valid_until));
   }
   const statusPill = statusPillHtml(a);
   const metaHtml = statusPill
@@ -2072,7 +2098,7 @@ function _renderCard(a, opts = {}) {
   ${pinBadge}<div class="card-inner">
     <span class="card-icon">${icon}</span>
     <div class="card-body">
-      <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
+      <div class="card-labels"><span class="card-src" style="color:${src.color}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
       ${metaHtml ? `<div class="card-meta">${metaHtml}</div>` : ''}
     </div>
@@ -2082,7 +2108,7 @@ function _renderCard(a, opts = {}) {
 
 function _renderRemovedCard(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   const dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   const reasonPill = clearedPillHtml(a);
   const metaHtml = reasonPill
@@ -2104,14 +2130,14 @@ function _renderRemovedCard(a) {
 function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
-  const dateLine = esc(fmtDateTimeShort(pulse.generated_at));
+  const dateLine = esc(fmtPostedAge(pulse.generated_at));
   return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">📊</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.title || pulse.summary || 'City Pulse')}</div>
-      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill ongoing">ONGOING</span></div>
+      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill ongoing">SUMMARY</span></div>
     </div>
   </div>
 </div>`;
@@ -2225,8 +2251,6 @@ const TREND_DISPLAY = {
 
 function renderPulseOverlay(pulse) {
   if (!pulse) return '';
-  const time = new Date(pulse.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
-
   const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
   const staleHtml = ageMs > 2 * 3600_000
     ? `<div class="pulse-stale">Last updated ${Math.round(ageMs / 3600_000)}h ago</div>` : '';
@@ -2252,18 +2276,20 @@ function renderPulseOverlay(pulse) {
       const src = SOURCE[a.source] || {};
       return `<li class="pulse-ref" onclick="selectAlert('${esc(id)}')"><span class="pulse-ref-icon">${src.emoji || '📋'}</span><span class="pulse-ref-title">${esc(a.title)}</span><span class="pulse-ref-arrow">›</span></li>`;
     }).filter(Boolean).join('');
-    if (refItems) refsHtml = `<div class="pulse-refs-label">Based on</div><ul class="pulse-refs">${refItems}</ul>`;
+    const refCount = refItems.split('</li>').length - 1;
+    if (refItems) refsHtml = `<div class="pulse-refs-label">Based on (${refCount} alert${refCount !== 1 ? 's' : ''})</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
+  const legendHtml = `<div class="pulse-method" style="margin-bottom:6px"><strong>Trend arrows:</strong> ↗ worsening (more alerts than usual) · ↘ improving (fewer alerts) · → stable (no significant change)</div>`;
   const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">Click for sources &amp; methodology</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${legendHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">
       <span class="pulse-title">📊 City Pulse</span>
-      <span class="pulse-time">as of ${time}</span>
+      <span class="pulse-time">${fmtPostedAge(pulse.generated_at).replace(/^Posted /, '')}</span>
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
     ${pulse.title ? `<div class="pulse-subtitle">${esc(pulse.title)}</div>` : ''}
@@ -2537,10 +2563,11 @@ function buildFilterBar() {
 
   const sectionAlerts = feedVisible();
   const counts = {};
-  ['polizei','dwd','autobahn','events','sports','rmv','strike'].forEach(src => {
+  ['polizei','dwd','autobahn','events','sports','rmv','strike','messe'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
   });
   counts.autobahn += sectionAlerts.filter(a => a.source === 'baustellen').length;
+  counts.events += counts.messe + counts.sports;
 
   // Weather
   const dwdOn = filters.sources.dwd !== false;
@@ -2585,19 +2612,22 @@ function buildFilterBar() {
     if (roadAlerts.length) {
       const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
       const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Road <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
-  // Festivals
+  // Events (grouped: festivals + trade fairs + sports)
   html += '<div class="filter-sep"></div>';
   const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}${badge(counts.events)}</button>`;
-
-  // Sports
-  html += '<div class="filter-sep"></div>';
-  const spOn = filters.sources.sports !== false;
-  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}${badge(counts.sports)}</button>`;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">🎉 ${SOURCE.events.label}${badge(counts.events)}</button>`;
+  if (evOn) {
+    const evAlerts = sectionAlerts.filter(a => ['events','messe','sports'].includes(a.source));
+    if (evAlerts.length) {
+      const enabledEvTypes = ['festivals','trade_fairs','sports'].filter(k => filters.eventTypes[k] !== false).length;
+      const evPartial = enabledEvTypes < 3;
+      html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    }
+  }
 
   bar.innerHTML = html;
 }
@@ -2761,6 +2791,86 @@ function setAllRoads(val) {
   renderFeed();
   buildFilterBar();
   const popup = document.getElementById('roads-popup');
+  if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
+}
+
+// ── Events popup ─────────────────────────────────────────────────────────────
+const EVENT_TYPES = [
+  { key: 'festivals',   label: 'Festivals' },
+  { key: 'trade_fairs', label: 'Trade Fairs' },
+  { key: 'sports',      label: 'Sports' },
+];
+
+function openEventsPopup(btn) {
+  if (_eventsClosedBy === btn) { _eventsClosedBy = null; return; }
+  _eventsClosedBy = null;
+  closeEventsPopup(false);
+  closeLinesPopup(false);
+  closeRoadsPopup(false);
+
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'events-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+
+  popup.innerHTML = `
+    <div class="lines-popup-actions">
+      <button onclick="setAllEventTypes(true)">All</button>
+      <button onclick="setAllEventTypes(false)">None</button>
+    </div>
+    <div class="lines-popup-body">
+      ${EVENT_TYPES.map(t => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.eventTypes[t.key] !== false ? 'checked' : ''} onchange="toggleEventType('${t.key}')">
+          ${t.label}
+        </label>`).join('')}
+    </div>`;
+
+  document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
+  setTimeout(() => document.addEventListener('click', _outsideCloseEvents, { capture: true }), 0);
+}
+
+function _outsideCloseEvents(e) {
+  const popup = document.getElementById('events-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    _eventsClosedBy = e.target;
+    closeEventsPopup(false);
+    setTimeout(() => buildFilterBar(), 0);
+  } else {
+    document.addEventListener('click', _outsideCloseEvents, { capture: true, once: true });
+  }
+}
+
+function closeEventsPopup(rebuild = true) {
+  document.removeEventListener('click', _outsideCloseEvents, { capture: true });
+  const popup = document.getElementById('events-popup');
+  if (popup) popup.remove();
+  if (rebuild) buildFilterBar();
+}
+
+function toggleEventType(key) {
+  filters.eventTypes[key] = filters.eventTypes[key] !== false ? false : true;
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('events-popup');
+  if (popup) {
+    const inputs = popup.querySelectorAll('input[type=checkbox]');
+    EVENT_TYPES.forEach((t, i) => { inputs[i].checked = filters.eventTypes[t.key] !== false; });
+  }
+}
+
+function setAllEventTypes(val) {
+  EVENT_TYPES.forEach(t => { filters.eventTypes[t.key] = val; });
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('events-popup');
   if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
 }
 

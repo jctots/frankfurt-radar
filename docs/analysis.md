@@ -6,7 +6,7 @@ City Pulse provides glanceable situational awareness for Frankfurt. It does not 
 
 ## Data sources
 
-Frankfurt Radar collects real-time data from 8 pollers:
+Frankfurt Radar collects real-time data from 9 pollers:
 
 | Source | Category | What it provides |
 |--------|----------|------------------|
@@ -16,7 +16,8 @@ Frankfurt Radar collects real-time data from 8 pollers:
 | Autobahn (autobahn) | Roadworks | Federal road construction and closures |
 | Baustellen (baustellen) | Roadworks | City road construction |
 | Strike (strike) | Incidents | Strike alerts extracted from press releases |
-| Events (events) | Events | City events: concerts, festivals, markets |
+| Events (events) | Events | City festivals: concerts, parades, markets |
+| Messe (messe) | Events | Trade fairs at Messe Frankfurt |
 | Sports (sports) | Events | Match days, sports events |
 
 Each poller runs on a cron schedule (typically every 5 minutes). Alerts are cached in `alert_cache` with timestamps, severity, geolocation, and staleness flags.
@@ -48,7 +49,7 @@ Future-only alerts still appear in the feed and in the LLM prompt for narrative 
 | RMV (transport) | `service` | S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=1.0 |
 | Autobahn | `title_en` keyword | "closure"=1.5, else 1.0 |
 | Baustellen | `service` | "City (Full)"=1.5, "City (Partial)"=1.0 |
-| Events/Sports | — | Fixed 2.0 (one-off, high-impact) |
+| Events/Messe/Sports | — | Fixed 2.0 (one-off, high-impact) |
 | Polizei/Strike | — | Default 1.0 (no structured severity data) |
 
 The EWMA baseline and status/trend thresholds operate on these weighted scores, not raw alert counts.
