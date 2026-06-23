@@ -247,7 +247,7 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker { border-radius: 4px; padding-right: 4px; }
+    .chip.line-picker, .chip.roads-picker, .chip.events-picker { border-radius: 4px; padding-right: 4px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
@@ -268,6 +268,8 @@
     .chip.line-picker.part  { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip.roads-picker      { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.roads-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.events-picker      { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
+    .chip.events-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
@@ -373,23 +375,26 @@
     }
     .dark .search-section { background: #192030; }
     .search-bar {
-      padding: 4px 14px 4px 12px;
+      margin: 4px 14px 4px 12px;
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-    .search-bar input {
-      flex: 1;
       border: 1px solid var(--clr-border);
-      border-radius: 6px;
+      border-radius: 8px;
       background: var(--clr-bg);
-      color: var(--clr-text);
-      font-size: 12px;
       padding: 5px 10px;
-      outline: none;
       transition: border-color 0.15s;
     }
-    .search-bar input:focus { border-color: #1a73e8; }
+    .search-bar:focus-within { border-color: #1a73e8; }
+    .search-bar input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--clr-text);
+      font-size: 12px;
+      padding: 0;
+      outline: none;
+    }
     .search-bar input::placeholder { color: var(--clr-muted); font-style: italic; }
     .search-clear {
       background: none;
@@ -402,8 +407,8 @@
       display: none;
     }
     .search-clear.visible { display: block; }
-    .dark .search-bar input { background: #131921; border-color: #2a3344; }
-    .dark .search-bar input:focus { border-color: #60a5fa; }
+    .dark .search-bar { background: #131921; border-color: #2a3344; }
+    .dark .search-bar:focus-within { border-color: #4a5568; }
 
     .feed-header {
       background: var(--clr-surface);
@@ -1019,6 +1024,8 @@
     .dark .chip.line-picker.part     { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip.roads-picker         { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
     .dark .chip.roads-picker.part    { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
+    .dark .chip.events-picker        { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.events-picker.part   { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip-count                { background: rgba(255,255,255,0.12); }
 
     .dark .status-pill.ongoing     { background: #2a3f5e; color: #c8d6e8; border: 1px solid #3a5070; }
@@ -1581,7 +1588,7 @@ function buildPopupHtml(a) {
   const imgHtml = a.image ? `<div class="popup-img-wrap"><img class="popup-img" src="${esc(a.image)}" alt="" loading="lazy"><div class="wm-badge">© Wikimedia</div></div>` : '';
   return `${imgHtml}<div class="popup-inner">
     ${locBadge}
-    <div class="popup-src" style="color:${src.hex}">${alertIconHtml(a)} ${src.label}${svc}</div>
+    <div class="popup-src" style="color:${src.color}">${alertIconHtml(a)} ${src.label}${svc}</div>
     <div class="popup-title">${esc(a.title)}</div>
     ${metaText ? `<div class="popup-meta">${metaText}</div>` : ''}
     ${statusPill ? `<div class="popup-status-row">${statusPill}</div>` : ''}
@@ -2008,6 +2015,22 @@ function daysUntil(iso) {
   return `In ${dayDiff} days`;
 }
 
+function fmtPostedAge(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+  if (dDay < today) return 'Posted at ' + fmtDateTimeShort(iso);
+  const diffMs = now - d;
+  if (diffMs < 0) return 'Just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(diffMs / 3600000);
+  return `${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
+}
+
 function fmtTime(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
@@ -2061,7 +2084,7 @@ function _renderCard(a, opts = {}) {
   } else if (opts.showAge) {
     dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   } else {
-    dateLine = 'Posted at ' + esc(fmtDateTimeShort(a.published_at || a.valid_until));
+    dateLine = esc(fmtPostedAge(a.published_at || a.valid_until));
   }
   const statusPill = statusPillHtml(a);
   const metaHtml = statusPill
@@ -2075,7 +2098,7 @@ function _renderCard(a, opts = {}) {
   ${pinBadge}<div class="card-inner">
     <span class="card-icon">${icon}</span>
     <div class="card-body">
-      <div class="card-labels"><span class="card-src" style="color:${src.hex}">${src.label}${svc}</span></div>
+      <div class="card-labels"><span class="card-src" style="color:${src.color}">${src.label}${svc}</span></div>
       <div class="card-title">${esc(a.title)}</div>
       ${metaHtml ? `<div class="card-meta">${metaHtml}</div>` : ''}
     </div>
@@ -2107,14 +2130,14 @@ function _renderRemovedCard(a) {
 function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
-  const dateLine = esc(fmtDateTimeShort(pulse.generated_at));
+  const dateLine = esc(fmtPostedAge(pulse.generated_at));
   return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">📊</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.title || pulse.summary || 'City Pulse')}</div>
-      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill ongoing">ONGOING</span></div>
+      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill ongoing">SUMMARY</span></div>
     </div>
   </div>
 </div>`;
@@ -2255,13 +2278,15 @@ function renderPulseOverlay(pulse) {
       const src = SOURCE[a.source] || {};
       return `<li class="pulse-ref" onclick="selectAlert('${esc(id)}')"><span class="pulse-ref-icon">${src.emoji || '📋'}</span><span class="pulse-ref-title">${esc(a.title)}</span><span class="pulse-ref-arrow">›</span></li>`;
     }).filter(Boolean).join('');
-    if (refItems) refsHtml = `<div class="pulse-refs-label">Based on</div><ul class="pulse-refs">${refItems}</ul>`;
+    const refCount = refItems.split('</li>').length - 1;
+    if (refItems) refsHtml = `<div class="pulse-refs-label">Based on (${refCount} alert${refCount !== 1 ? 's' : ''})</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
+  const legendHtml = `<div class="pulse-method" style="margin-bottom:6px"><strong>Trend arrows:</strong> ↗ worsening (more alerts than usual) · ↘ improving (fewer alerts) · → stable (no significant change)</div>`;
   const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">Click for sources &amp; methodology</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${legendHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">

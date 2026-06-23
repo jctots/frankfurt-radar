@@ -90,7 +90,7 @@ events:
 # Trade fairs — dates and details are in messe_events.yaml (same DATA_DIR)
 messe:
   enabled: true
-  advance_days: 14        # show trade fairs this many days before they start
+  advance_days: 7        # show trade fairs this many days before they start
 
 # Sports events — static dates in sports_events.yaml (same DATA_DIR)
 sports:
