@@ -2246,7 +2246,7 @@ function renderPulseOverlay(pulse) {
   let refsHtml = '';
   const refs = pulse.references || [];
   if (refs.length) {
-    const allAlerts = [...(window.alerts || []), ...(window.removedAlerts || [])];
+    const allAlerts = [...alerts, ...removedAlerts];
     const refItems = refs.map(id => {
       const a = allAlerts.find(x => x.id === id);
       if (!a) return '';
