@@ -52,8 +52,8 @@
       --clr-police:    #dc2626;
       --clr-roads:     #d97706;
       --clr-events:    #059669;
-      --clr-sports:    #ea580c;
-      --clr-strike:    #b91c1c;
+      --clr-sports:    #059669;
+      --clr-strike:    #ea580c;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -256,8 +256,9 @@
     .chip.src-autobahn.on   { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-baustellen.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
-    .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #fff7ed; }
-    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fef2f2; }
+    .chip.src-messe.on    { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
+    .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #ecfdf5; }
+    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fff7ed; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -447,11 +448,13 @@
     .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .card.src-baustellen { border-left-color: var(--clr-roads); }
     .card.src-events     { border-left-color: var(--clr-events); }
+    .card.src-messe      { border-left-color: var(--clr-events); }
     .card.src-sports     { border-left-color: var(--clr-sports); }
     .card.src-strike     { border-left-color: var(--clr-strike); }
     .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
-    .card.card-pinned.src-sports { background: #fff7ed; }
+    .card.card-pinned.src-messe  { background: #ecfdf5; }
+    .card.card-pinned.src-sports { background: #ecfdf5; }
     .card.card-pulse { border-left-color: #6366f1; background: #f5f3ff; }
     .card.card-pulse:hover { background: #ede9fe; }
     .card.card-pulse .card-src { color: #6366f1; }
@@ -471,8 +474,9 @@
     .card.sel.src-autobahn   { background: #fde68a; border-left-color: var(--clr-roads); }
     .card.sel.src-baustellen { background: #fde68a; border-left-color: var(--clr-roads); }
     .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
-    .card.sel.src-sports     { background: #fed7aa; border-left-color: var(--clr-sports); }
-    .card.sel.src-strike     { background: #fecaca; border-left-color: var(--clr-strike); }
+    .card.sel.src-messe      { background: #a7f3d0; border-left-color: var(--clr-events); }
+    .card.sel.src-sports     { background: #a7f3d0; border-left-color: var(--clr-sports); }
+    .card.sel.src-strike     { background: #fed7aa; border-left-color: var(--clr-strike); }
     .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .card.card-removed:hover { background: #f8fafc !important; }
 
@@ -989,8 +993,8 @@
       --clr-police:    #f87171;
       --clr-roads:     #fbbf24;
       --clr-events:    #34d399;
-      --clr-sports:    #fb923c;
-      --clr-strike:    #f87171;
+      --clr-sports:    #34d399;
+      --clr-strike:    #fb923c;
       --clr-bg:      #131921;
       --clr-surface: #1c2433;
       --clr-border:  #2a3344;
@@ -1004,8 +1008,9 @@
     .dark .card.src-autobahn   { border-left-color: var(--clr-roads); }
     .dark .card.src-baustellen { border-left-color: var(--clr-roads); }
     .dark .card.src-events     { background: #182428; border-left-color: var(--clr-events); }
-    .dark .card.src-sports     { background: #22201c; border-left-color: var(--clr-sports); }
-    .dark .card.src-strike     { background: #2a1c1c; border-left-color: var(--clr-strike); }
+    .dark .card.src-messe      { background: #182428; border-left-color: var(--clr-events); }
+    .dark .card.src-sports     { background: #182428; border-left-color: var(--clr-sports); }
+    .dark .card.src-strike     { background: #22201c; border-left-color: var(--clr-strike); }
     .dark .card:hover              { background: #222c3a; }
     .dark .card.src-rmv:hover      { background: #1e2d42; }
     .dark .card.src-dwd:hover      { background: #262548; }
@@ -1021,8 +1026,9 @@
     .dark .card.sel.src-autobahn   { background: #3d3018; border-left-color: var(--clr-roads); }
     .dark .card.sel.src-baustellen { background: #3d3018; border-left-color: var(--clr-roads); }
     .dark .card.sel.src-events     { background: #1e3d32; border-left-color: var(--clr-events); }
-    .dark .card.sel.src-sports     { background: #3d2e18; border-left-color: var(--clr-sports); }
-    .dark .card.sel.src-strike     { background: #3d2028; border-left-color: var(--clr-strike); }
+    .dark .card.sel.src-messe      { background: #1e3d32; border-left-color: var(--clr-events); }
+    .dark .card.sel.src-sports     { background: #1e3d32; border-left-color: var(--clr-sports); }
+    .dark .card.sel.src-strike     { background: #3d2e18; border-left-color: var(--clr-strike); }
     .dark .card.card-pulse         { background: #1c1a2e; border-left-color: #818cf8; }
     .dark .card.card-pulse:hover   { background: #262548; }
     .dark .card.card-pulse .card-src { color: #a5b4fc; }
@@ -1301,9 +1307,10 @@ const SOURCE = {
   polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
-  events:   { label: 'Festivals',  emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
-  sports:   { label: 'Sports',    emoji: '⚽', color: 'var(--clr-sports)',   hex: '#ea580c', officialUrl: 'https://www.eintracht.de/tickets/' },
-  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#b91c1c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
+  events:   { label: 'Events',     emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
+  messe:    { label: 'Events',     emoji: '🎪', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.messefrankfurt.com' },
+  sports:   { label: 'Events',     emoji: '⚽', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.eintracht.de/tickets/' },
+  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#ea580c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
 };
 
 const SVC_ICON = {
@@ -1414,6 +1421,7 @@ let _initialLoad   = true;
 let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
+let _eventsClosedBy = null;
 let _hiddenAlertIds = null;
 let _hiddenTimeout  = null;
 const WEBSITE_DISABLED_DEFAULT = new Set({{ website_disabled_default | tojson }});
@@ -1422,10 +1430,15 @@ let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
 })() || { sources: { rmv: _srcOn('rmv'), dwd: _srcOn('dwd'), polizei: _srcOn('polizei'), autobahn: _srcOn('autobahn'), events: _srcOn('events'), sports: _srcOn('sports') }, services: {}, lines: {}, roads: {} };
 if (!filters.sources.hasOwnProperty('events'))     filters.sources.events     = _srcOn('events');
+if (!filters.sources.hasOwnProperty('messe'))      filters.sources.messe      = _srcOn('messe');
 if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
 if (!filters.roads) filters.roads = {};
+if (!filters.eventTypes) filters.eventTypes = {};
+if (!filters.eventTypes.hasOwnProperty('festivals'))   filters.eventTypes.festivals   = true;
+if (!filters.eventTypes.hasOwnProperty('trade_fairs')) filters.eventTypes.trade_fairs  = true;
+if (!filters.eventTypes.hasOwnProperty('sports'))      filters.eventTypes.sports       = true;
 if (!filters.roads.hasOwnProperty('highways'))    filters.roads.highways    = true;
 if (!filters.roads.hasOwnProperty('city_partial')) filters.roads.city_partial = true;
 if (!filters.roads.hasOwnProperty('city_full'))   filters.roads.city_full   = true;
@@ -1573,9 +1586,9 @@ function alertCoords(a) {
 function buildPopupHtml(a) {
   const { label } = alertCoords(a);
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   const meta = [];
-  const useDateOnly = a.source === 'events';
+  const useDateOnly = ['events', 'messe', 'sports'].includes(a.source);
   if (a.published_at) meta.push('Posted at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
@@ -1915,6 +1928,11 @@ function passesFilters(a) {
   if (a.source === 'baustellen' && filters.sources.autobahn  === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Partial)' && filters.roads.city_partial === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Full)'    && filters.roads.city_full    === false) return false;
+  if (a.source === 'events'  && filters.eventTypes.festivals   === false) return false;
+  if (a.source === 'messe'   && filters.sources.events         === false) return false;
+  if (a.source === 'messe'   && filters.eventTypes.trade_fairs  === false) return false;
+  if (a.source === 'sports'  && filters.sources.events         === false) return false;
+  if (a.source === 'sports'  && filters.eventTypes.sports       === false) return false;
   if (filters.sources[a.source] === false) return false;
   if (a.source === 'rmv') {
     if (a.lines && a.lines.length) {
@@ -2037,15 +2055,18 @@ function fmtOngoing(iso) {
   return years === 1 ? 'over 1 year' : `over ${years} years`;
 }
 
-function _renderRoadSvc(a) {
+function _renderSvc(a) {
   if (a.source === 'autobahn') return ' · Autobahn';
+  if (a.source === 'events')   return ' · Festivals';
+  if (a.source === 'messe')    return ' · Trade Fairs';
+  if (a.source === 'sports')   return ' · Sports';
   if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service.replace(/_/g, ' '))}`;
   return '';
 }
 
 function _renderCard(a, opts = {}) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   let dateLine = '';
   if (opts.pinned) {
     if (a.valid_from && a.valid_until) {
@@ -2082,7 +2103,7 @@ function _renderCard(a, opts = {}) {
 
 function _renderRemovedCard(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '' };
-  const svc = _renderRoadSvc(a);
+  const svc = _renderSvc(a);
   const dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
   const reasonPill = clearedPillHtml(a);
   const metaHtml = reasonPill
@@ -2537,10 +2558,11 @@ function buildFilterBar() {
 
   const sectionAlerts = feedVisible();
   const counts = {};
-  ['polizei','dwd','autobahn','events','sports','rmv','strike'].forEach(src => {
+  ['polizei','dwd','autobahn','events','sports','rmv','strike','messe'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
   });
   counts.autobahn += sectionAlerts.filter(a => a.source === 'baustellen').length;
+  counts.events += counts.messe + counts.sports;
 
   // Weather
   const dwdOn = filters.sources.dwd !== false;
@@ -2585,19 +2607,22 @@ function buildFilterBar() {
     if (roadAlerts.length) {
       const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
       const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">🛣️ Road <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
-  // Festivals
+  // Events (grouped: festivals + trade fairs + sports)
   html += '<div class="filter-sep"></div>';
   const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${SOURCE.events.emoji} ${SOURCE.events.label}${badge(counts.events)}</button>`;
-
-  // Sports
-  html += '<div class="filter-sep"></div>';
-  const spOn = filters.sources.sports !== false;
-  html += `<button class="chip src-sports${spOn ? ' on' : ''}" onclick="toggleSrc('sports')">${SOURCE.sports.emoji} ${SOURCE.sports.label}${badge(counts.sports)}</button>`;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">🎉 ${SOURCE.events.label}${badge(counts.events)}</button>`;
+  if (evOn) {
+    const evAlerts = sectionAlerts.filter(a => ['events','messe','sports'].includes(a.source));
+    if (evAlerts.length) {
+      const enabledEvTypes = ['festivals','trade_fairs','sports'].filter(k => filters.eventTypes[k] !== false).length;
+      const evPartial = enabledEvTypes < 3;
+      html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    }
+  }
 
   bar.innerHTML = html;
 }
@@ -2761,6 +2786,86 @@ function setAllRoads(val) {
   renderFeed();
   buildFilterBar();
   const popup = document.getElementById('roads-popup');
+  if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
+}
+
+// ── Events popup ─────────────────────────────────────────────────────────────
+const EVENT_TYPES = [
+  { key: 'festivals',   label: 'Festivals' },
+  { key: 'trade_fairs', label: 'Trade Fairs' },
+  { key: 'sports',      label: 'Sports' },
+];
+
+function openEventsPopup(btn) {
+  if (_eventsClosedBy === btn) { _eventsClosedBy = null; return; }
+  _eventsClosedBy = null;
+  closeEventsPopup(false);
+  closeLinesPopup(false);
+  closeRoadsPopup(false);
+
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'events-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+
+  popup.innerHTML = `
+    <div class="lines-popup-actions">
+      <button onclick="setAllEventTypes(true)">All</button>
+      <button onclick="setAllEventTypes(false)">None</button>
+    </div>
+    <div class="lines-popup-body">
+      ${EVENT_TYPES.map(t => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.eventTypes[t.key] !== false ? 'checked' : ''} onchange="toggleEventType('${t.key}')">
+          ${t.label}
+        </label>`).join('')}
+    </div>`;
+
+  document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
+  setTimeout(() => document.addEventListener('click', _outsideCloseEvents, { capture: true }), 0);
+}
+
+function _outsideCloseEvents(e) {
+  const popup = document.getElementById('events-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    _eventsClosedBy = e.target;
+    closeEventsPopup(false);
+    setTimeout(() => buildFilterBar(), 0);
+  } else {
+    document.addEventListener('click', _outsideCloseEvents, { capture: true, once: true });
+  }
+}
+
+function closeEventsPopup(rebuild = true) {
+  document.removeEventListener('click', _outsideCloseEvents, { capture: true });
+  const popup = document.getElementById('events-popup');
+  if (popup) popup.remove();
+  if (rebuild) buildFilterBar();
+}
+
+function toggleEventType(key) {
+  filters.eventTypes[key] = filters.eventTypes[key] !== false ? false : true;
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('events-popup');
+  if (popup) {
+    const inputs = popup.querySelectorAll('input[type=checkbox]');
+    EVENT_TYPES.forEach((t, i) => { inputs[i].checked = filters.eventTypes[t.key] !== false; });
+  }
+}
+
+function setAllEventTypes(val) {
+  EVENT_TYPES.forEach(t => { filters.eventTypes[t.key] = val; });
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('events-popup');
   if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
 }
 

@@ -5,7 +5,9 @@ DATA_DIR="${DATA_DIR:-/app/data}"
 
 # Seed config and events on first start so users can edit them from the data dir
 [ -f "$DATA_DIR/config.yaml" ]      || cp /app/config.yaml      "$DATA_DIR/config.yaml"
-[ -f "$DATA_DIR/city_events.yaml" ] || cp /app/city_events.yaml "$DATA_DIR/city_events.yaml"
+[ -f "$DATA_DIR/city_events.yaml" ]   || cp /app/city_events.yaml   "$DATA_DIR/city_events.yaml"
+[ -f "$DATA_DIR/messe_events.yaml" ]  || cp /app/messe_events.yaml  "$DATA_DIR/messe_events.yaml"
+[ -f "$DATA_DIR/sports_events.yaml" ] || cp /app/sports_events.yaml "$DATA_DIR/sports_events.yaml"
 [ -d "$DATA_DIR/prompts" ] || [ ! -d /app/prompts ] || cp -r /app/prompts "$DATA_DIR/prompts"
 
 # Generate crontab from config — injects all runtime env vars

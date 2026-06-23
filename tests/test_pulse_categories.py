@@ -155,6 +155,11 @@ class TestSeverityWeighting:
         counts = count_alerts_by_category(alerts, now=_NOW)
         assert counts["incidents"] == pytest.approx(1.0)
 
+    def test_messe_weight(self):
+        alerts = [_alert("messe", valid_from=_PAST)]
+        counts = count_alerts_by_category(alerts, now=_NOW)
+        assert counts["events"] == pytest.approx(2.0)
+
 
 class TestComputeWeight:
     def test_dwd_all_levels(self):
@@ -175,6 +180,9 @@ class TestComputeWeight:
 
     def test_autobahn_warning(self):
         assert _compute_weight({"source": "autobahn", "title_en": "A5 Warning"}) == 1.0
+
+    def test_messe(self):
+        assert _compute_weight({"source": "messe"}) == 2.0
 
     def test_unknown_source(self):
         assert _compute_weight({"source": "unknown"}) == 1.0

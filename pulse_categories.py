@@ -24,7 +24,7 @@ Source-to-category mapping:
   transport  = rmv
   roadworks  = autobahn, baustellen
   incidents  = polizei, strike
-  events     = events, sports
+  events     = events, sports, messe
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ CATEGORY_SOURCES: dict[str, list[str]] = {
     "transport": ["rmv"],
     "roadworks": ["autobahn", "baustellen"],
     "incidents": ["polizei", "strike"],
-    "events": ["events", "sports"],
+    "events": ["events", "sports", "messe"],
 }
 
 STATUS_LEVELS = ("clear", "low", "moderate", "high")
@@ -63,7 +63,7 @@ def _compute_weight(alert: dict) -> float:
         return 1.5 if "closure" in title else WEIGHT_DEFAULT
     if source == "baustellen":
         return SERVICE_WEIGHTS_BAUSTELLEN.get(alert.get("service"), WEIGHT_DEFAULT)
-    if source in ("events", "sports"):
+    if source in ("events", "sports", "messe"):
         return WEIGHT_EVENTS
     return WEIGHT_DEFAULT
 
