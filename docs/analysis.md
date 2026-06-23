@@ -33,39 +33,72 @@ This layer handles everything that can be computed precisely without interpretat
 
 **Alert counting** — Active, non-stale alerts are grouped by category using the source mapping above. Each category gets a current alert count.
 
-**Status classification** — The current count is compared against a 7-day rolling average at the same hour of day (±1 hour window). This produces a unified status level:
+**Status classification and trend detection** use Exponential Weighted Moving Average (EWMA) — a standard technique for event-count anomaly detection (used by the CDC for disease outbreak surveillance). EWMA gives more weight to recent data while older observations gradually fade, providing a self-correcting baseline that adapts to long-running conditions.
 
-| Status | Meaning |
-|--------|---------|
-| `clear` | Zero alerts in this category |
-| `low` | At or below the historical average — normal for this time of day |
-| `moderate` | Above the historical average — noticeable increase |
-| `high` | Significantly above average (>1.6×) — unusual situation |
+### Current implementation (v0.9.3)
 
-The baseline is **self-correcting**: if roadworks are consistently high, that becomes the new normal. A weekday rush-hour baseline differs from a Sunday morning baseline because comparisons are hour-matched.
+Status uses a 7-day simple rolling average at the same hour (±1 hour window). Trend compares the current status level against the previous pulse's level. This approach has known issues:
 
-**Cold start:** When there is no historical data (first pulse, or first pulse at this hour), alerts present default to "low" and zero alerts default to "clear". The baseline becomes accurate after approximately 7 days of data.
+- **Cross-hour comparison problem** — A `low` at 7am (baseline: 20 alerts) and a `high` at 9am (baseline: 0 alerts) are not comparable, leading to misleading trends.
+- **7-day warm-up** — Cold start produces only `clear`/`low` until enough history accumulates.
+- **1-hour trend window** — Comparing only to the previous pulse is too noisy and doesn't show trajectory.
 
-**Trend detection** — The current status level is compared against the previous pulse's level:
+### Planned: EWMA-based status and trend (v0.10)
 
-| Comparison | Trend |
-|------------|-------|
-| Same level | `stable` |
-| Higher level | `worsening` |
-| Lower level | `improving` |
-| No previous pulse | `stable` |
+Replace the simple rolling average with EWMA for both status and trend from a single mechanism.
+
+**Core formula:**
+```
+ewma = α × current_count + (1 - α) × previous_ewma
+```
+
+Where α (smoothing factor) controls responsiveness:
+- α close to 1 → reacts fast, noisy
+- α close to 0 → reacts slowly, smooth
+
+**Recommended α = 0.3** for hourly data — smooth enough that long-running alerts (nearly half of all alerts run for >1 month) naturally become the baseline, while real changes surface within a few hours.
+
+**Storage:** EWMA value stored per category in pulse_history alongside count:
+```json
+{"transport": {"status": "low", "trend": "stable", "count": 8, "ewma": 6.2}}
+```
+
+**Status classification** — Compare current count against EWMA:
+
+| Status | Condition |
+|--------|-----------|
+| `clear` | Zero alerts |
+| `low` | Count ≤ EWMA × 1.3 |
+| `moderate` | Count > EWMA × 1.3 |
+| `high` | Count > EWMA × 1.6 |
+
+**Trend detection** — Compare current count against EWMA (which encodes the trajectory of recent hours, not just the previous pulse):
+
+| Trend | Condition |
+|-------|-----------|
+| `stable` | Count within ±30% of EWMA |
+| `worsening` | Count > EWMA × 1.3 |
+| `improving` | Count < EWMA × 0.7 |
+
+**Advantages over current approach:**
+- No cross-hour comparison problem — EWMA encodes the actual trajectory, not hour-specific snapshots
+- No 7-day warm-up — works from the first pulse; first count = initial EWMA
+- Long-running alerts naturally fade into the baseline via exponential decay
+- Single parameter (α) to tune instead of multiple thresholds
+- Status and trend derived from the same mechanism
 
 ### 2. LLM layer (Gemini Flash)
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-The LLM receives the active alerts, pre-computed categories, and recent history as context. It produces three outputs:
+The LLM receives the active alerts, pre-computed categories, and recent history as context. It produces two outputs:
 
-- **Summary** (≤200 chars) — Cross-source correlation, impact synthesis, not repetition
-- **Recommendation** (≤100 chars) — One actionable sentence: name the alternative route, suggest an event
-- **travel_ok** (bool) — Whether transit/roads have significant active disruptions
+- **Summary** (≤300 chars) — Cross-source correlation, impact synthesis using a synthesis hierarchy (aggregate patterns, don't enumerate specifics), spatial awareness of Frankfurt districts
+- **Recommendation** (≤100 chars) — One actionable sentence: practical and calm, no alarmist language
 
-The LLM does **not** decide category statuses or trends — those are computed by the deterministic layer. The LLM's value is in tasks that require interpretation:
+`travel_ok` is computed deterministically from category levels (false when transport or roadworks are `moderate` or `high`).
+
+The LLM does **not** decide category statuses, trends, or travel_ok — those are computed by the deterministic layer. The LLM's value is in tasks that require interpretation:
 
 - Connecting a police incident to a transit disruption at the same location
 - Assessing that three separate S-Bahn delays converge on the same corridor
@@ -137,16 +170,16 @@ Provide a debug log file together with this document as context when asking an L
 
 ## Current limitations
 
+- **Simple rolling average baseline (v0.9.3)** — Status uses a 7-day hour-matched average with known cross-hour comparison issues. EWMA replacement planned for v0.10.
 - **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
-- **Baseline warm-up** — The adaptive baseline needs ~7 days of data at each hour to be meaningful. During this period, status classification uses cold-start defaults.
 - **No severity weighting** — All alerts count equally toward category status. A severe weather warning counts the same as a minor one.
 - **Single geographic scope** — All of Frankfurt is treated as one zone. A disruption in Sachsenhausen affects the same category as one in Bockenheim.
 
 ## Future improvements
 
+- **EWMA-based status and trend (v0.10)** — Replace simple rolling average with exponential weighted moving average for both status and trend from a single mechanism. See "Planned: EWMA-based status and trend" section above.
 - **Alert archive** — Persist every alert lifecycle (appeared, updated, removed) for historical pattern detection and recurrence analysis
 - **Severity-weighted status** — Weight alert counts by severity level so a single extreme weather warning outweighs three minor ones
 - **Geographic clustering** — Detect when multiple alerts converge on the same area and flag spatial hotspots
 - **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences (e.g., only transit categories for a commuter)
-- **Confidence scoring** — Track how often the LLM's travel_ok assessment matches the deterministic category levels to calibrate trust
-- **Tunable thresholds** — Expose the status classification multipliers (1.1×, 1.6×) in config.yaml for per-deployment tuning
+- **Tunable α and thresholds** — Expose EWMA smoothing factor and status multipliers in config.yaml for per-deployment tuning
