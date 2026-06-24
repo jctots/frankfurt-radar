@@ -5,8 +5,12 @@ import pytest
 from pulse_categories import (
     CATEGORY_SOURCES,
     EWMA_ALPHA,
+    SIGMA_FACTOR,
+    SIGMA_MIN,
     STATUS_LEVELS,
+    TREND_THRESHOLD,
     _compute_weight,
+    _sigma,
     compute_categories,
     compute_ewma,
     compute_travel_ok,
@@ -261,6 +265,17 @@ class TestComputeEwma:
         assert ewma["transport"] == 9.5
 
 
+class TestSigma:
+    def test_sigma_scales_with_ewma(self):
+        assert _sigma(10.0) == pytest.approx(1.5)  # 10 * 0.15
+
+    def test_sigma_minimum(self):
+        assert _sigma(2.0) == pytest.approx(SIGMA_MIN)  # 2 * 0.15 = 0.3 < 1.0
+
+    def test_sigma_zero_ewma(self):
+        assert _sigma(0.0) == pytest.approx(SIGMA_MIN)
+
+
 class TestDetermineStatus:
     def test_zero_alerts(self):
         assert determine_status(0, 5.0) == "clear"
@@ -275,62 +290,78 @@ class TestDetermineStatus:
     def test_at_ewma(self):
         assert determine_status(5, 5.0) == "low"
 
-    def test_slightly_above(self):
-        # 7/5 = 1.4 → moderate (> 1.3)
-        assert determine_status(7, 5.0) == "moderate"
-
-    def test_well_above(self):
-        # 9/5 = 1.8 → high (> 1.6)
-        assert determine_status(9, 5.0) == "high"
-
     def test_below_ewma(self):
         assert determine_status(2, 5.0) == "low"
 
-    def test_at_1_3_boundary(self):
-        # 6.5/5.0 = 1.3 → low (≤ 1.3)
-        assert determine_status(65, 50.0) == "low"
+    def test_above_1_sigma(self):
+        # ewma=30, sigma=max(30*0.15,1)=4.5, threshold=34.5
+        assert determine_status(35, 30.0) == "moderate"
 
-    def test_just_above_1_3(self):
-        # 6.6/5.0 = 1.32 → moderate
-        assert determine_status(66, 50.0) == "moderate"
+    def test_at_1_sigma_boundary(self):
+        # ewma=30, sigma=4.5, count=34.5 → low (not >)
+        assert determine_status(34.5, 30.0) == "low"
 
-    def test_at_1_6_boundary(self):
-        # 8.0/5.0 = 1.6 → moderate (≤ 1.6)
-        assert determine_status(80, 50.0) == "moderate"
+    def test_above_2_sigma(self):
+        # ewma=30, sigma=4.5, 2σ threshold=39.0
+        assert determine_status(40, 30.0) == "high"
 
-    def test_just_above_1_6(self):
-        # 8.1/5.0 = 1.62 → high
-        assert determine_status(81, 50.0) == "high"
+    def test_at_2_sigma_boundary(self):
+        # ewma=30, 2σ=39.0 → moderate (not >)
+        assert determine_status(39, 30.0) == "moderate"
+
+    def test_small_ewma_uses_minimum_sigma(self):
+        # ewma=2, sigma=min(1.0), 1σ threshold=3.0
+        assert determine_status(3.0, 2.0) == "low"
+        assert determine_status(3.1, 2.0) == "moderate"
+        assert determine_status(4.1, 2.0) == "high"
+
+    def test_production_transport_stable(self):
+        # Transport at 35 with EWMA 35 → should be low, not perpetually "low"
+        assert determine_status(35, 35.0) == "low"
+
+    def test_production_transport_spike(self):
+        # Transport spikes from baseline 30 to 40 → sigma=4.5, 1σ=34.5
+        assert determine_status(40, 30.0) == "high"
 
 
 class TestDetermineTrend:
-    def test_cold_start(self):
-        assert determine_trend(5, None) == "stable"
+    def test_cold_start_no_current(self):
+        assert determine_trend(None, 5.0) == "stable"
 
-    def test_zero_ewma(self):
-        assert determine_trend(5, 0) == "stable"
+    def test_cold_start_no_previous(self):
+        assert determine_trend(5.0, None) == "stable"
 
-    def test_stable_at_ewma(self):
-        assert determine_trend(5, 5.0) == "stable"
+    def test_both_none(self):
+        assert determine_trend(None, None) == "stable"
 
-    def test_stable_slightly_above(self):
-        # 6/5 = 1.2 → stable (within ±30%)
-        assert determine_trend(6, 5.0) == "stable"
+    def test_previous_zero_current_positive(self):
+        assert determine_trend(5.0, 0) == "worsening"
 
-    def test_stable_slightly_below(self):
-        # 4/5 = 0.8 → stable (within ±30%)
-        assert determine_trend(4, 5.0) == "stable"
+    def test_previous_zero_current_zero(self):
+        assert determine_trend(0, 0) == "stable"
+
+    def test_stable_no_change(self):
+        assert determine_trend(30.0, 30.0) == "stable"
+
+    def test_stable_within_threshold(self):
+        # 31/30 = 1.033 → 3.3% < 5% → stable
+        assert determine_trend(31.0, 30.0) == "stable"
 
     def test_worsening(self):
-        # 7/5 = 1.4 → worsening (> 1.3)
-        assert determine_trend(7, 5.0) == "worsening"
+        # 32/30 = 1.067 → 6.7% > 5% → worsening
+        assert determine_trend(32.0, 30.0) == "worsening"
 
     def test_improving(self):
-        # 3/5 = 0.6 → improving (< 0.7)
-        assert determine_trend(3, 5.0) == "improving"
+        # 28/30 = 0.933 → -6.7% < -5% → improving
+        assert determine_trend(28.0, 30.0) == "improving"
 
-    def test_zero_count_improving(self):
-        assert determine_trend(0, 5.0) == "improving"
+    def test_small_values_stable(self):
+        # 0.67/0.74 = 0.905 → -9.5% → improving
+        assert determine_trend(0.67, 0.74) == "improving"
+
+    def test_production_transport_drop(self):
+        # Transport EWMA dropped from 37.78 to 33.43 → -11.5% → improving
+        assert determine_trend(33.43, 37.78) == "improving"
 
 
 class TestComputeCategories:
@@ -360,8 +391,29 @@ class TestComputeCategories:
 
         result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
         # EWMA of 7 pulses all with count=5 → ewma ≈ 5.0
-        # 10/5 = 2.0 → high (> 1.6)
+        # sigma = max(5*0.15,1) = 1.0, 2σ threshold = 7.0
+        # count=10 > 7.0 → high
         assert result["transport"]["status"] == "high"
+
+    def test_trend_from_ewma_slope(self):
+        # Two history pulses: count=5 then count=5 → EWMA stable → trend stable
+        history = [
+            {"generated_at": "2026-06-19T10:00:00Z", "categories": {"transport": {"count": 5}}},
+            {"generated_at": "2026-06-20T10:00:00Z", "categories": {"transport": {"count": 5}}},
+        ]
+        alerts = [_alert("rmv")] * 5
+        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
+        assert result["transport"]["trend"] == "stable"
+
+    def test_trend_worsening_from_ewma_rise(self):
+        # History: count jumps from 5 to 10 → EWMA rises → worsening
+        history = [
+            {"generated_at": "2026-06-19T10:00:00Z", "categories": {"transport": {"count": 5}}},
+            {"generated_at": "2026-06-20T10:00:00Z", "categories": {"transport": {"count": 10}}},
+        ]
+        alerts = [_alert("rmv")] * 10
+        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
+        # prev EWMA = 5.0, current EWMA = 0.3*10 + 0.7*5 = 6.5 → 30% rise → worsening
         assert result["transport"]["trend"] == "worsening"
 
     def test_ewma_included_in_output(self):
@@ -373,16 +425,14 @@ class TestComputeCategories:
         result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
         assert result["transport"]["ewma"] == 8.0
 
-    def test_previous_pulse_not_used_for_trend(self):
-        # previous_pulse is no longer used for trend — EWMA determines trend
-        alerts = [_alert("rmv")] * 5
-        prev = {"categories": {"transport": {"status": "clear", "count": 0}}}
+    def test_single_history_pulse_trend_stable(self):
+        # Only 1 history pulse → no previous EWMA → trend stable
         history = [{
             "generated_at": "2026-06-20T10:00:00Z",
             "categories": {"transport": {"count": 5}},
         }]
-        result = compute_categories(alerts, previous_pulse=prev, history_pulses=history, current_hour=10)
-        # count=5, ewma=5.0 → ratio=1.0 → stable (not worsening despite prev being "clear")
+        alerts = [_alert("rmv")] * 10
+        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
         assert result["transport"]["trend"] == "stable"
 
 

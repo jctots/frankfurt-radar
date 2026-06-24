@@ -11,13 +11,12 @@ Each alert is severity-weighted rather than counted as 1. Weights are
 derived deterministically from existing alert fields (severity, service,
 title keywords). See _compute_weight() for the mapping.
 
-Status levels (clear → low → moderate → high) are determined by comparing
-the current weighted count against an EWMA (Exponential Weighted Moving
-Average) baseline computed from pulse history. α=0.3 balances
-responsiveness with stability.
+Status levels (clear → low → moderate → high) compare the current weighted
+count against the EWMA using sigma bands: σ = max(EWMA × 0.15, 1.0).
 
-Trends compare the current count against the EWMA: >1.3× = worsening,
-<0.7× = improving, else stable.
+Trends are decoupled from status. They measure the EWMA slope — whether the
+baseline itself is rising or falling — by comparing the current EWMA against
+the previous EWMA value.
 
 Source-to-category mapping:
   weather    = dwd
@@ -129,6 +128,15 @@ def compute_ewma(pulses: list[dict], alpha: float = EWMA_ALPHA) -> dict[str, flo
     return {cat: round(val, 2) for cat, val in ewma.items()}
 
 
+SIGMA_FACTOR = 0.15
+SIGMA_MIN = 1.0
+TREND_THRESHOLD = 0.05
+
+
+def _sigma(ewma: float) -> float:
+    return max(ewma * SIGMA_FACTOR, SIGMA_MIN)
+
+
 def determine_status(alert_count: float, ewma: float | None) -> str:
     if alert_count == 0:
         return "clear"
@@ -136,21 +144,25 @@ def determine_status(alert_count: float, ewma: float | None) -> str:
         if alert_count > 0:
             return "moderate"
         return "low"
-    ratio = alert_count / ewma
-    if ratio <= 1.3:
-        return "low"
-    if ratio <= 1.6:
+    sigma = _sigma(ewma)
+    if alert_count > ewma + 2 * sigma:
+        return "high"
+    if alert_count > ewma + sigma:
         return "moderate"
-    return "high"
+    return "low"
 
 
-def determine_trend(alert_count: float, ewma: float | None) -> str:
-    if ewma is None or ewma == 0:
+def determine_trend(
+    current_ewma: float | None, previous_ewma: float | None,
+) -> str:
+    if current_ewma is None or previous_ewma is None:
         return "stable"
-    ratio = alert_count / ewma
-    if ratio > 1.3:
+    if previous_ewma == 0:
+        return "worsening" if current_ewma > 0 else "stable"
+    change = (current_ewma - previous_ewma) / previous_ewma
+    if change > TREND_THRESHOLD:
         return "worsening"
-    if ratio < 0.7:
+    if change < -TREND_THRESHOLD:
         return "improving"
     return "stable"
 
@@ -163,14 +175,19 @@ def compute_categories(
     now: datetime | None = None,
 ) -> dict:
     counts = count_alerts_by_category(alerts, now=now)
-    ewma = compute_ewma(history_pulses)
+    current_ewma = compute_ewma(history_pulses)
+
+    previous_ewma: dict[str, float | None] = {}
+    if len(history_pulses) >= 2:
+        previous_ewma = compute_ewma(history_pulses[:-1])
 
     categories = {}
     for cat_name in CATEGORY_SOURCES:
         count = counts[cat_name]
-        cat_ewma = ewma.get(cat_name)
+        cat_ewma = current_ewma.get(cat_name)
+        prev_ewma = previous_ewma.get(cat_name)
         status = determine_status(count, cat_ewma)
-        trend = determine_trend(count, cat_ewma)
+        trend = determine_trend(cat_ewma, prev_ewma)
         categories[cat_name] = {
             "status": status,
             "trend": trend,

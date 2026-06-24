@@ -56,7 +56,7 @@ The EWMA baseline and status/trend thresholds operate on these weighted scores, 
 
 **Status classification and trend detection** use Exponential Weighted Moving Average (EWMA) — a standard technique for event-count anomaly detection (used by the CDC for disease outbreak surveillance). EWMA gives more weight to recent data while older observations gradually fade, providing a self-correcting baseline that adapts to long-running conditions.
 
-### EWMA-based status and trend (v0.10)
+### EWMA-based status and trend
 
 **Core formula:**
 ```
@@ -76,26 +76,30 @@ Where α (smoothing factor) controls responsiveness:
 
 `count` is the severity-weighted disruption score for ongoing alerts, not a raw alert count.
 
-**Status classification** — Compare current weighted count against EWMA:
+**Status classification** — Compare current weighted count against EWMA using sigma bands (σ = max(EWMA × 0.15, 1.0)):
 
 | Status | Condition |
 |--------|-----------|
 | `clear` | Zero weighted count |
-| `low` | Count ≤ EWMA × 1.3 |
-| `moderate` | Count > EWMA × 1.3 |
-| `high` | Count > EWMA × 1.6 |
+| `low` | Count ≤ EWMA + 1σ |
+| `moderate` | Count > EWMA + 1σ |
+| `high` | Count > EWMA + 2σ |
 
-**Trend detection** — Compare current weighted count against EWMA (which encodes the trajectory of recent hours, not just the previous pulse):
+**Trend detection** — Measures the EWMA slope (is the baseline itself rising or falling?), decoupled from status. Compares the current EWMA against the previous EWMA value:
 
 | Trend | Condition |
 |-------|-----------|
-| `stable` | Count within ±30% of EWMA |
-| `worsening` | Count > EWMA × 1.3 |
-| `improving` | Count < EWMA × 0.7 |
+| `stable` | EWMA change within ±5% |
+| `worsening` | EWMA rose by > 5% |
+| `improving` | EWMA fell by > 5% |
 
-**Cold start:** No history → EWMA is `None` → any non-zero count gets `moderate` status and `stable` trend. First pulse with data initializes the EWMA; subsequent pulses refine it.
+This decoupling allows all 12 status/trend combinations. For example, `high + improving` means "it's bad but getting better" (storm passing), while `low + worsening` means "it's fine but building up" (early warning).
 
-**Prior approach (v0.9.3):** Used a 7-day simple rolling average at the same hour (±1 hour window) for status, and compared status levels between consecutive pulses for trend. This had cross-hour comparison problems (a `low` at 7am and `high` at 9am were not comparable), required 7 days of data to warm up, and produced noisy trends from single-pulse comparisons.
+**Cold start:** No history → EWMA is `None` → any non-zero count gets `moderate` status and `stable` trend. First pulse with data initializes the EWMA; subsequent pulses refine it. Trend requires at least 2 history pulses to compute a slope.
+
+**Prior approaches:**
+- **v0.9.7:** Used ratio-based thresholds (×1.3/×1.6 for status, ±30% for trend). Both status and trend compared count vs EWMA, making them coupled — only 4 of 12 combinations were possible. Production data showed everything stuck at `low + stable` 98% of the time.
+- **v0.9.3:** Used a 7-day simple rolling average at the same hour (±1 hour window) for status, and compared status levels between consecutive pulses for trend. This had cross-hour comparison problems, required 7 days to warm up, and produced noisy trends.
 
 ### 2. LLM layer (Gemini Flash)
 

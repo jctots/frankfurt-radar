@@ -27,7 +27,7 @@ Pre-computed category statuses (calculated from alert counts and historical base
 
 Category field reference:
 - status: clear/low/moderate/high — overall severity level. Only feature "moderate" and "high" in the summary.
-- trend: improving/stable/worsening — direction compared to the 7-day EWMA baseline. If "worsening", mention the direction (e.g. "transit disruptions are increasing"). If "improving", note it's easing. "Stable" needs no trend mention.
+- trend: improving/stable/worsening — direction the EWMA baseline is moving (rising = worsening, falling = improving). If "worsening", mention the direction (e.g. "transit disruptions are increasing"). If "improving", note it's easing. "Stable" needs no trend mention.
 - count: weighted disruption score (severity-weighted, not raw alert count). Higher means more or more severe disruptions.
 - ewma: 7-day moving average baseline for context.
 
