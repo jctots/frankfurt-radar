@@ -1993,20 +1993,43 @@ function _ongoingStatus(a) {
   const until = new Date(a.valid_until);
   const today = new Date(now); today.setHours(0, 0, 0, 0);
   const untilDay = new Date(until); untilDay.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
   const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
 
-  if (untilDay.getTime() === tomorrow.getTime()) return { label: 'Ends in 1 day', cls: 'upcoming' };
   if (untilDay.getTime() === today.getTime() && hasTime) {
     const diffMs = until - now;
-    if (diffMs <= 0 || diffMs < 5 * 60000) return { label: 'Ending soon', cls: 'upcoming' };
+    if (diffMs <= 0 || diffMs < 5 * 60000) return { label: 'Ending soon', cls: 'ongoing' };
     const mins = Math.floor(diffMs / 60000);
-    if (mins < 60) return { label: `Ends in ${mins} min${mins !== 1 ? 's' : ''}`, cls: 'upcoming' };
-    const hrs = Math.floor(diffMs / 3600000);
-    return { label: `Ends in ${hrs} hr${hrs !== 1 ? 's' : ''}`, cls: 'upcoming' };
+    if (mins < 60) return { label: `Ends in ${mins} min${mins !== 1 ? 's' : ''}`, cls: 'ongoing' };
+    return { label: 'Ongoing', cls: 'ongoing' };
   }
-  if (untilDay.getTime() === today.getTime()) return { label: 'Ends today', cls: 'upcoming' };
+  if (untilDay.getTime() === today.getTime()) return { label: 'Ends today', cls: 'ongoing' };
   return { label: 'Ongoing', cls: 'ongoing' };
+}
+
+function _staleEndStatus(a) {
+  if (!a.valid_until) return null;
+  const now = new Date();
+  const until = new Date(a.valid_until);
+  const diffMs = until - now;
+  if (diffMs <= 0) return null;
+  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const untilDay = new Date(until); untilDay.setHours(0, 0, 0, 0);
+
+  if (untilDay.getTime() === today.getTime() && hasTime) {
+    if (diffMs < 5 * 60000) return 'Ending soon';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `Ends in ${mins} min${mins !== 1 ? 's' : ''}`;
+    const hrs = Math.floor(diffMs / 3600000);
+    return `Ends in ${hrs} hr${hrs !== 1 ? 's' : ''}`;
+  }
+  if (untilDay.getTime() === today.getTime()) return 'Ends today';
+  const days = Math.round((untilDay - today) / 86400000);
+  if (days === 1) return 'Ends in 1 day';
+  if (days < 7) return `Ends in ${days} days`;
+  const weeks = Math.floor(days / 7);
+  if (days <= 28) return `Ends in ${weeks} week${weeks !== 1 ? 's' : ''}`;
+  return null;
 }
 
 function statusPillHtml(a) {
@@ -2016,17 +2039,8 @@ function statusPillHtml(a) {
       : '';
   }
   if (a.stale) {
-    const ending = _ongoingStatus(a);
-    if (ending.cls === 'upcoming') return `<span class="status-pill upcoming">${esc(ending.label.toUpperCase())}</span>`;
-    if (a.valid_until) {
-      const now = new Date();
-      const until = new Date(a.valid_until);
-      const daysLeft = Math.floor((until - now) / 86400000);
-      const endOfWeek = new Date(now); endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      if (daysLeft >= 0 && until <= endOfWeek) return `<span class="status-pill upcoming">ENDS THIS WEEK</span>`;
-      if (daysLeft >= 0 && until <= endOfMonth) return `<span class="status-pill upcoming">ENDS THIS MONTH</span>`;
-    }
+    const endLabel = _staleEndStatus(a);
+    if (endLabel) return `<span class="status-pill longrunning">${esc(endLabel.toUpperCase())}</span>`;
     return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
   if (isFuture(a)) {
