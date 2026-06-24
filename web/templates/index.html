@@ -563,6 +563,7 @@
     .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
+    .status-pill.pulse-summary { background: #ede9fe; color: #5b21b6; }
     .status-pill.neutral     { background: #e2e8f0; color: #475569; }
 
 .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
@@ -1033,6 +1034,7 @@
     .dark .status-pill.upcoming    { background: #233350; color: #9bb0cc; border: 1px solid #2e4262; }
     .dark .status-pill.longrunning { background: #1e2c44; color: #7a92b0; border: 1px solid #283a52; }
     .dark .status-pill.neutral     { background: #1a2536; color: #5a6e84; border: 1px solid #222e3e; }
+    .dark .status-pill.pulse-summary { background: #232040; color: #a5a0cc; border: 1px solid #2e2a52; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -1963,6 +1965,28 @@ function isFuture(a) {
 // instead of a misleading ongoing/upcoming default. Single source of truth
 // so cards, the long-running list, and the map popup all agree on the same
 // status for the same alert.
+function _ongoingStatus(a) {
+  if (!a.valid_until) return { label: 'Ongoing', cls: 'ongoing' };
+  const now = new Date();
+  const until = new Date(a.valid_until);
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const untilDay = new Date(until); untilDay.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
+
+  if (untilDay.getTime() === tomorrow.getTime()) return { label: 'Ends tomorrow', cls: 'upcoming' };
+  if (untilDay.getTime() === today.getTime() && hasTime) {
+    const diffMs = until - now;
+    if (diffMs <= 0 || diffMs < 5 * 60000) return { label: 'Ending soon', cls: 'upcoming' };
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return { label: `Ends in ${mins} min${mins !== 1 ? 's' : ''}`, cls: 'upcoming' };
+    const hrs = Math.floor(diffMs / 3600000);
+    return { label: `Ends in ${hrs} hr${hrs !== 1 ? 's' : ''}`, cls: 'upcoming' };
+  }
+  if (untilDay.getTime() === today.getTime()) return { label: 'Ends today', cls: 'upcoming' };
+  return { label: 'Ongoing', cls: 'ongoing' };
+}
+
 function statusPillHtml(a) {
   if (!a.valid_from) {
     return a.source === 'polizei'
@@ -1970,11 +1994,24 @@ function statusPillHtml(a) {
       : '';
   }
   if (a.stale) {
+    const ending = _ongoingStatus(a);
+    if (ending.cls === 'upcoming') return `<span class="status-pill upcoming">${esc(ending.label.toUpperCase())}</span>`;
+    if (a.valid_until) {
+      const now = new Date();
+      const until = new Date(a.valid_until);
+      const daysLeft = Math.floor((until - now) / 86400000);
+      const endOfWeek = new Date(now); endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      if (daysLeft >= 0 && until <= endOfWeek) return `<span class="status-pill upcoming">ENDS THIS WEEK</span>`;
+      if (daysLeft >= 0 && until <= endOfMonth) return `<span class="status-pill upcoming">ENDS THIS MONTH</span>`;
+    }
     return `<span class="status-pill longrunning">${esc(fmtOngoing(a.valid_from).toUpperCase())}</span>`;
   }
-  const future = isFuture(a);
-  const label = future ? daysUntil(a.valid_from) : 'Ongoing';
-  return `<span class="status-pill ${future ? 'upcoming' : 'ongoing'}">${esc(label.toUpperCase())}</span>`;
+  if (isFuture(a)) {
+    return `<span class="status-pill upcoming">${esc(daysUntil(a.valid_from).toUpperCase())}</span>`;
+  }
+  const { label, cls } = _ongoingStatus(a);
+  return `<span class="status-pill ${cls}">${esc(label.toUpperCase())}</span>`;
 }
 
 // Red Expired/Resolved pill for removed/cleared alerts — shared by the
@@ -2138,7 +2175,7 @@ function _renderPulseCard() {
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.title || pulse.summary || 'City Pulse')}</div>
-      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill ongoing">SUMMARY</span></div>
+      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill pulse-summary">SITUATIONAL SUMMARY</span></div>
     </div>
   </div>
 </div>`;
