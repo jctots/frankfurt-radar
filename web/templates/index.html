@@ -247,18 +247,17 @@
       transition: all 0.12s;
       white-space: nowrap;
     }
-    .chip.line-picker, .chip.roads-picker, .chip.events-picker { border-radius: 4px; padding-right: 4px; }
+    .chip.line-picker, .chip.roads-picker, .chip.events-picker, .chip.incidents-picker { border-radius: 4px; padding-right: 4px; }
     .chip.on { background: var(--clr-surface); color: var(--clr-text); }
 
     .chip.src-rmv.on      { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.src-dwd.on      { color: var(--clr-weather);   border-color: var(--clr-weather);   background: #f5f3ff; }
-    .chip.src-polizei.on  { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
+    .chip.src-incidents.on { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
     .chip.src-autobahn.on   { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-baustellen.on { color: var(--clr-roads);     border-color: var(--clr-roads);     background: #fffbeb; }
     .chip.src-events.on   { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.src-messe.on    { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.src-sports.on   { color: var(--clr-sports);    border-color: var(--clr-sports);    background: #ecfdf5; }
-    .chip.src-strike.on  { color: var(--clr-strike);    border-color: var(--clr-strike);    background: #fff7ed; }
     .chip.svc.on         { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; }
     .chip.line.on        { color: var(--clr-transport); border-color: var(--clr-transport); background: #eff6ff; font-weight: 600; }
 
@@ -270,6 +269,8 @@
     .chip.roads-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip.events-picker      { color: var(--clr-events);    border-color: var(--clr-events);    background: #ecfdf5; }
     .chip.events-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .chip.incidents-picker      { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
+    .chip.incidents-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
@@ -456,7 +457,6 @@
     .card.src-messe      { border-left-color: var(--clr-events); }
     .card.src-sports     { border-left-color: var(--clr-sports); }
     .card.src-strike     { border-left-color: var(--clr-strike); }
-    .card.card-pinned.src-dwd    { background: #f5f3ff; }
     .card.card-pinned.src-events { background: #ecfdf5; }
     .card.card-pinned.src-messe  { background: #ecfdf5; }
     .card.card-pinned.src-sports { background: #ecfdf5; }
@@ -1028,6 +1028,8 @@
     .dark .chip.roads-picker.part    { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip.events-picker        { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
     .dark .chip.events-picker.part   { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
+    .dark .chip.incidents-picker     { color: #e5e7eb; border-color: #4a5568; background: #232d3f; }
+    .dark .chip.incidents-picker.part { background: #2a3040; border-color: #4a5568; color: #d1d5db; }
     .dark .chip-count                { background: rgba(255,255,255,0.12); }
 
     .dark .status-pill.ongoing     { background: #2a3f5e; color: #c8d6e8; border: 1px solid #3a5070; }
@@ -1414,6 +1416,7 @@ let _notifyEnabled = localStorage.getItem('fr_notify') !== '0';
 let _linesClosedBy = null;
 let _roadsClosedBy = null;
 let _eventsClosedBy = null;
+let _incidentsClosedBy = null;
 let _hiddenAlertIds = null;
 let _hiddenTimeout  = null;
 const WEBSITE_DISABLED_DEFAULT = new Set({{ website_disabled_default | tojson }});
@@ -1426,8 +1429,12 @@ if (!filters.sources.hasOwnProperty('messe'))      filters.sources.messe      = 
 if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
+if (!filters.sources.hasOwnProperty('incidents'))  filters.sources.incidents  = _srcOn('polizei');
 if (!filters.roads) filters.roads = {};
 if (!filters.eventTypes) filters.eventTypes = {};
+if (!filters.incidentTypes) filters.incidentTypes = {};
+if (!filters.incidentTypes.hasOwnProperty('police'))  filters.incidentTypes.police  = filters.sources.polizei !== false;
+if (!filters.incidentTypes.hasOwnProperty('strikes')) filters.incidentTypes.strikes = filters.sources.strike  !== false;
 if (!filters.eventTypes.hasOwnProperty('festivals'))   filters.eventTypes.festivals   = true;
 if (!filters.eventTypes.hasOwnProperty('trade_fairs')) filters.eventTypes.trade_fairs  = true;
 if (!filters.eventTypes.hasOwnProperty('sports'))      filters.eventTypes.sports       = true;
@@ -1920,6 +1927,10 @@ function passesFilters(a) {
   if (a.source === 'baustellen' && filters.sources.autobahn  === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Partial)' && filters.roads.city_partial === false) return false;
   if (a.source === 'baustellen' && a.service === 'City (Full)'    && filters.roads.city_full    === false) return false;
+  if (a.source === 'polizei' && filters.sources.incidents       === false) return false;
+  if (a.source === 'polizei' && filters.incidentTypes.police    === false) return false;
+  if (a.source === 'strike'  && filters.sources.incidents       === false) return false;
+  if (a.source === 'strike'  && filters.incidentTypes.strikes   === false) return false;
   if (a.source === 'events'  && filters.eventTypes.festivals   === false) return false;
   if (a.source === 'messe'   && filters.sources.events         === false) return false;
   if (a.source === 'messe'   && filters.eventTypes.trade_fairs  === false) return false;
@@ -2035,22 +2046,20 @@ function daysUntil(iso) {
   const target = new Date(iso);
   const now = new Date();
   const diffMs = target - now;
-  if (diffMs <= 0) return 'Today';
+  if (diffMs <= 0) return 'Starts today';
 
-  // Calendar-day distance first, so "tomorrow morning" reads as "Tomorrow"
-  // rather than "In 10 hours" just because it's less than a day away.
   const tDay = new Date(target); tDay.setHours(0, 0, 0, 0);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const dayDiff = Math.round((tDay - today) / 86400000);
 
   if (dayDiff <= 0) {
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 60) return `In ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
+    if (diffMins < 60) return `Starts in ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
     const diffHours = Math.floor(diffMs / 3600000);
-    return `In ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+    return `Starts in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
   }
-  if (dayDiff === 1) return 'Tomorrow';
-  return `In ${dayDiff} days`;
+  if (dayDiff === 1) return 'Starts tomorrow';
+  return `Starts in ${dayDiff} days`;
 }
 
 function fmtPostedAge(iso) {
@@ -2187,7 +2196,7 @@ function renderFeed() {
   // ── Active Alerts (recent + optional long-running, optional future hidden) ──
   const recentAll = visible();
   const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
-  const _pinnableSrc = s => s === 'events' || s === 'messe' || s === 'sports' || s === 'dwd';
+  const _pinnableSrc = s => s === 'events' || s === 'messe' || s === 'sports';
   const _tomorrow = new Date(); _tomorrow.setDate(_tomorrow.getDate() + 1);
   const _isTodayOrTomorrow = a => a.valid_from && (new Date(a.valid_from).toDateString() === new Date().toDateString() || new Date(a.valid_from).toDateString() === _tomorrow.toDateString());
   const _shouldPin = a => _pinnableSrc(a.source) && (!isFuture(a) || _isTodayOrTomorrow(a));
@@ -2630,15 +2639,19 @@ function buildFilterBar() {
     });
   }
 
-  // Police
+  // Incidents (grouped: police + strikes)
   html += '<div class="filter-sep"></div>';
-  const polOn = filters.sources.polizei !== false;
-  html += `<button class="chip src-polizei${polOn ? ' on' : ''}" onclick="toggleSrc('polizei')">${SOURCE.polizei.emoji} ${SOURCE.polizei.label}${badge(counts.polizei)}</button>`;
-
-  // Strikes
-  html += '<div class="filter-sep"></div>';
-  const stOn = filters.sources.strike !== false;
-  html += `<button class="chip src-strike${stOn ? ' on' : ''}" onclick="toggleSrc('strike')">${SOURCE.strike.emoji} ${SOURCE.strike.label}${badge(counts.strike)}</button>`;
+  const incOn = filters.sources.incidents !== false;
+  const incCount = counts.polizei + counts.strike;
+  html += `<button class="chip src-incidents${incOn ? ' on' : ''}" onclick="toggleSrc('incidents')">🚨 Incidents${badge(incCount)}</button>`;
+  if (incOn) {
+    const incAlerts = sectionAlerts.filter(a => ['polizei','strike'].includes(a.source));
+    if (incAlerts.length) {
+      const enabledIncTypes = ['police','strikes'].filter(k => filters.incidentTypes[k] !== false).length;
+      const incPartial = enabledIncTypes < 2;
+      html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    }
+  }
 
   // Roads
   html += '<div class="filter-sep"></div>';
@@ -2679,6 +2692,9 @@ function openLinesPopup(svc, btn) {
   if (_linesClosedBy === btn) { _linesClosedBy = null; return; }
   _linesClosedBy = null;
   closeLinesPopup(false);
+  closeRoadsPopup(false);
+  closeEventsPopup(false);
+  closeIncidentsPopup(false);
   const rmv   = alerts.filter(a => a.source === 'rmv');
   const lines = [...new Set(rmv.filter(a => a.service === svc && a.lines).flatMap(a => a.lines))].sort();
   if (!lines.length) return;
@@ -2764,6 +2780,7 @@ function openRoadsPopup(btn) {
   _roadsClosedBy = null;
   closeRoadsPopup(false);
   closeLinesPopup(false);
+  closeIncidentsPopup(false);
 
   const rect  = btn.getBoundingClientRect();
   const popup = document.createElement('div');
@@ -2844,6 +2861,7 @@ function openEventsPopup(btn) {
   closeEventsPopup(false);
   closeLinesPopup(false);
   closeRoadsPopup(false);
+  closeIncidentsPopup(false);
 
   const rect  = btn.getBoundingClientRect();
   const popup = document.createElement('div');
@@ -2908,6 +2926,86 @@ function setAllEventTypes(val) {
   renderFeed();
   buildFilterBar();
   const popup = document.getElementById('events-popup');
+  if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
+}
+
+// ── Incidents popup ──────────────────────────────────────────────────────────
+const INCIDENT_TYPES = [
+  { key: 'police',  label: 'Police' },
+  { key: 'strikes', label: 'Strikes' },
+];
+
+function openIncidentsPopup(btn) {
+  if (_incidentsClosedBy === btn) { _incidentsClosedBy = null; return; }
+  _incidentsClosedBy = null;
+  closeIncidentsPopup(false);
+  closeLinesPopup(false);
+  closeRoadsPopup(false);
+  closeEventsPopup(false);
+
+  const rect  = btn.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'lines-popup';
+  popup.id = 'incidents-popup';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.style.left = rect.left + 'px';
+
+  popup.innerHTML = `
+    <div class="lines-popup-actions">
+      <button onclick="setAllIncidentTypes(true)">All</button>
+      <button onclick="setAllIncidentTypes(false)">None</button>
+    </div>
+    <div class="lines-popup-body">
+      ${INCIDENT_TYPES.map(t => `
+        <label class="lines-popup-item">
+          <input type="checkbox" ${filters.incidentTypes[t.key] !== false ? 'checked' : ''} onchange="toggleIncidentType('${t.key}')">
+          ${t.label}
+        </label>`).join('')}
+    </div>`;
+
+  document.body.appendChild(popup);
+  const overflowRight = popup.getBoundingClientRect().right - window.innerWidth + 8;
+  if (overflowRight > 0) popup.style.left = Math.max(8, rect.left - overflowRight) + 'px';
+  setTimeout(() => document.addEventListener('click', _outsideCloseIncidents, { capture: true }), 0);
+}
+
+function _outsideCloseIncidents(e) {
+  const popup = document.getElementById('incidents-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target)) {
+    _incidentsClosedBy = e.target;
+    closeIncidentsPopup(false);
+    setTimeout(() => buildFilterBar(), 0);
+  } else {
+    document.addEventListener('click', _outsideCloseIncidents, { capture: true, once: true });
+  }
+}
+
+function closeIncidentsPopup(rebuild = true) {
+  document.removeEventListener('click', _outsideCloseIncidents, { capture: true });
+  const popup = document.getElementById('incidents-popup');
+  if (popup) popup.remove();
+  if (rebuild) buildFilterBar();
+}
+
+function toggleIncidentType(key) {
+  filters.incidentTypes[key] = filters.incidentTypes[key] !== false ? false : true;
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('incidents-popup');
+  if (popup) {
+    const inputs = popup.querySelectorAll('input[type=checkbox]');
+    INCIDENT_TYPES.forEach((t, i) => { inputs[i].checked = filters.incidentTypes[t.key] !== false; });
+  }
+}
+
+function setAllIncidentTypes(val) {
+  INCIDENT_TYPES.forEach(t => { filters.incidentTypes[t.key] = val; });
+  saveFilters();
+  renderFeed();
+  buildFilterBar();
+  const popup = document.getElementById('incidents-popup');
   if (popup) popup.querySelectorAll('input[type=checkbox]').forEach(inp => { inp.checked = val; });
 }
 
