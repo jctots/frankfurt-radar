@@ -1985,7 +1985,7 @@ function _ongoingStatus(a) {
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
   const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
 
-  if (untilDay.getTime() === tomorrow.getTime()) return { label: 'Ends tomorrow', cls: 'upcoming' };
+  if (untilDay.getTime() === tomorrow.getTime()) return { label: 'Ends in 1 day', cls: 'upcoming' };
   if (untilDay.getTime() === today.getTime() && hasTime) {
     const diffMs = until - now;
     if (diffMs <= 0 || diffMs < 5 * 60000) return { label: 'Ending soon', cls: 'upcoming' };
@@ -2054,11 +2054,12 @@ function daysUntil(iso) {
 
   if (dayDiff <= 0) {
     const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 5) return 'Starting soon';
     if (diffMins < 60) return `Starts in ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
     const diffHours = Math.floor(diffMs / 3600000);
     return `Starts in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
   }
-  if (dayDiff === 1) return 'Starts tomorrow';
+  if (dayDiff === 1) return 'Starts in 1 day';
   return `Starts in ${dayDiff} days`;
 }
 
