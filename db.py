@@ -190,6 +190,36 @@ def init_db() -> None:
             )""")
         except Exception:
             pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS category_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                category TEXT NOT NULL,
+                ongoing_count INTEGER NOT NULL DEFAULT 0,
+                ongoing_score REAL NOT NULL DEFAULT 0.0,
+                projected_count INTEGER NOT NULL DEFAULT 0,
+                projected_score REAL NOT NULL DEFAULT 0.0,
+                UNIQUE(timestamp, category)
+            )""")
+        except Exception:
+            pass
+        # v0.9.15: rename upcoming_* → projected_* (SQLite can't rename columns)
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(category_snapshots)")]
+            if "upcoming_count" in cols and "projected_count" not in cols:
+                conn.execute("DROP TABLE category_snapshots")
+                conn.execute("""CREATE TABLE category_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    ongoing_count INTEGER NOT NULL DEFAULT 0,
+                    ongoing_score REAL NOT NULL DEFAULT 0.0,
+                    projected_count INTEGER NOT NULL DEFAULT 0,
+                    projected_score REAL NOT NULL DEFAULT 0.0,
+                    UNIQUE(timestamp, category)
+                )""")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
