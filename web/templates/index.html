@@ -485,12 +485,21 @@
     .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .card.card-removed:hover { background: #f8fafc !important; }
 
-    @keyframes alert-blink {
-      0%, 100%      { box-shadow: none; }
-      15%, 48%, 81% { box-shadow: inset 0 0 0 2px #fbbf24, 0 2px 8px rgba(251,191,36,0.35); }
-      32%, 65%      { box-shadow: none; }
-    }
-    .card.alert-blink { animation: alert-blink 1.4s ease-in-out forwards; }
+    @keyframes blink-rmv { 0%,100% { background: #fff; } 15%,45% { background: #dbeafe; } 30%,60% { background: #fff; } }
+    @keyframes blink-dwd { 0%,100% { background: #fff; } 15%,45% { background: #ede9fe; } 30%,60% { background: #fff; } }
+    @keyframes blink-pol { 0%,100% { background: #fff; } 15%,45% { background: #fee2e2; } 30%,60% { background: #fff; } }
+    @keyframes blink-ab  { 0%,100% { background: #fff; } 15%,45% { background: #fef3c7; } 30%,60% { background: #fff; } }
+    @keyframes blink-ev  { 0%,100% { background: #fff; } 15%,45% { background: #d1fae5; } 30%,60% { background: #fff; } }
+    @keyframes blink-st  { 0%,100% { background: #fff; } 15%,45% { background: #ffedd5; } 30%,60% { background: #fff; } }
+    .card.src-rmv.alert-blink      { animation: blink-rmv 1.4s ease-in-out forwards; }
+    .card.src-dwd.alert-blink      { animation: blink-dwd 1.4s ease-in-out forwards; }
+    .card.src-polizei.alert-blink  { animation: blink-pol 1.4s ease-in-out forwards; }
+    .card.src-autobahn.alert-blink { animation: blink-ab 1.4s ease-in-out forwards; }
+    .card.src-baustellen.alert-blink { animation: blink-ab 1.4s ease-in-out forwards; }
+    .card.src-events.alert-blink   { animation: blink-ev 1.4s ease-in-out forwards; }
+    .card.src-messe.alert-blink    { animation: blink-ev 1.4s ease-in-out forwards; }
+    .card.src-sports.alert-blink   { animation: blink-ev 1.4s ease-in-out forwards; }
+    .card.src-strike.alert-blink   { animation: blink-st 1.4s ease-in-out forwards; }
 
     .card-inner  { display: flex; align-items: center; gap: 10px; }
     .card-icon   { font-size: 18px; flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; line-height: 1; }
@@ -1018,6 +1027,8 @@
     .dark .card.card-removed          { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .dark .card.card-removed:hover    { background: #222c3a !important; }
     .dark .card.card-pinned[class*="src-"] { background: var(--clr-surface); }
+    @keyframes blink-dark { 0%,100% { background: #1c2433; } 15%,45% { background: #2a3344; } 30%,60% { background: #1c2433; } }
+    .dark .card.alert-blink { animation: blink-dark 1.4s ease-in-out forwards; }
 
     .dark .chip[class*="src-"].on,
     .dark .chip.svc.on,
@@ -3083,7 +3094,14 @@ function updateTicker() {
   wrap.innerHTML = '';
   tickerItems = [];
   tickerCurrent = 0;
-  const tickerAlerts = visible().filter(isFuture).slice().sort(() => Math.random() - 0.5);
+  const _2d = 2 * 86400000;
+  const _now = Date.now();
+  const _startsOrEndsSoon = a => {
+    if (a.valid_from && new Date(a.valid_from) > new Date() && new Date(a.valid_from) - _now <= _2d) return true;
+    if (a.valid_until && new Date(a.valid_until) > new Date() && new Date(a.valid_until) - _now <= _2d) return true;
+    return false;
+  };
+  const tickerAlerts = [...visible(), ...visibleLongRunning()].filter(_startsOrEndsSoon).sort(() => Math.random() - 0.5);
   tickerAlerts.forEach(a => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
