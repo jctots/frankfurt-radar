@@ -710,11 +710,11 @@
     .pulse-subtitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
     .pulse-trends-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
-    .pulse-categories { margin-bottom: 8px; padding: 0 12px; }
+    .pulse-categories { margin-bottom: 8px; padding: 0 20px; }
     .pulse-table { border-collapse: collapse; font-size: 12px; width: 100%; }
     .pulse-table td { padding: 2px 0; white-space: nowrap; }
-    .pulse-table td:nth-child(2) { text-align: center; }
-    .pulse-table td:last-child { text-align: right; }
+    .pulse-table td:nth-child(2) { width: 33%; }
+    .pulse-table td:last-child { width: 33%; }
     .pulse-cat-label { font-weight: 600; }
     .pulse-cat-status { font-weight: 500; }
     .pulse-cat-status.level-0 { color: var(--clr-muted); }
@@ -2395,7 +2395,7 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Mainly based on ${refCount} alert${refCount !== 1 ? 's' : ''}</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
-  const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div>`;
+  const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div><div class="pulse-legend">Trend: <span class="pulse-cat-trend stable">→ stable</span> <span class="pulse-cat-trend worsening">↗ worsening</span> <span class="pulse-cat-trend improving">↘ improving</span></div>`;
   const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
