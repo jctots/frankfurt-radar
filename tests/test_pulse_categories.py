@@ -166,13 +166,13 @@ class TestComputeSnapshot:
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
 
-    def test_upcoming_counted(self):
+    def test_projected_counted(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=upcoming_time, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap = compute_snapshot(alerts, now=_NOW)
-        assert snap["transport"]["upcoming_count"] == 1
+        assert snap["transport"]["projected_count"] == 1
         assert snap["transport"]["ongoing_count"] == 0
 
     def test_upcoming_beyond_lookahead_excluded(self):
@@ -181,7 +181,7 @@ class TestComputeSnapshot:
             _alert("rmv", valid_from=far_future, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap = compute_snapshot(alerts, now=_NOW)
-        assert snap["transport"]["upcoming_count"] == 0
+        assert snap["transport"]["projected_count"] == 0
 
     def test_stale_excluded(self):
         alerts = [_alert("rmv", stale=True, valid_from=_PAST)]
@@ -194,7 +194,7 @@ class TestComputeSnapshot:
         for cat_data in snap.values():
             assert cat_data == {
                 "ongoing_count": 0, "ongoing_score": 0.0,
-                "upcoming_count": 0, "upcoming_score": 0.0,
+                "projected_count": 0, "projected_score": 0.0,
             }
 
     def test_severity_weighting_in_snapshot(self):
@@ -210,13 +210,38 @@ class TestComputeSnapshot:
         alerts = [_alert("polizei"), _alert("strike")]
         snap = compute_snapshot(alerts, now=_NOW)
         assert snap["incidents"]["ongoing_count"] == 2
-        assert snap["incidents"]["upcoming_count"] == 0
+        assert snap["incidents"]["projected_count"] == 2
+
+    def test_projected_net_calculation(self):
+        expiring_time = (_NOW + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        starting_time = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [
+            _alert("rmv", valid_from=_PAST, valid_until=expiring_time, service="S-Bahn"),
+            _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
+            _alert("rmv", valid_from=starting_time, valid_until="2026-06-25T00:00:00Z"),
+        ]
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["ongoing_count"] == 2
+        assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
+        assert snap["transport"]["projected_count"] == 2
+        assert snap["transport"]["projected_score"] == pytest.approx(2.0)
+
+    def test_projected_floor_at_zero(self):
+        expiring_time = (_NOW + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [
+            _alert("rmv", valid_from=_PAST, valid_until=expiring_time),
+        ]
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["ongoing_count"] == 1
+        assert snap["transport"]["projected_count"] == 0
+        assert snap["transport"]["projected_score"] == 0.0
 
     def test_no_lookahead_category(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [_alert("polizei", valid_from=upcoming_time)]
         snap = compute_snapshot(alerts, now=_NOW)
-        assert snap["incidents"]["upcoming_count"] == 0
+        assert snap["incidents"]["ongoing_count"] == 1
+        assert snap["incidents"]["projected_count"] == 1
 
 
 class TestIsUpcoming:
@@ -248,7 +273,7 @@ class TestBuildCategoryTimeseries:
             rows.append({
                 "timestamp": ts, "category": category,
                 "ongoing_count": 3, "ongoing_score": score,
-                "upcoming_count": 1, "upcoming_score": 2.0,
+                "projected_count": 1, "projected_score": 2.0,
             })
         rows.sort(key=lambda r: r["timestamp"])
         return rows
@@ -260,7 +285,7 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 3, "ongoing_score": 5.0,
-                         "upcoming_count": 1, "upcoming_score": 2.0}
+                         "projected_count": 1, "projected_score": 2.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -270,7 +295,7 @@ class TestBuildCategoryTimeseries:
         assert "hour" in ts["transport"]["history"][0]
         assert "count" in ts["transport"]["history"][0]
         assert "score" in ts["transport"]["history"][0]
-        assert "upcoming_score" not in ts["transport"]["history"][0]
+        assert "projected_score" not in ts["transport"]["history"][0]
 
     def test_weather_6hourly_aggregation(self):
         snapshots = {"weather": self._make_snapshots("weather", 72)}
@@ -279,7 +304,7 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -294,7 +319,7 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -306,7 +331,7 @@ class TestBuildCategoryTimeseries:
             return []
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert set(ts.keys()) == set(CATEGORY_SOURCES.keys())
@@ -317,24 +342,24 @@ class TestBuildCategoryTimeseries:
 
         current = {
             "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
-                          "upcoming_count": 2, "upcoming_score": 3.0},
+                          "projected_count": 2, "projected_score": 3.0},
         }
         for cat in CATEGORY_SOURCES:
             if cat not in current:
                 current[cat] = {"ongoing_count": 0, "ongoing_score": 0.0,
-                                "upcoming_count": 0, "upcoming_score": 0.0}
+                                "projected_count": 0, "projected_score": 0.0}
 
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["current"]["ongoing"]["count"] == 5
         assert ts["transport"]["current"]["ongoing"]["score"] == 8.5
-        assert ts["transport"]["current"]["upcoming"]["count"] == 2
+        assert ts["transport"]["current"]["projected"]["count"] == 2
 
     def test_empty_history(self):
         def get_fn(cat, since):
             return []
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["history"] == []

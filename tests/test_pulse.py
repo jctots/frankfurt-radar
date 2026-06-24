@@ -366,9 +366,9 @@ class TestPulseDB:
     def test_store_and_get_category_snapshots(self):
         snapshots = {
             "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
-                          "upcoming_count": 2, "upcoming_score": 3.0},
+                          "projected_count": 2, "projected_score": 3.0},
             "weather": {"ongoing_count": 1, "ongoing_score": 1.5,
-                        "upcoming_count": 0, "upcoming_score": 0.0},
+                        "projected_count": 0, "projected_score": 0.0},
         }
         db.store_category_snapshots("2026-06-22T10:00:00Z", snapshots)
         rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
@@ -379,11 +379,11 @@ class TestPulseDB:
     def test_category_snapshot_upsert(self):
         db.store_category_snapshots("2026-06-22T10:00:00Z", {
             "transport": {"ongoing_count": 3, "ongoing_score": 5.0,
-                          "upcoming_count": 0, "upcoming_score": 0.0},
+                          "projected_count": 0, "projected_score": 0.0},
         })
         db.store_category_snapshots("2026-06-22T10:00:00Z", {
             "transport": {"ongoing_count": 7, "ongoing_score": 12.0,
-                          "upcoming_count": 1, "upcoming_score": 2.0},
+                          "projected_count": 1, "projected_score": 2.0},
         })
         rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
         assert len(rows) == 1

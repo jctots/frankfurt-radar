@@ -94,13 +94,13 @@ CREATE TABLE IF NOT EXISTS pulse_daily_summary (
 );
 
 CREATE TABLE IF NOT EXISTS category_snapshots (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp       TEXT NOT NULL,
-    category        TEXT NOT NULL,
-    ongoing_count   INTEGER NOT NULL DEFAULT 0,
-    ongoing_score   REAL NOT NULL DEFAULT 0.0,
-    upcoming_count  INTEGER NOT NULL DEFAULT 0,
-    upcoming_score  REAL NOT NULL DEFAULT 0.0,
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp        TEXT NOT NULL,
+    category         TEXT NOT NULL,
+    ongoing_count    INTEGER NOT NULL DEFAULT 0,
+    ongoing_score    REAL NOT NULL DEFAULT 0.0,
+    projected_count  INTEGER NOT NULL DEFAULT 0,
+    projected_score  REAL NOT NULL DEFAULT 0.0,
     UNIQUE(timestamp, category)
 );
 """
@@ -776,15 +776,15 @@ def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
         for category, data in snapshots.items():
             conn.execute(
                 """INSERT OR REPLACE INTO category_snapshots
-                   (timestamp, category, ongoing_count, ongoing_score, upcoming_count, upcoming_score)
+                   (timestamp, category, ongoing_count, ongoing_score, projected_count, projected_score)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     timestamp,
                     category,
                     data.get("ongoing_count", 0),
                     data.get("ongoing_score", 0.0),
-                    data.get("upcoming_count", 0),
-                    data.get("upcoming_score", 0.0),
+                    data.get("projected_count", 0),
+                    data.get("projected_score", 0.0),
                 ),
             )
 

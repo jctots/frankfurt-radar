@@ -27,7 +27,8 @@ The following shows severity-weighted scores per category over each category's n
 
 {timeseries_json}
 
-- `current`: right now — ongoing alerts (active disruptions) and upcoming alerts (within lookahead window), with both count and score
+- `current.ongoing`: active disruptions right now — count and severity-weighted score
+- `current.projected`: predicted score at the end of the category's lookahead window — ongoing score minus expiring alerts plus starting alerts. Compare ongoing vs projected to see the direction: projected < ongoing = situation improving, projected > ongoing = worsening.
 - `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts) and `score` (severity-weighted sum). Use both: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
 - `window`: the time range and sample interval used
 
@@ -47,7 +48,7 @@ Trend (all categories): `improving` / `stable` / `worsening`
 
 How to judge:
 - **Status**: Based on the current ongoing score, upcoming score, alert count, and alert content. Use the severity levels above — Level 0 means no alerts, Level 3 means severe/widespread impact.
-- **Trend**: Compare current scores against the history. Rising scores = worsening, falling = improving, flat = stable. Consider the full history window, not just the last data point.
+- **Trend**: Judge from both history and the projected score. Compare current ongoing scores against the history (rising = worsening, falling = improving, flat = stable), then compare ongoing vs projected — if projected is significantly lower, the situation is improving (alerts ending, few starting). If projected is significantly higher, it's worsening (new disruptions incoming). Consider the full history window, not just the last data point.
 
 ## Output format
 

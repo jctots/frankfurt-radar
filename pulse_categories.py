@@ -89,6 +89,16 @@ def _is_upcoming(alert: dict, now_iso: str, lookahead_end_iso: str) -> bool:
     return valid_from > now_iso and valid_from <= lookahead_end_iso
 
 
+def _is_expiring(alert: dict, now_iso: str, lookahead_end_iso: str) -> bool:
+    source = alert.get("source", "")
+    if source in _NO_TEMPORAL_SOURCES:
+        return False
+    valid_until = alert.get("valid_until")
+    if not valid_until:
+        return False
+    return valid_until > now_iso and valid_until <= lookahead_end_iso
+
+
 def count_alerts_by_category(
     alerts: list[dict], now: datetime | None = None,
 ) -> dict[str, float]:
@@ -130,8 +140,8 @@ def compute_snapshot(
         snapshot[cat] = {
             "ongoing_count": 0,
             "ongoing_score": 0.0,
-            "upcoming_count": 0,
-            "upcoming_score": 0.0,
+            "projected_count": 0,
+            "projected_score": 0.0,
         }
 
     lookahead_ends: dict[str, str] = {}
@@ -139,6 +149,9 @@ def compute_snapshot(
         if window["lookahead_hours"] > 0:
             end = now + timedelta(hours=window["lookahead_hours"])
             lookahead_ends[cat] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    expiring: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    starting: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
 
     for alert in alerts:
         if alert.get("stale"):
@@ -150,13 +163,19 @@ def compute_snapshot(
         if _is_ongoing(alert, now_iso):
             snapshot[cat]["ongoing_count"] += 1
             snapshot[cat]["ongoing_score"] += weight
+            if cat in lookahead_ends and _is_expiring(alert, now_iso, lookahead_ends[cat]):
+                expiring[cat]["count"] += 1
+                expiring[cat]["score"] += weight
         elif cat in lookahead_ends and _is_upcoming(alert, now_iso, lookahead_ends[cat]):
-            snapshot[cat]["upcoming_count"] += 1
-            snapshot[cat]["upcoming_score"] += weight
+            starting[cat]["count"] += 1
+            starting[cat]["score"] += weight
 
     for cat in snapshot:
         snapshot[cat]["ongoing_score"] = round(snapshot[cat]["ongoing_score"], 2)
-        snapshot[cat]["upcoming_score"] = round(snapshot[cat]["upcoming_score"], 2)
+        projected_count = snapshot[cat]["ongoing_count"] - expiring[cat]["count"] + starting[cat]["count"]
+        projected_score = snapshot[cat]["ongoing_score"] - expiring[cat]["score"] + starting[cat]["score"]
+        snapshot[cat]["projected_count"] = max(0, projected_count)
+        snapshot[cat]["projected_score"] = round(max(0.0, projected_score), 2)
 
     return snapshot
 
@@ -234,9 +253,9 @@ def build_category_timeseries(
                     "count": snap.get("ongoing_count", 0),
                     "score": snap.get("ongoing_score", 0.0),
                 },
-                "upcoming": {
-                    "count": snap.get("upcoming_count", 0),
-                    "score": snap.get("upcoming_score", 0.0),
+                "projected": {
+                    "count": snap.get("projected_count", 0),
+                    "score": snap.get("projected_score", 0.0),
                 },
             },
             "history": history,

@@ -54,6 +54,8 @@ This layer computes severity-weighted scores and stores hourly snapshots. It han
 - `ongoing_count` / `ongoing_score`: number and severity-weighted score of active alerts
 - `upcoming_count` / `upcoming_score`: number and severity-weighted score of alerts within the category's lookahead window
 
+Each snapshot also includes a **projected score** — the estimated ongoing score at the end of the category's lookahead window, computed as: `ongoing_score - expiring_score + starting_score`. This gives the LLM a pre-computed net direction signal without having to count individual alert timestamps.
+
 Snapshots are stored in the `category_snapshots` table (one row per category per hour).
 
 **Per-category time windows** — Each category operates on its own natural timescale:
@@ -84,7 +86,7 @@ The LLM receives the active alerts, category time-series data, and recent histor
 | Incidents | clear | low | elevated | major |
 | Events | clear | crowds | busy | peak |
 
-**Trend judgment** — The LLM compares current scores against the category's history and assigns: `improving`, `stable`, or `worsening`.
+**Trend judgment** — The LLM judges trend from both history and upcoming: it compares current ongoing scores against the category's history (backward-looking) and factors in upcoming alerts and expiring ongoing alerts (forward-looking). A flat history with high-severity upcoming alerts = worsening; ongoing alerts ending soon with nothing upcoming = improving. Assigns: `improving`, `stable`, or `worsening`.
 
 The LLM uses the time-series data (scores over time) combined with alert content to make these judgments. This approach gives the LLM the full context to judge severity — a single extreme-severity weather warning can warrant "warning" status even with a low alert count, and chronic low-level roadworks can be correctly identified as "works" rather than escalating due to count alone.
 
