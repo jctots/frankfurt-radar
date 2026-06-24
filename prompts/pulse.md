@@ -44,6 +44,17 @@ title: A high-level headline for the current situation — what a user needs to 
 
 references: Return the alert_id values (from the alerts JSON above) of the top 3 alerts that most influenced the summary. Order by significance. If fewer than 3 alerts are active, return fewer. These are shown to users as clickable source citations.
 
+## Source-specific handling
+
+- **Police reports** (source: polizei): These describe events that already happened — they are NOT live disruptions. Treat them as pattern signals: look for recurring crime types or areas (e.g. repeated pickpocketing near Hauptbahnhof, frequent break-ins in a district). Only mention police data when a pattern emerges across multiple reports. Never report a single police incident as something happening now.
+- **Strikes** (source: strike): These have structured timestamps and are handled by temporal filtering. Treat as normal active alerts when they fall within their valid time window.
+
+## Reading alerts
+
+Each alert has a `title` and `body` field. Always read the body — it contains critical detail not in the title: root causes (signal failures, infrastructure damage), geographic scope (nationwide, regional, single station), expected duration, and affected services. An alert titled "S-Bahn delays" might have a body revealing a nationwide signal failure affecting all Deutsche Bahn services — that changes the summary entirely.
+
+Escalate when the body reveals wider impact than the title suggests (e.g. a transit alert caused by nationwide infrastructure failure, or a roadwork alert closing a major interchange). Use the `age` field to gauge recency — newer alerts deserve more attention, but older active alerts with high severity still matter.
+
 ## What to write
 
 Synthesis hierarchy — aggregate, don't enumerate:

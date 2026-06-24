@@ -84,7 +84,7 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
                 "alert_id": a.get("alert_id"),
                 "source": a.get("source"),
                 "title": a.get("title_en", ""),
-                "body": (a.get("body_en") or "")[:200],
+                "body": (a.get("body_en") or "")[:500],
                 "service": a.get("service"),
                 "lines": json.loads(a["lines"]) if isinstance(a.get("lines"), str) else (a.get("lines") or []),
                 "severity": a.get("severity"),
