@@ -754,6 +754,16 @@
     .pulse-method a { color: var(--clr-muted); text-decoration: underline; text-underline-offset: 2px; }
     .pulse-method a:hover { color: var(--clr-text); }
 
+    /* ── ECG pulse animation ── */
+    .ecg-pulse { overflow: hidden; width: 60px; height: 16px; flex-shrink: 0; display: inline-flex; align-items: center; }
+    .ecg-pulse .ecg-ghost { fill: none; stroke: #6366f1; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.25; }
+    .ecg-pulse .ecg-trace { fill: none; stroke: #6366f1; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 90; stroke-dashoffset: 90; animation: ecg-draw 2.5s ease-in-out infinite; }
+    .ecg-pulse .ecg-dot { fill: #6366f1; filter: drop-shadow(0 0 3px rgba(99,102,241,0.7)); offset-path: path("M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"); offset-distance: 0%; animation: ecg-dot-move 2.5s ease-in-out infinite; }
+    .dark .ecg-pulse .ecg-ghost { stroke: #818cf8; }
+    .dark .ecg-pulse .ecg-trace { stroke: #818cf8; }
+    .dark .ecg-pulse .ecg-dot { fill: #818cf8; filter: drop-shadow(0 0 3px rgba(129,140,248,0.7)); }
+    @keyframes ecg-draw { 0% { stroke-dashoffset: 90; opacity: 1; } 70% { stroke-dashoffset: 0; opacity: 1; } 85%, 100% { stroke-dashoffset: 0; opacity: 0.25; } }
+    @keyframes ecg-dot-move { 0% { offset-distance: 0%; opacity: 1; } 70% { offset-distance: 100%; opacity: 1; } 85%, 100% { offset-distance: 100%; opacity: 0; } }
 
     /* Leaflet popup: match app design */
     .leaflet-popup-content-wrapper {
@@ -2362,7 +2372,7 @@ function renderPulseOverlay(pulse) {
     : '';
 
   return `<div class="pulse-header">
-      <span class="pulse-title">📊 City Pulse</span>
+      <span class="pulse-title">📊 City Pulse <span class="ecg-pulse"><svg viewBox="0 0 60 16" width="60" height="16"><path class="ecg-ghost" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><path class="ecg-trace" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><circle class="ecg-dot" r="2"/></svg></span></span>
       <span class="pulse-time">${fmtPostedAge(pulse.generated_at).replace(/^Posted /, '')}</span>
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
