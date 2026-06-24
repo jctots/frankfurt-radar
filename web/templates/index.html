@@ -2102,7 +2102,7 @@ function daysUntil(iso) {
     if (diffMins < 5) return 'Starting soon';
     if (diffMins < 60) return `Starts in ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
     const diffHours = Math.floor(diffMs / 3600000);
-    return `Starts in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
+    return `Starts in ${diffHours} hr${diffHours !== 1 ? 's' : ''}`;
   }
   if (dayDiff === 1) return 'Starts in 1 day';
   return `Starts in ${dayDiff} days`;
