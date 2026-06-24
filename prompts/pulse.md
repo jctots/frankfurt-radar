@@ -46,9 +46,16 @@ Judge each category's status using ONLY these labels:
 
 Trend (all categories): `improving` / `stable` / `worsening`
 
-How to judge:
-- **Status**: Based on the current ongoing score, upcoming score, alert count, and alert content. Use the severity levels above — Level 0 means no alerts, Level 3 means severe/widespread impact.
-- **Trend**: Judge from both history and the projected score. Compare current ongoing scores against the history (rising = worsening, falling = improving, flat = stable), then compare ongoing vs projected — if projected is significantly lower, the situation is improving (alerts ending, few starting). If projected is significantly higher, it's worsening (new disruptions incoming). Consider the full history window, not just the last data point.
+How to judge status — use the history to calibrate what's "normal" for each category:
+- **Level 0**: Score is 0 — no ongoing alerts in this category.
+- **Level 1**: Score is within the typical range shown in history. This is the baseline state — normal for this category at this time.
+- **Level 2**: Score is significantly above the baseline range seen in history, OR score is within baseline but alert content indicates a high-impact disruption (e.g., a single severe weather warning, a major line suspension). Content-based escalation is valid when the alert body reveals outsized impact not reflected in the score.
+- **Level 3**: Score is far above the baseline range AND alert content confirms widespread or extreme impact. Both the numbers and the content must agree — do not assign Level 3 based on dramatic-sounding text alone.
+
+How to judge trend — use both history and the projected score:
+- Compare current ongoing scores against the history (rising = worsening, falling = improving, flat = stable).
+- Then compare ongoing vs projected — if projected is significantly lower, the situation is improving (alerts ending, few starting). If projected is significantly higher, it's worsening (new disruptions incoming).
+- Consider the full history window, not just the last data point.
 
 ## Output format
 

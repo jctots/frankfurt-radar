@@ -711,10 +711,18 @@
     .pulse-table td { padding: 2px 8px 2px 0; white-space: nowrap; }
     .pulse-table td:last-child { padding-right: 0; }
     .pulse-cat-label { font-weight: 600; }
+    .pulse-cat-status { font-weight: 500; }
+    .pulse-cat-status.level-0 { color: var(--clr-muted); }
+    .pulse-cat-status.level-1 { color: var(--clr-text); }
+    .pulse-cat-status.level-2 { color: #f59e0b; }
+    .pulse-cat-status.level-3 { color: #ef4444; }
+    .dark .pulse-cat-status.level-2 { color: #fbbf24; }
+    .dark .pulse-cat-status.level-3 { color: #f87171; }
     .pulse-cat-trend { display: inline-flex; align-items: center; gap: 3px; }
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
+    .pulse-legend { font-size: 11px; display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     .dark .pulse-recommendation { background: #1a2030; border-color: #2a3344; }
     .dark .pulse-disclaimer-toggle { color: #8892a4; }
@@ -2334,6 +2342,21 @@ const TREND_DISPLAY = {
   stable:    '→ stable',
 };
 
+const STATUS_LEVELS = {
+  transport: ['clear', 'delays', 'disrupted', 'paralyzed'],
+  weather:   ['clear', 'watch', 'warning', 'extreme'],
+  roadworks: ['clear', 'works', 'closures', 'gridlock'],
+  incidents: ['clear', 'low', 'elevated', 'major'],
+  events:    ['clear', 'crowds', 'busy', 'peak'],
+};
+
+function _statusLevel(category, status) {
+  const levels = STATUS_LEVELS[category];
+  if (!levels) return 1;
+  const idx = levels.indexOf(status);
+  return idx >= 0 ? idx : 1;
+}
+
 function renderPulseOverlay(pulse) {
   if (!pulse) return '';
   const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
@@ -2347,7 +2370,9 @@ function renderPulseOverlay(pulse) {
     if (!cat) continue;
     const trend = cat.trend || 'stable';
     const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
-    catsHtml += `<tr><td><span class="pulse-cat-label">${meta.emoji} ${meta.label}</span></td><td>${cat.status}</td><td><span class="pulse-cat-trend ${trend}">${arrow} ${trend}</span></td></tr>`;
+    const level = _statusLevel(key, cat.status);
+    const levelClass = `level-${level}`;
+    catsHtml += `<tr><td><span class="pulse-cat-label">${meta.emoji} ${meta.label}</span></td><td><span class="pulse-cat-status ${levelClass}">${cat.status}</span></td><td><span class="pulse-cat-trend ${trend}">${arrow} ${trend}</span></td></tr>`;
   }
   catsHtml = `<table class="pulse-table">${catsHtml}</table>`;
 
@@ -2365,10 +2390,11 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Mainly based on ${refCount} alert${refCount !== 1 ? 's' : ''}</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
+  const legendHtml = `<div class="pulse-legend"><span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div>`;
   const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${legendHtml}${refsHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">
