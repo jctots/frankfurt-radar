@@ -330,7 +330,7 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
         arrow = trend_arrows.get(trend, "")
         cat_lines.append(f"{emoji} {key.title()}  {status}  {arrow}")
 
-    parts = [f"📊 {summary}{time_str}"]
+    parts = [f"🏙️ {summary}{time_str}"]
     if cat_lines:
         parts.append(f"<b>Status & Trend</b>\n" + "\n".join(cat_lines))
     if recommendation:

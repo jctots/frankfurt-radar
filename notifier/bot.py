@@ -342,9 +342,9 @@ def _cmd_mystatus(chat_id: int) -> None:
 
     pulse_time = prefs.get("pulse_time")
     if pulse_time:
-        lines.append(f"📊 City Pulse: {pulse_time} (Frankfurt time)")
+        lines.append(f"🏙️ City Pulse: {pulse_time} (Frankfurt time)")
     else:
-        lines.append("📊 City Pulse: off")
+        lines.append("🏙️ City Pulse: off")
 
     lines.append(f"\nStatus: {'🟢 active' if sub['active'] else '🔴 paused'}")
     _send(chat_id, "\n".join(lines))
@@ -1115,7 +1115,7 @@ def _goto_pulse_time(chat_id: int, prefs: dict, state: dict) -> None:
     set_conversation_state(chat_id, state)
     current = prefs.get("pulse_time", "12:00")
     _send(chat_id,
-          (f"<b>📊 City Pulse — daily delivery</b>\n\n"
+          (f"<b>🏙️ City Pulse — daily delivery</b>\n\n"
            f"Receive an AI-generated city situation summary via Telegram.\n\n"
            f"Current: <b>{current}</b> (Frankfurt time)"),
           _inline_kb([

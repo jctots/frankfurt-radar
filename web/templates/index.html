@@ -2226,7 +2226,7 @@ function _renderPulseCard() {
   const dateLine = esc(fmtPostedAge(pulse.generated_at));
   return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
-    <span class="card-icon">📊</span>
+    <span class="card-icon">🏙️</span>
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.title || pulse.summary || 'City Pulse')}</div>
@@ -2390,15 +2390,15 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Mainly based on ${refCount} alert${refCount !== 1 ? 's' : ''}</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
-  const legendHtml = `<div class="pulse-legend"><span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div>`;
+  const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div>`;
   const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${legendHtml}${refsHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${legendHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">
-      <span class="pulse-title">📊 City Pulse <span class="ecg-pulse"><svg viewBox="0 0 60 16" width="60" height="16"><path class="ecg-ghost" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><path class="ecg-trace" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><circle class="ecg-dot" r="2"/></svg></span></span>
+      <span class="pulse-title">🏙️ City Pulse <span class="ecg-pulse"><svg viewBox="0 0 60 16" width="60" height="16"><path class="ecg-ghost" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><path class="ecg-trace" d="M0,8 L12,8 L16,8 L18,2 L21,14 L24,4 L26,8 L30,8 L60,8"/><circle class="ecg-dot" r="2"/></svg></span></span>
       <span class="pulse-time">${fmtPostedAge(pulse.generated_at).replace(/^Posted /, '')}</span>
       <button class="pulse-close" onclick="closePulse(true)" title="Close">✕</button>
     </div>
