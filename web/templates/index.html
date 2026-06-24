@@ -2162,7 +2162,7 @@ function renderFeed() {
   document.getElementById('future-count').textContent = recentAll.filter(isFuture).length || '0';
 
   const activeFeed  = document.getElementById('feed');
-  const pulseCardHtml = _renderPulseCard();
+  const pulseCardHtml = searchTerm ? '' : _renderPulseCard();
   const pinnedHtml  = pinned.map(a => _renderCard(a, { pinned: true })).join('');
   const regularHtml = regular.map(_renderCard).join('');
   const longHtml    = longList.map(a => _renderCard(a, { showAge: true })).join('');
