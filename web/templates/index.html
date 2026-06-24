@@ -563,7 +563,7 @@
     .status-pill.ongoing     { background: #d1fae5; color: #065f46; }
     .status-pill.upcoming    { background: #e0f2fe; color: #075985; }
     .status-pill.longrunning { background: #fef3c7; color: #92400e; }
-    .status-pill.pulse-summary { background: #ede9fe; color: #5b21b6; }
+    .status-pill.pill-pulse { background: #ede9fe; color: #5b21b6; }
     .status-pill.neutral     { background: #e2e8f0; color: #475569; }
 
 .section-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
@@ -1034,7 +1034,7 @@
     .dark .status-pill.upcoming    { background: #233350; color: #9bb0cc; border: 1px solid #2e4262; }
     .dark .status-pill.longrunning { background: #1e2c44; color: #7a92b0; border: 1px solid #283a52; }
     .dark .status-pill.neutral     { background: #1a2536; color: #5a6e84; border: 1px solid #222e3e; }
-    .dark .status-pill.pulse-summary { background: #232040; color: #a5a0cc; border: 1px solid #2e2a52; }
+    .dark .status-pill.pill-pulse { background: #232040; color: #a5a0cc; border: 1px solid #2e2a52; }
     .feed::-webkit-scrollbar                   { width: 6px; }
     .feed::-webkit-scrollbar-track             { background: transparent; }
     .feed::-webkit-scrollbar-thumb             { background: #cbd5e1; border-radius: 3px; }
@@ -2175,7 +2175,7 @@ function _renderPulseCard() {
     <div class="card-body">
       <div class="card-labels"><span class="card-src">City Pulse</span></div>
       <div class="card-title">${esc(pulse.title || pulse.summary || 'City Pulse')}</div>
-      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill pulse-summary">SITUATIONAL SUMMARY</span></div>
+      <div class="card-meta"><span>${dateLine}</span><span class="card-meta-spacer"></span><span class="status-pill pill-pulse">SITUATIONAL SUMMARY</span></div>
     </div>
   </div>
 </div>`;
