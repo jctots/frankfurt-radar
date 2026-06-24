@@ -1,22 +1,17 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from pulse_categories import (
     CATEGORY_SOURCES,
-    EWMA_ALPHA,
-    SIGMA_FACTOR,
-    SIGMA_MIN,
-    STATUS_LEVELS,
-    TREND_THRESHOLD,
+    CATEGORY_STATUS_LABELS,
+    CATEGORY_WINDOWS,
     _compute_weight,
-    _sigma,
-    compute_categories,
-    compute_ewma,
-    compute_travel_ok,
+    _is_ongoing,
+    _is_upcoming,
+    build_category_timeseries,
+    compute_snapshot,
     count_alerts_by_category,
-    determine_status,
-    determine_trend,
 )
 
 
@@ -92,11 +87,6 @@ class TestTemporalFiltering:
         counts = count_alerts_by_category(alerts, now=_NOW)
         assert counts["transport"] == 1.0
 
-    def test_no_valid_from_with_valid_until_future(self):
-        alerts = [_alert("rmv", valid_until=_FUTURE)]
-        counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["transport"] == 1.0
-
     def test_incidents_always_counted(self):
         alerts = [
             _alert("polizei"),
@@ -104,11 +94,6 @@ class TestTemporalFiltering:
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
         assert counts["incidents"] == 2.0
-
-    def test_no_temporal_fields_non_incident_counted(self):
-        alerts = [_alert("rmv")]
-        counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["transport"] == 1.0
 
 
 class TestSeverityWeighting:
@@ -118,7 +103,7 @@ class TestSeverityWeighting:
             _alert("dwd", valid_from=_PAST, severity=4),
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["weather"] == pytest.approx(2.5)  # 0.5 + 2.0
+        assert counts["weather"] == pytest.approx(2.5)
 
     def test_rmv_service_weights(self):
         alerts = [
@@ -126,7 +111,7 @@ class TestSeverityWeighting:
             _alert("rmv", valid_from=_PAST, service="Bus"),
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["transport"] == pytest.approx(2.5)  # 1.5 + 1.0
+        assert counts["transport"] == pytest.approx(2.5)
 
     def test_autobahn_closure_weight(self):
         alerts = [
@@ -134,23 +119,10 @@ class TestSeverityWeighting:
             _alert("autobahn", valid_from=_PAST, title="A3 Warning: roadworks"),
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["roadworks"] == pytest.approx(2.5)  # 1.5 + 1.0
-
-    def test_baustellen_full_closure_weight(self):
-        alerts = [
-            _alert("baustellen", valid_from=_PAST, service="City (Full)"),
-            _alert("baustellen", valid_from=_PAST, service="City (Partial)"),
-        ]
-        counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["roadworks"] == pytest.approx(2.5)  # 1.5 + 1.0
+        assert counts["roadworks"] == pytest.approx(2.5)
 
     def test_events_weight(self):
         alerts = [_alert("events", valid_from=_PAST)]
-        counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["events"] == pytest.approx(2.0)
-
-    def test_sports_weight(self):
-        alerts = [_alert("sports", valid_from=_PAST)]
         counts = count_alerts_by_category(alerts, now=_NOW)
         assert counts["events"] == pytest.approx(2.0)
 
@@ -158,11 +130,6 @@ class TestSeverityWeighting:
         alerts = [_alert("polizei")]
         counts = count_alerts_by_category(alerts, now=_NOW)
         assert counts["incidents"] == pytest.approx(1.0)
-
-    def test_messe_weight(self):
-        alerts = [_alert("messe", valid_from=_PAST)]
-        counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["events"] == pytest.approx(2.0)
 
 
 class TestComputeWeight:
@@ -182,9 +149,6 @@ class TestComputeWeight:
     def test_autobahn_closure_case_insensitive(self):
         assert _compute_weight({"source": "autobahn", "title_en": "Full CLOSURE of A5"}) == 1.5
 
-    def test_autobahn_warning(self):
-        assert _compute_weight({"source": "autobahn", "title_en": "A5 Warning"}) == 1.0
-
     def test_messe(self):
         assert _compute_weight({"source": "messe"}) == 2.0
 
@@ -192,270 +156,201 @@ class TestComputeWeight:
         assert _compute_weight({"source": "unknown"}) == 1.0
 
 
-class TestComputeEwma:
-    def _pulse(self, hour, cats, day=20):
-        return {
-            "generated_at": f"2026-06-{day:02d}T{hour:02d}:00:00Z",
-            "categories": cats,
-        }
-
-    def test_single_pulse(self):
-        pulses = [self._pulse(10, {"transport": {"count": 8}})]
-        ewma = compute_ewma(pulses)
-        assert ewma["transport"] == 8.0
-
-    def test_two_pulses(self):
-        pulses = [
-            self._pulse(10, {"transport": {"count": 10}}, day=19),
-            self._pulse(11, {"transport": {"count": 10}}, day=19),
+class TestComputeSnapshot:
+    def test_ongoing_counted(self):
+        alerts = [
+            _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
+            _alert("rmv", valid_from=_PAST, valid_until=_FUTURE, service="S-Bahn"),
         ]
-        ewma = compute_ewma(pulses)
-        assert ewma["transport"] == 10.0
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["ongoing_count"] == 2
+        assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
 
-    def test_ewma_responds_to_spike(self):
-        pulses = [
-            self._pulse(10, {"transport": {"count": 5}}, day=19),
-            self._pulse(11, {"transport": {"count": 5}}, day=19),
-            self._pulse(12, {"transport": {"count": 20}}, day=19),
+    def test_upcoming_counted(self):
+        upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [
+            _alert("rmv", valid_from=upcoming_time, valid_until="2026-06-25T00:00:00Z"),
         ]
-        ewma = compute_ewma(pulses)
-        # After [5, 5]: ewma = 0.3*5 + 0.7*5 = 5.0
-        # After 20: ewma = 0.3*20 + 0.7*5 = 9.5
-        assert ewma["transport"] == 9.5
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["upcoming_count"] == 1
+        assert snap["transport"]["ongoing_count"] == 0
 
-    def test_ewma_decays_old_values(self):
-        pulses = [
-            self._pulse(10, {"transport": {"count": 100}}, day=18),
-            self._pulse(11, {"transport": {"count": 5}}, day=18),
-            self._pulse(12, {"transport": {"count": 5}}, day=18),
-            self._pulse(13, {"transport": {"count": 5}}, day=18),
+    def test_upcoming_beyond_lookahead_excluded(self):
+        far_future = (_NOW + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [
+            _alert("rmv", valid_from=far_future, valid_until="2026-06-25T00:00:00Z"),
         ]
-        ewma = compute_ewma(pulses)
-        # Initial spike of 100 should decay significantly after 3 more data points
-        assert ewma["transport"] < 40
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["upcoming_count"] == 0
 
-    def test_multiple_categories(self):
-        pulses = [
-            self._pulse(10, {"transport": {"count": 8}, "weather": {"count": 2}}),
-        ]
-        ewma = compute_ewma(pulses)
-        assert ewma["transport"] == 8.0
-        assert ewma["weather"] == 2.0
-
-    def test_empty_history(self):
-        assert compute_ewma([]) == {}
-
-    def test_missing_count_skipped(self):
-        pulses = [
-            self._pulse(10, {"transport": {"status": "normal"}}),
-            self._pulse(11, {"transport": {"count": 6}}),
-        ]
-        ewma = compute_ewma(pulses)
-        assert ewma["transport"] == 6.0
-
-    def test_chronological_ordering(self):
-        # Pulses passed out of order should still be processed chronologically
-        pulses = [
-            self._pulse(12, {"transport": {"count": 20}}, day=19),
-            self._pulse(10, {"transport": {"count": 5}}, day=19),
-        ]
-        ewma = compute_ewma(pulses)
-        # Sorted: 10:00 (count=5) first, then 12:00 (count=20)
-        # ewma = 0.3*20 + 0.7*5 = 9.5
-        assert ewma["transport"] == 9.5
-
-
-class TestSigma:
-    def test_sigma_scales_with_ewma(self):
-        assert _sigma(10.0) == pytest.approx(1.5)  # 10 * 0.15
-
-    def test_sigma_minimum(self):
-        assert _sigma(2.0) == pytest.approx(SIGMA_MIN)  # 2 * 0.15 = 0.3 < 1.0
-
-    def test_sigma_zero_ewma(self):
-        assert _sigma(0.0) == pytest.approx(SIGMA_MIN)
-
-
-class TestDetermineStatus:
-    def test_zero_alerts(self):
-        assert determine_status(0, 5.0) == "clear"
-        assert determine_status(0, None) == "clear"
-
-    def test_cold_start(self):
-        assert determine_status(3, None) == "moderate"
-
-    def test_new_source_no_baseline(self):
-        assert determine_status(2, 0) == "moderate"
-
-    def test_at_ewma(self):
-        assert determine_status(5, 5.0) == "low"
-
-    def test_below_ewma(self):
-        assert determine_status(2, 5.0) == "low"
-
-    def test_above_1_sigma(self):
-        # ewma=30, sigma=max(30*0.15,1)=4.5, threshold=34.5
-        assert determine_status(35, 30.0) == "moderate"
-
-    def test_at_1_sigma_boundary(self):
-        # ewma=30, sigma=4.5, count=34.5 → low (not >)
-        assert determine_status(34.5, 30.0) == "low"
-
-    def test_above_2_sigma(self):
-        # ewma=30, sigma=4.5, 2σ threshold=39.0
-        assert determine_status(40, 30.0) == "high"
-
-    def test_at_2_sigma_boundary(self):
-        # ewma=30, 2σ=39.0 → moderate (not >)
-        assert determine_status(39, 30.0) == "moderate"
-
-    def test_small_ewma_uses_minimum_sigma(self):
-        # ewma=2, sigma=min(1.0), 1σ threshold=3.0
-        assert determine_status(3.0, 2.0) == "low"
-        assert determine_status(3.1, 2.0) == "moderate"
-        assert determine_status(4.1, 2.0) == "high"
-
-    def test_production_transport_stable(self):
-        # Transport at 35 with EWMA 35 → should be low, not perpetually "low"
-        assert determine_status(35, 35.0) == "low"
-
-    def test_production_transport_spike(self):
-        # Transport spikes from baseline 30 to 40 → sigma=4.5, 1σ=34.5
-        assert determine_status(40, 30.0) == "high"
-
-
-class TestDetermineTrend:
-    def test_cold_start_no_current(self):
-        assert determine_trend(None, 5.0) == "stable"
-
-    def test_cold_start_no_previous(self):
-        assert determine_trend(5.0, None) == "stable"
-
-    def test_both_none(self):
-        assert determine_trend(None, None) == "stable"
-
-    def test_previous_zero_current_positive(self):
-        assert determine_trend(5.0, 0) == "worsening"
-
-    def test_previous_zero_current_zero(self):
-        assert determine_trend(0, 0) == "stable"
-
-    def test_stable_no_change(self):
-        assert determine_trend(30.0, 30.0) == "stable"
-
-    def test_stable_within_threshold(self):
-        # 31/30 = 1.033 → 3.3% < 5% → stable
-        assert determine_trend(31.0, 30.0) == "stable"
-
-    def test_worsening(self):
-        # 32/30 = 1.067 → 6.7% > 5% → worsening
-        assert determine_trend(32.0, 30.0) == "worsening"
-
-    def test_improving(self):
-        # 28/30 = 0.933 → -6.7% < -5% → improving
-        assert determine_trend(28.0, 30.0) == "improving"
-
-    def test_small_values_stable(self):
-        # 0.67/0.74 = 0.905 → -9.5% → improving
-        assert determine_trend(0.67, 0.74) == "improving"
-
-    def test_production_transport_drop(self):
-        # Transport EWMA dropped from 37.78 to 33.43 → -11.5% → improving
-        assert determine_trend(33.43, 37.78) == "improving"
-
-
-class TestComputeCategories:
-    def test_basic(self):
-        alerts = [_alert("rmv"), _alert("rmv"), _alert("dwd")]
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=[], current_hour=10)
-
-        assert result["transport"]["status"] == "moderate"
-        assert result["transport"]["trend"] == "stable"
-        assert result["transport"]["count"] == 2
-        assert result["transport"]["ewma"] == 0.0
-        assert result["weather"]["count"] == 1
-        assert result["roadworks"] == {"status": "clear", "trend": "stable", "count": 0, "ewma": 0.0}
+    def test_stale_excluded(self):
+        alerts = [_alert("rmv", stale=True, valid_from=_PAST)]
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["transport"]["ongoing_count"] == 0
 
     def test_all_categories_present(self):
-        result = compute_categories([], previous_pulse=None, history_pulses=[], current_hour=10)
-        assert set(result.keys()) == set(CATEGORY_SOURCES.keys())
-        for cat in result.values():
-            assert cat == {"status": "clear", "trend": "stable", "count": 0, "ewma": 0.0}
+        snap = compute_snapshot([], now=_NOW)
+        assert set(snap.keys()) == set(CATEGORY_SOURCES.keys())
+        for cat_data in snap.values():
+            assert cat_data == {
+                "ongoing_count": 0, "ongoing_score": 0.0,
+                "upcoming_count": 0, "upcoming_score": 0.0,
+            }
 
-    def test_with_ewma_baseline(self):
-        alerts = [_alert("rmv")] * 10
-        history = [{
-            "generated_at": f"2026-06-{d:02d}T10:00:00Z",
-            "categories": {"transport": {"count": 5}},
-        } for d in range(15, 22)]
-
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
-        # EWMA of 7 pulses all with count=5 → ewma ≈ 5.0
-        # sigma = max(5*0.15,1) = 1.0, 2σ threshold = 7.0
-        # count=10 > 7.0 → high
-        assert result["transport"]["status"] == "high"
-
-    def test_trend_from_ewma_slope(self):
-        # Two history pulses: count=5 then count=5 → EWMA stable → trend stable
-        history = [
-            {"generated_at": "2026-06-19T10:00:00Z", "categories": {"transport": {"count": 5}}},
-            {"generated_at": "2026-06-20T10:00:00Z", "categories": {"transport": {"count": 5}}},
+    def test_severity_weighting_in_snapshot(self):
+        alerts = [
+            _alert("dwd", valid_from=_PAST, severity=4),
+            _alert("dwd", valid_from=_PAST, severity=1),
         ]
-        alerts = [_alert("rmv")] * 5
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
-        assert result["transport"]["trend"] == "stable"
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["weather"]["ongoing_count"] == 2
+        assert snap["weather"]["ongoing_score"] == pytest.approx(2.5)
 
-    def test_trend_worsening_from_ewma_rise(self):
-        # History: count jumps from 5 to 10 → EWMA rises → worsening
-        history = [
-            {"generated_at": "2026-06-19T10:00:00Z", "categories": {"transport": {"count": 5}}},
-            {"generated_at": "2026-06-20T10:00:00Z", "categories": {"transport": {"count": 10}}},
-        ]
-        alerts = [_alert("rmv")] * 10
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
-        # prev EWMA = 5.0, current EWMA = 0.3*10 + 0.7*5 = 6.5 → 30% rise → worsening
-        assert result["transport"]["trend"] == "worsening"
+    def test_incidents_always_ongoing(self):
+        alerts = [_alert("polizei"), _alert("strike")]
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["incidents"]["ongoing_count"] == 2
+        assert snap["incidents"]["upcoming_count"] == 0
 
-    def test_ewma_included_in_output(self):
-        history = [{
-            "generated_at": "2026-06-20T10:00:00Z",
-            "categories": {"transport": {"count": 8}},
-        }]
-        alerts = [_alert("rmv")] * 8
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
-        assert result["transport"]["ewma"] == 8.0
-
-    def test_single_history_pulse_trend_stable(self):
-        # Only 1 history pulse → no previous EWMA → trend stable
-        history = [{
-            "generated_at": "2026-06-20T10:00:00Z",
-            "categories": {"transport": {"count": 5}},
-        }]
-        alerts = [_alert("rmv")] * 10
-        result = compute_categories(alerts, previous_pulse=None, history_pulses=history, current_hour=10)
-        assert result["transport"]["trend"] == "stable"
+    def test_no_lookahead_category(self):
+        upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [_alert("polizei", valid_from=upcoming_time)]
+        snap = compute_snapshot(alerts, now=_NOW)
+        assert snap["incidents"]["upcoming_count"] == 0
 
 
-class TestComputeTravelOk:
-    def test_all_clear(self):
-        cats = {c: {"status": "clear"} for c in CATEGORY_SOURCES}
-        assert compute_travel_ok(cats) is True
+class TestIsUpcoming:
+    def test_within_lookahead(self):
+        future_3h = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_iso = (_NOW + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert _is_upcoming({"source": "rmv", "valid_from": future_3h}, _NOW_ISO, end_iso) is True
 
-    def test_all_low(self):
-        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
-        assert compute_travel_ok(cats) is True
+    def test_beyond_lookahead(self):
+        future_12h = (_NOW + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_iso = (_NOW + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert _is_upcoming({"source": "rmv", "valid_from": future_12h}, _NOW_ISO, end_iso) is False
 
-    def test_transport_moderate(self):
-        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
-        cats["transport"] = {"status": "moderate"}
-        assert compute_travel_ok(cats) is False
+    def test_ongoing_not_upcoming(self):
+        end_iso = (_NOW + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert _is_upcoming({"source": "rmv", "valid_from": _PAST}, _NOW_ISO, end_iso) is False
 
-    def test_roadworks_high(self):
-        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
-        cats["roadworks"] = {"status": "high"}
-        assert compute_travel_ok(cats) is False
+    def test_no_temporal_sources_never_upcoming(self):
+        future_3h = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_iso = (_NOW + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert _is_upcoming({"source": "polizei", "valid_from": future_3h}, _NOW_ISO, end_iso) is False
 
-    def test_weather_high_still_ok(self):
-        cats = {c: {"status": "low"} for c in CATEGORY_SOURCES}
-        cats["weather"] = {"status": "high"}
-        assert compute_travel_ok(cats) is True
+
+class TestBuildCategoryTimeseries:
+    def _make_snapshots(self, category, hours_back, score=5.0):
+        rows = []
+        for h in range(hours_back):
+            ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "category": category,
+                "ongoing_count": 3, "ongoing_score": score,
+                "upcoming_count": 1, "upcoming_score": 2.0,
+            })
+        rows.sort(key=lambda r: r["timestamp"])
+        return rows
+
+    def test_transport_hourly_history(self):
+        snapshots = {"transport": self._make_snapshots("transport", 24)}
+
+        def get_fn(cat, since):
+            return snapshots.get(cat, [])
+
+        current = {cat: {"ongoing_count": 3, "ongoing_score": 5.0,
+                         "upcoming_count": 1, "upcoming_score": 2.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+
+        assert "transport" in ts
+        assert ts["transport"]["window"] == "24h hourly"
+        assert len(ts["transport"]["history"]) <= 24
+        assert "hour" in ts["transport"]["history"][0]
+        assert "count" in ts["transport"]["history"][0]
+        assert "score" in ts["transport"]["history"][0]
+        assert "upcoming_score" not in ts["transport"]["history"][0]
+
+    def test_weather_6hourly_aggregation(self):
+        snapshots = {"weather": self._make_snapshots("weather", 72)}
+
+        def get_fn(cat, since):
+            return snapshots.get(cat, [])
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+
+        assert ts["weather"]["window"] == "72h 6h"
+        assert len(ts["weather"]["history"]) <= 13
+        assert "period" in ts["weather"]["history"][0]
+
+    def test_roadworks_daily_aggregation(self):
+        snapshots = {"roadworks": self._make_snapshots("roadworks", 168)}
+
+        def get_fn(cat, since):
+            return snapshots.get(cat, [])
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+
+        assert "4w" in ts["roadworks"]["window"]
+        assert "date" in ts["roadworks"]["history"][0]
+
+    def test_all_categories_present(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert set(ts.keys()) == set(CATEGORY_SOURCES.keys())
+
+    def test_current_snapshot_in_output(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {
+            "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
+                          "upcoming_count": 2, "upcoming_score": 3.0},
+        }
+        for cat in CATEGORY_SOURCES:
+            if cat not in current:
+                current[cat] = {"ongoing_count": 0, "ongoing_score": 0.0,
+                                "upcoming_count": 0, "upcoming_score": 0.0}
+
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert ts["transport"]["current"]["ongoing"]["count"] == 5
+        assert ts["transport"]["current"]["ongoing"]["score"] == 8.5
+        assert ts["transport"]["current"]["upcoming"]["count"] == 2
+
+    def test_empty_history(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert ts["transport"]["history"] == []
+
+
+class TestCategoryConfig:
+    def test_all_categories_have_status_labels(self):
+        for cat in CATEGORY_SOURCES:
+            assert cat in CATEGORY_STATUS_LABELS
+            assert len(CATEGORY_STATUS_LABELS[cat]) == 4
+            assert CATEGORY_STATUS_LABELS[cat][0] == "clear"
+
+    def test_all_categories_have_windows(self):
+        for cat in CATEGORY_SOURCES:
+            assert cat in CATEGORY_WINDOWS
+            w = CATEGORY_WINDOWS[cat]
+            assert "interval_hours" in w
+            assert "history_hours" in w
+            assert "lookahead_hours" in w

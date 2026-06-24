@@ -1,22 +1,8 @@
-"""Deterministic category status and trend computation for City Pulse.
+"""Deterministic snapshot computation and time-series aggregation for City Pulse.
 
-Categories are computed from active alert counts, not by the LLM. This gives
-consistent, explainable results and handles cold-start gracefully.
-
-Only ongoing alerts count toward the trend — future alerts (valid_from > now)
-and expired alerts (valid_until < now) are excluded. Sources without temporal
-data (polizei, strike RSS feeds) are always counted.
-
-Each alert is severity-weighted rather than counted as 1. Weights are
-derived deterministically from existing alert fields (severity, service,
-title keywords). See _compute_weight() for the mapping.
-
-Status levels (clear → low → moderate → high) compare the current weighted
-count against the EWMA using sigma bands: σ = max(EWMA × 0.15, 1.0).
-
-Trends are decoupled from status. They measure the EWMA slope — whether the
-baseline itself is rising or falling — by comparing the current EWMA against
-the previous EWMA value.
+Hourly snapshots capture per-category ongoing and upcoming alert counts with
+severity-weighted scores. Time-series are aggregated per category's natural
+sample interval and fed to the LLM, which judges status and trend.
 
 Source-to-category mapping:
   weather    = dwd
@@ -28,7 +14,8 @@ Source-to-category mapping:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 CATEGORY_SOURCES: dict[str, list[str]] = {
     "weather": ["dwd"],
@@ -38,9 +25,21 @@ CATEGORY_SOURCES: dict[str, list[str]] = {
     "events": ["events", "sports", "messe"],
 }
 
-STATUS_LEVELS = ("clear", "low", "moderate", "high")
+CATEGORY_STATUS_LABELS: dict[str, list[str]] = {
+    "transport": ["clear", "delays", "disrupted", "paralyzed"],
+    "weather": ["clear", "watch", "warning", "extreme"],
+    "roadworks": ["clear", "works", "closures", "gridlock"],
+    "incidents": ["clear", "low", "elevated", "major"],
+    "events": ["clear", "crowds", "busy", "peak"],
+}
 
-EWMA_ALPHA = 0.3
+CATEGORY_WINDOWS: dict[str, dict] = {
+    "transport": {"interval_hours": 1, "history_hours": 24, "lookahead_hours": 6},
+    "weather": {"interval_hours": 6, "history_hours": 72, "lookahead_hours": 48},
+    "roadworks": {"interval_hours": 24, "history_hours": 672, "lookahead_hours": 168},
+    "incidents": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 0},
+    "events": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 168},
+}
 
 SEVERITY_WEIGHTS_DWD: dict[int, float] = {1: 0.5, 2: 1.0, 3: 1.5, 4: 2.0}
 SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5}
@@ -80,6 +79,16 @@ def _is_ongoing(alert: dict, now_iso: str) -> bool:
     return True
 
 
+def _is_upcoming(alert: dict, now_iso: str, lookahead_end_iso: str) -> bool:
+    source = alert.get("source", "")
+    if source in _NO_TEMPORAL_SOURCES:
+        return False
+    valid_from = alert.get("valid_from")
+    if not valid_from:
+        return False
+    return valid_from > now_iso and valid_from <= lookahead_end_iso
+
+
 def count_alerts_by_category(
     alerts: list[dict], now: datetime | None = None,
 ) -> dict[str, float]:
@@ -104,103 +113,134 @@ def count_alerts_by_category(
     return counts
 
 
-def compute_ewma(pulses: list[dict], alpha: float = EWMA_ALPHA) -> dict[str, float]:
-    """Compute EWMA per category from pulse history (oldest-first traversal).
+def compute_snapshot(
+    alerts: list[dict], now: datetime | None = None,
+) -> dict[str, dict]:
+    source_to_cat = {}
+    for cat, sources in CATEGORY_SOURCES.items():
+        for src in sources:
+            source_to_cat[src] = cat
 
-    Returns the final EWMA value per category. On empty history, returns
-    an empty dict (cold start — status will default to "low").
-    """
-    sorted_pulses = sorted(pulses, key=lambda p: p.get("generated_at", ""))
+    if now is None:
+        now = datetime.now(timezone.utc)
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    ewma: dict[str, float] = {}
-    for p in sorted_pulses:
-        cats = p.get("categories") or {}
-        for cat_name in CATEGORY_SOURCES:
-            cat_data = cats.get(cat_name, {})
-            count = cat_data.get("count")
-            if count is None:
-                continue
-            if cat_name not in ewma:
-                ewma[cat_name] = float(count)
-            else:
-                ewma[cat_name] = alpha * count + (1 - alpha) * ewma[cat_name]
-
-    return {cat: round(val, 2) for cat, val in ewma.items()}
-
-
-SIGMA_FACTOR = 0.15
-SIGMA_MIN = 1.0
-TREND_THRESHOLD = 0.05
-
-
-def _sigma(ewma: float) -> float:
-    return max(ewma * SIGMA_FACTOR, SIGMA_MIN)
-
-
-def determine_status(alert_count: float, ewma: float | None) -> str:
-    if alert_count == 0:
-        return "clear"
-    if ewma is None or ewma == 0:
-        if alert_count > 0:
-            return "moderate"
-        return "low"
-    sigma = _sigma(ewma)
-    if alert_count > ewma + 2 * sigma:
-        return "high"
-    if alert_count > ewma + sigma:
-        return "moderate"
-    return "low"
-
-
-def determine_trend(
-    current_ewma: float | None, previous_ewma: float | None,
-) -> str:
-    if current_ewma is None or previous_ewma is None:
-        return "stable"
-    if previous_ewma == 0:
-        return "worsening" if current_ewma > 0 else "stable"
-    change = (current_ewma - previous_ewma) / previous_ewma
-    if change > TREND_THRESHOLD:
-        return "worsening"
-    if change < -TREND_THRESHOLD:
-        return "improving"
-    return "stable"
-
-
-def compute_categories(
-    alerts: list[dict],
-    previous_pulse: dict | None,
-    history_pulses: list[dict],
-    current_hour: int,
-    now: datetime | None = None,
-) -> dict:
-    counts = count_alerts_by_category(alerts, now=now)
-    current_ewma = compute_ewma(history_pulses)
-
-    previous_ewma: dict[str, float | None] = {}
-    if len(history_pulses) >= 2:
-        previous_ewma = compute_ewma(history_pulses[:-1])
-
-    categories = {}
-    for cat_name in CATEGORY_SOURCES:
-        count = counts[cat_name]
-        cat_ewma = current_ewma.get(cat_name)
-        prev_ewma = previous_ewma.get(cat_name)
-        status = determine_status(count, cat_ewma)
-        trend = determine_trend(cat_ewma, prev_ewma)
-        categories[cat_name] = {
-            "status": status,
-            "trend": trend,
-            "count": count,
-            "ewma": cat_ewma if cat_ewma is not None else 0.0,
+    snapshot: dict[str, dict] = {}
+    for cat in CATEGORY_SOURCES:
+        snapshot[cat] = {
+            "ongoing_count": 0,
+            "ongoing_score": 0.0,
+            "upcoming_count": 0,
+            "upcoming_score": 0.0,
         }
 
-    return categories
+    lookahead_ends: dict[str, str] = {}
+    for cat, window in CATEGORY_WINDOWS.items():
+        if window["lookahead_hours"] > 0:
+            end = now + timedelta(hours=window["lookahead_hours"])
+            lookahead_ends[cat] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    for alert in alerts:
+        if alert.get("stale"):
+            continue
+        cat = source_to_cat.get(alert.get("source", ""))
+        if not cat:
+            continue
+        weight = _compute_weight(alert)
+        if _is_ongoing(alert, now_iso):
+            snapshot[cat]["ongoing_count"] += 1
+            snapshot[cat]["ongoing_score"] += weight
+        elif cat in lookahead_ends and _is_upcoming(alert, now_iso, lookahead_ends[cat]):
+            snapshot[cat]["upcoming_count"] += 1
+            snapshot[cat]["upcoming_score"] += weight
+
+    for cat in snapshot:
+        snapshot[cat]["ongoing_score"] = round(snapshot[cat]["ongoing_score"], 2)
+        snapshot[cat]["upcoming_score"] = round(snapshot[cat]["upcoming_score"], 2)
+
+    return snapshot
 
 
-def compute_travel_ok(categories: dict) -> bool:
-    for cat_name in ("transport", "roadworks"):
-        cat = categories.get(cat_name, {})
-        if cat.get("status") in ("moderate", "high"):
-            return False
-    return True
+def _aggregate_buckets(
+    rows: list[dict], interval_hours: int,
+) -> list[dict]:
+    if interval_hours <= 1:
+        return [
+            {
+                "hour": r["timestamp"],
+                "count": r["ongoing_count"],
+                "score": r["ongoing_score"],
+            }
+            for r in rows
+        ]
+
+    buckets: dict[str, dict] = {}
+    for r in rows:
+        ts = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
+        bucket_hour = (ts.hour // interval_hours) * interval_hours
+        bucket_ts = ts.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        bucket_key = bucket_ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {
+                "counts": [],
+                "scores": [],
+            }
+        buckets[bucket_key]["counts"].append(r["ongoing_count"])
+        buckets[bucket_key]["scores"].append(r["ongoing_score"])
+
+    label = "date" if interval_hours >= 24 else "period"
+    result = []
+    for key in sorted(buckets):
+        b = buckets[key]
+        entry = {
+            label: key[:10] if interval_hours >= 24 else key,
+            "count": max(b["counts"]),
+            "score": round(max(b["scores"]), 2),
+        }
+        result.append(entry)
+    return result
+
+
+def build_category_timeseries(
+    get_snapshots_fn: Callable[[str, str], list[dict]],
+    current_snapshot: dict[str, dict],
+    now: datetime | None = None,
+) -> dict:
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    timeseries: dict[str, dict] = {}
+    for cat, window in CATEGORY_WINDOWS.items():
+        since = now - timedelta(hours=window["history_hours"])
+        since_iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        rows = get_snapshots_fn(cat, since_iso)
+        history = _aggregate_buckets(rows, window["interval_hours"])
+
+        interval_label = f"{window['history_hours']}h"
+        if window["interval_hours"] >= 24:
+            days = window["history_hours"] // 24
+            weeks = days // 7
+            interval_label = f"{weeks}w" if weeks > 0 else f"{days}d"
+        freq = "hourly" if window["interval_hours"] == 1 else (
+            f"{window['interval_hours']}h" if window["interval_hours"] < 24 else "daily"
+        )
+
+        snap = current_snapshot.get(cat, {})
+        timeseries[cat] = {
+            "current": {
+                "ongoing": {
+                    "count": snap.get("ongoing_count", 0),
+                    "score": snap.get("ongoing_score", 0.0),
+                },
+                "upcoming": {
+                    "count": snap.get("upcoming_count", 0),
+                    "score": snap.get("upcoming_score", 0.0),
+                },
+            },
+            "history": history,
+            "window": f"{interval_label} {freq}",
+        }
+
+    return timeseries

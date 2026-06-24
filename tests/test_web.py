@@ -83,7 +83,6 @@ class TestStatusEndpoint:
         db.store_pulse({
             "generated_at": "2026-06-22T10:00:00Z",
             "summary": "Web test pulse",
-            "travel_ok": True,
             "categories": {},
             "recommendation": "",
             "alert_count": 0,

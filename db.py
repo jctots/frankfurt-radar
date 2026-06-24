@@ -92,6 +92,17 @@ CREATE TABLE IF NOT EXISTS pulse_daily_summary (
     summary      TEXT NOT NULL,
     generated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS category_snapshots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp       TEXT NOT NULL,
+    category        TEXT NOT NULL,
+    ongoing_count   INTEGER NOT NULL DEFAULT 0,
+    ongoing_score   REAL NOT NULL DEFAULT 0.0,
+    upcoming_count  INTEGER NOT NULL DEFAULT 0,
+    upcoming_score  REAL NOT NULL DEFAULT 0.0,
+    UNIQUE(timestamp, category)
+);
 """
 
 
@@ -681,7 +692,7 @@ def store_pulse(pulse: dict) -> None:
                 pulse["generated_at"],
                 pulse.get("title", ""),
                 pulse["summary"],
-                1 if pulse.get("travel_ok", True) else 0,
+                1,
                 json.dumps(pulse.get("categories", {})),
                 json.dumps(pulse.get("avoid", [])),
                 json.dumps(pulse.get("crowding", [])),
@@ -694,7 +705,7 @@ def store_pulse(pulse: dict) -> None:
 
 def _parse_pulse_row(row) -> dict:
     d = dict(row)
-    d["travel_ok"] = bool(d["travel_ok"])
+    d.pop("travel_ok", None)
     d["categories"] = json.loads(d["categories"])
     d["avoid"] = json.loads(d.get("avoid") or "[]")
     d["crowding"] = json.loads(d.get("crowding") or "[]")
@@ -758,6 +769,33 @@ def get_pulses_for_date(date: str) -> list[dict]:
             (start, end),
         ).fetchall()
     return [_parse_pulse_row(row) for row in rows]
+
+
+def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
+    with _conn() as conn:
+        for category, data in snapshots.items():
+            conn.execute(
+                """INSERT OR REPLACE INTO category_snapshots
+                   (timestamp, category, ongoing_count, ongoing_score, upcoming_count, upcoming_score)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    timestamp,
+                    category,
+                    data.get("ongoing_count", 0),
+                    data.get("ongoing_score", 0.0),
+                    data.get("upcoming_count", 0),
+                    data.get("upcoming_score", 0.0),
+                ),
+            )
+
+
+def get_category_snapshots(category: str, since: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM category_snapshots WHERE category = ? AND timestamp >= ? ORDER BY timestamp",
+            (category, since),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def search_active_alerts(query: str) -> list[dict]:

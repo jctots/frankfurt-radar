@@ -30,16 +30,14 @@ City Pulse processes data through three layers:
 
 **Module:** `pulse_categories.py`
 
-This layer handles everything that can be computed precisely without interpretation:
+This layer computes severity-weighted scores and stores hourly snapshots. It handles everything that can be computed precisely without interpretation.
 
-**Ongoing-only filtering** — Only alerts with an active disruption window count toward trends. An alert announced today for a closure tomorrow does not inflate today's trend. The temporal filter:
+**Ongoing/upcoming filtering** — Alerts are classified into two groups:
 
-- `valid_from <= now` AND (`valid_until >= now` OR absent) → counted (ongoing)
-- `valid_from > now` → excluded (future, not yet a disruption)
-- `valid_until < now` → excluded (expired)
-- Sources without temporal data (polizei, strike — RSS feeds) → always counted
-
-Future-only alerts still appear in the feed and in the LLM prompt for narrative context — they just don't move the EWMA.
+- **Ongoing**: `valid_from <= now` AND (`valid_until >= now` OR absent) → active disruption
+- **Upcoming**: `valid_from > now` AND within the category's lookahead window → imminent disruption
+- **Excluded**: `valid_until < now` (expired) or `valid_from` beyond lookahead (too far out)
+- Sources without temporal data (polizei, strike — RSS feeds) → always counted as ongoing
 
 **Severity weighting** — Each alert contributes a weight rather than a raw count of 1. Weights are deterministic, derived from existing alert fields:
 
@@ -52,78 +50,56 @@ Future-only alerts still appear in the feed and in the LLM prompt for narrative 
 | Events/Messe/Sports | — | Fixed 2.0 (one-off, high-impact) |
 | Polizei/Strike | — | Default 1.0 (no structured severity data) |
 
-The EWMA baseline and status/trend thresholds operate on these weighted scores, not raw alert counts.
+**Hourly snapshots** — Every hour, the pipeline stores a snapshot for each category containing:
+- `ongoing_count` / `ongoing_score`: number and severity-weighted score of active alerts
+- `upcoming_count` / `upcoming_score`: number and severity-weighted score of alerts within the category's lookahead window
 
-**Status classification and trend detection** use Exponential Weighted Moving Average (EWMA) — a standard technique for event-count anomaly detection (used by the CDC for disease outbreak surveillance). EWMA gives more weight to recent data while older observations gradually fade, providing a self-correcting baseline that adapts to long-running conditions.
+Snapshots are stored in the `category_snapshots` table (one row per category per hour).
 
-### EWMA-based status and trend
+**Per-category time windows** — Each category operates on its own natural timescale:
 
-**Core formula:**
-```
-ewma = α × current_weighted_count + (1 - α) × previous_ewma
-```
+| Category | Sample interval | History depth | Upcoming lookahead |
+|----------|----------------|---------------|--------------------|
+| Transport | Hourly | 24h (24 points) | 6 hours |
+| Weather | 6-hourly | 3 days (12 points) | 48 hours |
+| Roadworks | Daily | 4 weeks (28 points) | 1 week |
+| Events | Daily | 1 week (7 points) | 1 week |
+| Incidents | Daily | 1 week (7 points) | None (retrospective) |
 
-Where α (smoothing factor) controls responsiveness:
-- α close to 1 → reacts fast, noisy
-- α close to 0 → reacts slowly, smooth
-
-**α = 0.3** for hourly data — smooth enough that long-running alerts (nearly half of all alerts run for >1 month) naturally become the baseline, while real changes surface within a few hours. EWMA is computed from the full 7-day pulse history (oldest-first traversal); the first count initializes the EWMA value.
-
-**Storage:** EWMA value stored per category in pulse_history alongside the weighted count:
-```json
-{"transport": {"status": "low", "trend": "stable", "count": 9.5, "ewma": 6.2}}
-```
-
-`count` is the severity-weighted disruption score for ongoing alerts, not a raw alert count.
-
-**Status classification** — Compare current weighted count against EWMA using sigma bands (σ = max(EWMA × 0.15, 1.0)):
-
-| Status | Condition |
-|--------|-----------|
-| `clear` | Zero weighted count |
-| `low` | Count ≤ EWMA + 1σ |
-| `moderate` | Count > EWMA + 1σ |
-| `high` | Count > EWMA + 2σ |
-
-**Trend detection** — Measures the EWMA slope (is the baseline itself rising or falling?), decoupled from status. Compares the current EWMA against the previous EWMA value:
-
-| Trend | Condition |
-|-------|-----------|
-| `stable` | EWMA change within ±5% |
-| `worsening` | EWMA rose by > 5% |
-| `improving` | EWMA fell by > 5% |
-
-This decoupling allows all 12 status/trend combinations. For example, `high + improving` means "it's bad but getting better" (storm passing), while `low + worsening` means "it's fine but building up" (early warning).
-
-**Cold start:** No history → EWMA is `None` → any non-zero count gets `moderate` status and `stable` trend. First pulse with data initializes the EWMA; subsequent pulses refine it. Trend requires at least 2 history pulses to compute a slope.
-
-**Prior approaches:**
-- **v0.9.7:** Used ratio-based thresholds (×1.3/×1.6 for status, ±30% for trend). Both status and trend compared count vs EWMA, making them coupled — only 4 of 12 combinations were possible. Production data showed everything stuck at `low + stable` 98% of the time.
-- **v0.9.3:** Used a 7-day simple rolling average at the same hour (±1 hour window) for status, and compared status levels between consecutive pulses for trend. This had cross-hour comparison problems, required 7 days to warm up, and produced noisy trends.
+When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). History rows carry ongoing count and score only — upcoming values appear only in the current snapshot, since what's "upcoming" in one time slice becomes "ongoing" in the next.
 
 ### 2. LLM layer (Gemini Flash)
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-The LLM receives the active alerts, pre-computed categories (with a field reference explaining status/trend/count/ewma), and recent history as context. The prompt provides explicit guidance on how to use each input:
+The LLM receives the active alerts, category time-series data, and recent history as context. It judges both the narrative summary and the per-category status and trend.
 
-- **Categories**: feature only "moderate"/"high" status; reflect trend direction in language ("disruptions are increasing" for worsening, "easing" for improving)
-- **History**: use for narrative continuity (avoid repeating summaries, reference multi-day patterns), not for trend/status judgments
-- **Alerts**: synthesize across sources, don't enumerate — the feed already shows specifics
+**Status judgment** — The LLM assigns each category a domain-specific status label:
 
-It produces two outputs:
+| Category | Level 0 | Level 1 | Level 2 | Level 3 |
+|----------|---------|---------|---------|---------|
+| Transport | clear | delays | disrupted | paralyzed |
+| Weather | clear | watch | warning | extreme |
+| Roadworks | clear | works | closures | gridlock |
+| Incidents | clear | low | elevated | major |
+| Events | clear | crowds | busy | peak |
+
+**Trend judgment** — The LLM compares current scores against the category's history and assigns: `improving`, `stable`, or `worsening`.
+
+The LLM uses the time-series data (scores over time) combined with alert content to make these judgments. This approach gives the LLM the full context to judge severity — a single extreme-severity weather warning can warrant "warning" status even with a low alert count, and chronic low-level roadworks can be correctly identified as "works" rather than escalating due to count alone.
+
+The LLM also produces:
 
 - **Summary** (≤300 chars) — Cross-source correlation, impact synthesis using a synthesis hierarchy (aggregate patterns, don't enumerate specifics), spatial awareness of Frankfurt districts
 - **Recommendation** (≤100 chars) — One actionable sentence: practical and calm, no alarmist language
 
-`travel_ok` is computed deterministically from category levels (false when transport or roadworks are `moderate` or `high`).
-
-The LLM does **not** decide category statuses, trends, or travel_ok — those are computed by the deterministic layer. The LLM's value is in tasks that require interpretation:
+The LLM's value is in tasks that require interpretation:
 
 - Connecting a police incident to a transit disruption at the same location
 - Assessing that three separate S-Bahn delays converge on the same corridor
 - Recommending tram 17 as an alternative when the U4 is suspended
 - Recognizing that a construction alert has been running for weeks and is not newsworthy
+- Judging that 8 transport alerts with low individual severity collectively constitute "disrupted" status
 
 Thinking is enabled (`thinkingBudget: 4096`) for spatial reasoning.
 
@@ -131,7 +107,7 @@ Thinking is enabled (`thinkingBudget: 4096`) for spatial reasoning.
 
 The pipeline operates at three time scales:
 
-**Hourly pulse** — Generated every hour from current active alerts. Stored in `pulse_history` with categories (including alert counts for baseline computation).
+**Hourly pulse** — Generated every hour from current active alerts. Stored in `pulse_history` with LLM-judged categories.
 
 **Daily summary** — Generated at 23:00 by compressing 24 hourly pulses into a one-paragraph digest. Stored in `pulse_daily_summary`.
 
@@ -141,46 +117,54 @@ The pipeline operates at three time scales:
 
 Each hourly pulse writes a structured JSON debug file to `data/pulse_debug/` (e.g., `2026-06-22T23.json`). Files are retained for 30 days.
 
-The log structure mirrors the three analysis layers:
+The log structure mirrors the analysis layers:
 
 ```json
 {
   "generated_at": "2026-06-22T23:00:00Z",
   "current_hour_utc": 21,
   "layer_1_deterministic": {
-    "alert_counts_by_category": {"weather": 1.5, "transport": 9.5, ...},
+    "timeseries": {
+      "transport": {
+        "current": {"ongoing": {"count": 8, "score": 12.5}, "upcoming": {"count": 3, "score": 4.5}},
+        "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0}],
+        "window": "24h hourly"
+      }
+    },
     "total_alerts": 42,
     "fresh_alerts": 15,
-    "stale_summary": "12 autobahn, 8 baustellen",
-    "ewma_per_category": {
-      "transport": 6.2,
-      ...
-    },
-    "computed_categories": {
-      "transport": {"status": "moderate", "trend": "worsening", "count": 9.5, "ewma": 6.2},
-      ...
-    }
+    "stale_summary": "12 autobahn, 8 baustellen"
   },
   "layer_2_llm": {
     "model": "gemini-2.5-flash",
     "prompt": "full prompt text sent to the LLM",
-    "response": {"summary": "...", "travel_ok": true, "recommendation": "..."}
+    "response": {
+      "title": "...",
+      "summary": "...",
+      "recommendation": "...",
+      "references": ["id1", "id2"],
+      "categories": {
+        "transport": {"status": "delays", "trend": "worsening"},
+        "weather": {"status": "watch", "trend": "stable"}
+      }
+    }
   },
   "layer_3_output": {
     "generated_at": "...",
+    "title": "...",
     "summary": "...",
-    "travel_ok": true,
-    "categories": {...},
+    "categories": {"transport": {"status": "delays", "trend": "worsening"}},
     "recommendation": "...",
-    "alert_count": 42
+    "alert_count": 42,
+    "references": ["id1", "id2"]
   }
 }
 ```
 
 Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the weighted counts correct? What was the EWMA? Why did a category get `moderate` vs. `low`?
-- **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules?
-- **Layer 3**: Does the final output match what the deterministic layer computed?
+- **Layer 1**: Were the weighted scores correct? What does the time-series look like? Is the upcoming window capturing imminent alerts?
+- **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules? Did it assign appropriate status labels given the data?
+- **Layer 3**: Does the final output include valid category judgments?
 
 Provide a debug log file together with this document as context when asking an LLM to suggest improvements.
 
@@ -194,4 +178,3 @@ Provide a debug log file together with this document as context when asking an L
 - **Alert archive** — Persist every alert lifecycle (appeared, updated, removed) for historical pattern detection and recurrence analysis
 - **Geographic clustering** — Detect when multiple alerts converge on the same area and flag spatial hotspots
 - **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences (e.g., only transit categories for a commuter)
-- **Tunable α and thresholds** — Expose EWMA smoothing factor and status multipliers in config.yaml for per-deployment tuning

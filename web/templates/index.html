@@ -2365,7 +2365,7 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Mainly based on ${refCount} alert${refCount !== 1 ? 's' : ''}</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
-  const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
+  const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
     ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
@@ -2378,7 +2378,7 @@ function renderPulseOverlay(pulse) {
     </div>
     ${pulse.title ? `<div class="pulse-subtitle">${esc(pulse.title)}</div>` : ''}
     <div class="pulse-summary">${pulse.summary || ''}</div>
-    <div class="pulse-trends-label">Hourly Trend</div>
+    <div class="pulse-trends-label">Status & Trend</div>
     <div class="pulse-categories">${catsHtml}</div>
     <div class="pulse-recommendation">💡 <strong>Recommendation:</strong> ${pulse.recommendation || 'No special action needed.'}</div>
     ${collapsibleContent}

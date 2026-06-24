@@ -12,9 +12,8 @@ import yaml
 
 import db
 from pulse_categories import (
-    compute_categories,
-    compute_travel_ok,
-    count_alerts_by_category,
+    build_category_timeseries,
+    compute_snapshot,
 )
 
 log = logging.getLogger(__name__)
@@ -117,7 +116,7 @@ def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | Non
             cat_str = ", ".join(cat_parts) if cat_parts else "no categories"
             lines.append(
                 f"- {p['generated_at']}: {p['summary']} "
-                f"(travel_ok={p['travel_ok']}, {cat_str})"
+                f"({cat_str})"
             )
         parts.append("\n".join(lines))
     if daily_summaries:
@@ -206,13 +205,12 @@ def _write_debug_log(debug_data: dict) -> None:
 
 _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
-    "travel_ok": True,
     "categories": {
-        "weather": {"status": "clear", "trend": "stable", "count": 0},
-        "transport": {"status": "clear", "trend": "stable", "count": 0},
-        "roadworks": {"status": "clear", "trend": "stable", "count": 0},
-        "incidents": {"status": "clear", "trend": "stable", "count": 0},
-        "events": {"status": "clear", "trend": "stable", "count": 0},
+        "weather": {"status": "clear", "trend": "stable"},
+        "transport": {"status": "clear", "trend": "stable"},
+        "roadworks": {"status": "clear", "trend": "stable"},
+        "incidents": {"status": "clear", "trend": "stable"},
+        "events": {"status": "clear", "trend": "stable"},
     },
     "recommendation": "No special action needed.",
     "references": [],
@@ -228,6 +226,10 @@ def generate_pulse(config: dict) -> dict | None:
     now = datetime.now(timezone.utc)
     generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    snapshot = compute_snapshot(alerts, now)
+    snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
+    db.store_category_snapshots(snapshot_ts, snapshot)
+
     if not alerts:
         pulse = dict(_ALL_CLEAR_PULSE)
         pulse["generated_at"] = generated_at
@@ -236,10 +238,7 @@ def generate_pulse(config: dict) -> dict | None:
         log.info("Pulse generated: all clear (0 alerts)")
         return pulse
 
-    since = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    history_pulses = db.get_pulses_since(since)
-    previous_pulse = db.get_latest_pulse()
-    categories = compute_categories(alerts, previous_pulse, history_pulses, now.hour, now=now)
+    timeseries = build_category_timeseries(db.get_category_snapshots, snapshot, now)
 
     prompt_config, template = load_prompt("pulse")
     alerts_json, stale_summary = _build_alert_data(alerts)
@@ -253,7 +252,7 @@ def generate_pulse(config: dict) -> dict | None:
         "alerts_json": alerts_json,
         "stale_summary": stale_summary,
         "history_section": history,
-        "categories_json": json.dumps(categories, indent=2),
+        "timeseries_json": json.dumps(timeseries, indent=2),
     })
 
     result = _call_gemini(prompt_config, prompt_text)
@@ -264,33 +263,31 @@ def generate_pulse(config: dict) -> dict | None:
     valid_ids = {a.get("alert_id") for a in alerts if a.get("alert_id")}
     references = [r for r in references if r in valid_ids][:3]
 
+    categories = result.get("categories", {})
+    for cat in ("weather", "transport", "roadworks", "incidents", "events"):
+        if cat not in categories:
+            categories[cat] = {"status": "clear", "trend": "stable"}
+
     pulse = {
         "generated_at": generated_at,
         "title": result.get("title", ""),
         "summary": result.get("summary", ""),
-        "travel_ok": compute_travel_ok(categories),
         "categories": categories,
         "recommendation": result.get("recommendation", ""),
         "alert_count": len(alerts),
         "references": references,
     }
     db.store_pulse(pulse)
-    log.info("Pulse generated: %d alerts, travel_ok=%s", len(alerts), pulse["travel_ok"])
+    log.info("Pulse generated: %d alerts", len(alerts))
 
-    alert_counts = count_alerts_by_category(alerts)
     _write_debug_log({
         "generated_at": generated_at,
         "current_hour_utc": now.hour,
         "layer_1_deterministic": {
-            "alert_counts_by_category": alert_counts,
+            "timeseries": timeseries,
             "total_alerts": len(alerts),
             "fresh_alerts": fresh_count,
             "stale_summary": stale_summary,
-            "ewma_per_category": {
-                cat: categories.get(cat, {}).get("ewma")
-                for cat in alert_counts
-            },
-            "computed_categories": categories,
         },
         "layer_2_llm": {
             "model": prompt_config.get("model", "gemini-2.5-flash"),
@@ -332,7 +329,6 @@ def generate_daily_summary(config: dict, date: str | None = None) -> dict | None
         pulses_for_prompt.append({
             "time": p["generated_at"],
             "summary": p["summary"],
-            "travel_ok": p["travel_ok"],
             "categories": p["categories"],
         })
 

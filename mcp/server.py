@@ -136,7 +136,6 @@ def get_city_pulse(include_history: bool = False) -> dict | None:
     result = {
         "generated_at": pulse["generated_at"],
         "summary": pulse["summary"],
-        "travel_ok": pulse["travel_ok"],
         "categories": pulse["categories"],
         "recommendation": pulse["recommendation"],
         "alert_count": pulse["alert_count"],
@@ -145,7 +144,7 @@ def get_city_pulse(include_history: bool = False) -> dict | None:
         recent = db.get_recent_pulses(3)
         result["recent_pulses"] = [
             {"generated_at": p["generated_at"], "summary": p["summary"],
-             "travel_ok": p["travel_ok"], "categories": p["categories"]}
+             "categories": p["categories"]}
             for p in recent
         ]
         dailies = db.get_recent_daily_summaries(1)

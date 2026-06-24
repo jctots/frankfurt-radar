@@ -28,10 +28,6 @@ class TestLoadPrompt:
         mocker.patch("pulse.Path.__truediv__", return_value=tmp_path)
         mocker.patch("pulse.os.getenv", return_value=str(tmp_path))
 
-        config, template = load_prompt.__wrapped__(
-            "test"
-        ) if hasattr(load_prompt, "__wrapped__") else (None, None)
-        # Direct test using the actual file
         text = prompt_file.read_text()
         parts = text.split("---", 2)
         import yaml
@@ -76,18 +72,20 @@ class TestBuildHistorySection:
 
     def test_with_pulses(self):
         pulses = [
-            {"generated_at": "2026-06-22T10:00:00Z", "summary": "All clear", "travel_ok": True},
-            {"generated_at": "2026-06-22T09:00:00Z", "summary": "S1 delay", "travel_ok": False},
+            {"generated_at": "2026-06-22T10:00:00Z", "summary": "All clear",
+             "categories": {"weather": {"status": "clear", "trend": "stable"}}},
+            {"generated_at": "2026-06-22T09:00:00Z", "summary": "S1 delay",
+             "categories": {"transport": {"status": "delays", "trend": "worsening"}}},
         ]
         result = _build_history_section(pulses)
         assert "HOURLY PULSES" in result
         assert "All clear" in result
-        assert "travel_ok=False" in result
+        assert "weather=clear/stable" in result
 
 
 class TestCallGemini:
     def test_successful_call(self, mocker):
-        result_json = {"summary": "All clear", "travel_ok": True}
+        result_json = {"summary": "All clear"}
         resp = MagicMock()
         resp.status_code = 200
         resp.json.return_value = {
@@ -156,10 +154,10 @@ class TestGeneratePulse:
     def test_all_clear_no_alerts(self, mocker):
         mocker.patch("pulse.db.get_all_active_alerts", return_value=[])
         mocker.patch("pulse.db.store_pulse")
+        mocker.patch("pulse.db.store_category_snapshots")
 
         result = generate_pulse({"pulse": {"enabled": True}})
         assert result is not None
-        assert result["travel_ok"] is True
         assert result["alert_count"] == 0
         assert "all clear" in result["summary"].lower()
         db.store_pulse.assert_called_once()
@@ -175,28 +173,35 @@ class TestGeneratePulse:
         ]
         gemini_response = {
             "summary": "S1 delays reported",
-            "travel_ok": False,
-            "categories": {"transit": {"status": "disrupted", "trend": "new"}},
             "recommendation": "Allow extra time for S-Bahn.",
+            "references": ["HIM_1"],
+            "categories": {
+                "transport": {"status": "delays", "trend": "worsening"},
+                "weather": {"status": "clear", "trend": "stable"},
+                "roadworks": {"status": "clear", "trend": "stable"},
+                "incidents": {"status": "clear", "trend": "stable"},
+                "events": {"status": "clear", "trend": "stable"},
+            },
         }
         mocker.patch("pulse.db.get_all_active_alerts", return_value=alerts)
         mocker.patch("pulse.db.get_recent_pulses", return_value=[])
-        mocker.patch("pulse.db.get_pulses_since", return_value=[])
-        mocker.patch("pulse.db.get_latest_pulse", return_value=None)
         mocker.patch("pulse.db.get_recent_daily_summaries", return_value=[])
         mocker.patch("pulse.db.store_pulse")
+        mocker.patch("pulse.db.store_category_snapshots")
+        mocker.patch("pulse.db.get_category_snapshots", return_value=[])
         mocker.patch("pulse.load_prompt", return_value=(
             {"model": "gemini-2.5-flash", "temperature": 0.3},
-            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {categories_json}"
+            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {timeseries_json}"
         ))
         mocker.patch("pulse._call_gemini", return_value=gemini_response)
 
         result = generate_pulse({"pulse": {"enabled": True}})
         assert result is not None
-        assert result["travel_ok"] is False  # cold start: no EWMA → moderate → travel not ok
         assert result["summary"] == "S1 delays reported"
         assert result["alert_count"] == 1
-        assert result["categories"]["transport"]["status"] == "moderate"
+        assert result["categories"]["transport"]["status"] == "delays"
+        assert result["categories"]["transport"]["trend"] == "worsening"
+        assert "HIM_1" in result["references"]
 
 
 class TestGenerateDailySummary:
@@ -215,14 +220,13 @@ class TestGenerateDailySummary:
     def test_with_pulses(self, mocker):
         pulses = [
             {"generated_at": "2026-06-22T10:00:00Z", "summary": "S1 delayed",
-             "travel_ok": False, "categories": {"transit": {"status": "disrupted", "trend": "new"}}},
+             "categories": {"transport": {"status": "delays", "trend": "worsening"}}},
             {"generated_at": "2026-06-22T11:00:00Z", "summary": "All clear",
-             "travel_ok": True, "categories": {"transit": {"status": "normal", "trend": "improving"}}},
+             "categories": {"transport": {"status": "clear", "trend": "improving"}}},
         ]
         gemini_response = {
             "summary": "S1 had a morning disruption, resolved by 11:00.",
             "peak_issues": ["S1 delay"],
-            "travel_ok_pct": 50,
         }
         mocker.patch("pulse.db.get_pulses_for_date", return_value=pulses)
         mocker.patch("pulse.db.get_recent_daily_summaries", return_value=[])
@@ -241,7 +245,8 @@ class TestGenerateDailySummary:
 
 class TestBuildHistorySectionWithDaily:
     def test_with_both(self):
-        pulses = [{"generated_at": "2026-06-22T10:00:00Z", "summary": "Test", "travel_ok": True}]
+        pulses = [{"generated_at": "2026-06-22T10:00:00Z", "summary": "Test",
+                   "categories": {"weather": {"status": "clear", "trend": "stable"}}}]
         dailies = [{"date": "2026-06-21", "summary": "Yesterday was calm"}]
         result = _build_history_section(pulses, dailies)
         assert "HOURLY PULSES" in result
@@ -260,7 +265,6 @@ class TestPulseDB:
         pulse = {
             "generated_at": "2026-06-22T10:00:00Z",
             "summary": "Test pulse",
-            "travel_ok": True,
             "categories": {"transit": {"status": "normal", "trend": "stable"}},
             "recommendation": "No action needed.",
             "alert_count": 5,
@@ -269,7 +273,6 @@ class TestPulseDB:
         latest = db.get_latest_pulse()
         assert latest is not None
         assert latest["summary"] == "Test pulse"
-        assert latest["travel_ok"] is True
         assert latest["categories"]["transit"]["status"] == "normal"
         assert latest["alert_count"] == 5
 
@@ -278,7 +281,6 @@ class TestPulseDB:
             db.store_pulse({
                 "generated_at": f"2026-06-22T{10+i:02d}:00:00Z",
                 "summary": f"Pulse {i}",
-                "travel_ok": True,
                 "categories": {},
                 "recommendation": "",
                 "alert_count": i,
@@ -294,7 +296,6 @@ class TestPulseDB:
         db.store_pulse({
             "generated_at": "2026-06-22T10:00:00Z",
             "summary": "Test",
-            "travel_ok": False,
             "categories": {},
             "recommendation": "",
             "alert_count": 0,
@@ -302,7 +303,6 @@ class TestPulseDB:
         status = db.get_status_json()
         assert "pulse" in status
         assert status["pulse"]["summary"] == "Test"
-        assert status["pulse"]["travel_ok"] is False
 
     def test_get_status_json_pulse_none_when_empty(self):
         status = db.get_status_json()
@@ -312,7 +312,6 @@ class TestPulseDB:
         db.store_pulse({
             "generated_at": "2026-05-01T10:00:00Z",
             "summary": "Old pulse",
-            "travel_ok": True,
             "categories": {},
             "recommendation": "",
             "alert_count": 0,
@@ -320,7 +319,6 @@ class TestPulseDB:
         db.store_pulse({
             "generated_at": "2026-06-22T10:00:00Z",
             "summary": "Recent pulse",
-            "travel_ok": True,
             "categories": {},
             "recommendation": "",
             "alert_count": 0,
@@ -349,7 +347,6 @@ class TestPulseDB:
             db.store_pulse({
                 "generated_at": f"2026-06-22T{10+hour:02d}:00:00Z",
                 "summary": f"Pulse {hour}",
-                "travel_ok": True,
                 "categories": {},
                 "recommendation": "",
                 "alert_count": hour,
@@ -357,7 +354,6 @@ class TestPulseDB:
         db.store_pulse({
             "generated_at": "2026-06-21T10:00:00Z",
             "summary": "Yesterday",
-            "travel_ok": True,
             "categories": {},
             "recommendation": "",
             "alert_count": 0,
@@ -366,3 +362,29 @@ class TestPulseDB:
         assert len(today) == 3
         yesterday = db.get_pulses_for_date("2026-06-21")
         assert len(yesterday) == 1
+
+    def test_store_and_get_category_snapshots(self):
+        snapshots = {
+            "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
+                          "upcoming_count": 2, "upcoming_score": 3.0},
+            "weather": {"ongoing_count": 1, "ongoing_score": 1.5,
+                        "upcoming_count": 0, "upcoming_score": 0.0},
+        }
+        db.store_category_snapshots("2026-06-22T10:00:00Z", snapshots)
+        rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
+        assert len(rows) == 1
+        assert rows[0]["ongoing_count"] == 5
+        assert rows[0]["ongoing_score"] == 8.5
+
+    def test_category_snapshot_upsert(self):
+        db.store_category_snapshots("2026-06-22T10:00:00Z", {
+            "transport": {"ongoing_count": 3, "ongoing_score": 5.0,
+                          "upcoming_count": 0, "upcoming_score": 0.0},
+        })
+        db.store_category_snapshots("2026-06-22T10:00:00Z", {
+            "transport": {"ongoing_count": 7, "ongoing_score": 12.0,
+                          "upcoming_count": 1, "upcoming_score": 2.0},
+        })
+        rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
+        assert len(rows) == 1
+        assert rows[0]["ongoing_count"] == 7

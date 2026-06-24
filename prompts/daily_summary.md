@@ -18,9 +18,8 @@ Previous daily summaries for trend context:
 Produce a JSON object:
 
 {{
-  "summary": "3-5 sentence narrative of the day. What were the major disruptions? When did they start/resolve? What was the overall travel impact? Mention specific lines, roads, or weather events by name. End with whether the day ended better or worse than it started.",
-  "peak_issues": ["List of 1-3 most significant issues that affected the city today"],
-  "travel_ok_pct": 0-100 integer — percentage of hours where travel_ok was true
+  "summary": "3-5 sentence narrative of the day. What were the major disruptions? When did they start/resolve? What was the overall impact? Mention specific lines, roads, or weather events by name. End with whether the day ended better or worse than it started.",
+  "peak_issues": ["List of 1-3 most significant issues that affected the city today"]
 }}
 
 Rules:

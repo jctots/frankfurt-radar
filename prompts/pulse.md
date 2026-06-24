@@ -14,35 +14,64 @@ Fresh active alerts ({alert_count}):
 
 Long-running background (not new — mention only if noteworthy): {stale_summary}
 
-History (for narrative context only — trend/status are pre-computed in categories below):
+History (for narrative context — avoid repeating the same summary as a previous pulse):
 {history_section}
 
 How to use history:
 - Hourly pulses: avoid repeating the same summary. Note what changed since last hour.
 - Daily summaries: multi-day narrative context (e.g. "roadworks continue for a third day").
-- Do NOT derive trend or status judgments from history — those are pre-computed in categories.
 
-Pre-computed category statuses (calculated from alert counts and historical baselines — DO NOT override):
-{categories_json}
+## Category time-series
 
-Category field reference:
-- status: clear/low/moderate/high — overall severity level. Only feature "moderate" and "high" in the summary.
-- trend: improving/stable/worsening — direction the EWMA baseline is moving (rising = worsening, falling = improving). If "worsening", mention the direction (e.g. "transit disruptions are increasing"). If "improving", note it's easing. "Stable" needs no trend mention.
-- count: weighted disruption score (severity-weighted, not raw alert count). Higher means more or more severe disruptions.
-- ewma: 7-day moving average baseline for context.
+The following shows severity-weighted scores per category over each category's natural time window. Use this data to judge the current status and trend for each category.
 
-Produce a JSON object with ONLY these fields:
+{timeseries_json}
+
+- `current`: right now — ongoing alerts (active disruptions) and upcoming alerts (within lookahead window), with both count and score
+- `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts) and `score` (severity-weighted sum). Use both: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
+- `window`: the time range and sample interval used
+
+## Category status vocabulary
+
+Judge each category's status using ONLY these labels:
+
+| Category   | Level 0 (nothing) | Level 1 (minor) | Level 2 (significant) | Level 3 (severe) |
+|------------|-------------------|------------------|-----------------------|-------------------|
+| Transport  | clear             | delays           | disrupted             | paralyzed         |
+| Weather    | clear             | watch            | warning               | extreme           |
+| Roadworks  | clear             | works            | closures              | gridlock          |
+| Incidents  | clear             | low              | elevated              | major             |
+| Events     | clear             | crowds           | busy                  | peak              |
+
+Trend (all categories): `improving` / `stable` / `worsening`
+
+How to judge:
+- **Status**: Based on the current ongoing score, upcoming score, alert count, and alert content. Use the severity levels above — Level 0 means no alerts, Level 3 means severe/widespread impact.
+- **Trend**: Compare current scores against the history. Rising scores = worsening, falling = improving, flat = stable. Consider the full history window, not just the last data point.
+
+## Output format
+
+Produce a JSON object with EXACTLY these fields:
 
 {{
   "title": "Short informational headline. MUST be under 40 characters.",
   "summary": "2-3 short sentences. MUST be under 300 characters.",
   "recommendation": "One short actionable sentence. MUST be under 100 characters. If nothing notable: 'No special action needed.'",
-  "references": ["alert_id_1", "alert_id_2", "alert_id_3"]
+  "references": ["alert_id_1", "alert_id_2", "alert_id_3"],
+  "categories": {{
+    "transport": {{"status": "clear", "trend": "stable"}},
+    "weather": {{"status": "clear", "trend": "stable"}},
+    "roadworks": {{"status": "clear", "trend": "stable"}},
+    "incidents": {{"status": "clear", "trend": "stable"}},
+    "events": {{"status": "clear", "trend": "stable"}}
+  }}
 }}
 
 title: A high-level headline for the current situation — what a user needs to know at a glance. Informational, not actionable (that's the recommendation). Examples: "Heat warning + nighttime S-Bahn disruptions", "IRONMAN road closures this weekend", "All clear — routine roadworks only". Shown in the alert feed alongside individual alert titles.
 
 references: Return the alert_id values (from the alerts JSON above) of the top 3 alerts that most influenced the summary. Order by significance. If fewer than 3 alerts are active, return fewer. These are shown to users as clickable source citations.
+
+categories: Your judgment of each category's current status and trend, using the vocabulary defined above. You MUST include all 5 categories.
 
 ## Source-specific handling
 
@@ -69,10 +98,9 @@ If multiple alerts from different sources describe the same underlying event (e.
 ## What NOT to write
 
 - Do not restate alert titles or enumerate specifics the user can already see in the feed.
-- Do not feature categories at "clear" or "low" — those are normal for this time of day. Only "moderate" and "high" categories deserve mention.
-- If ALL categories are "clear" or "low", keep the summary minimal: state the overall condition briefly. Do not pad with filler.
+- Do not feature categories at "clear" or Level 1 status — those are normal. Only Level 2+ categories deserve mention in the summary.
+- If ALL categories are "clear" or Level 1, keep the summary minimal: state the overall condition briefly. Do not pad with filler.
 - Do not mention long-running roadworks counts unless they affect a major route.
-- Do NOT include "categories" in your output — they are pre-computed and merged automatically.
 
 ## Tone
 
