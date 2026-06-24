@@ -694,11 +694,12 @@
     .pulse-subtitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
     .pulse-trends-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
-    .pulse-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 0; }
-    .pulse-cat { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.4; }
-    .pulse-cat.stable { opacity: 0.5; }
-    .pulse-cat-label { font-weight: 600; min-width: 72px; }
-    .pulse-cat-trend { }
+    .pulse-categories { display: flex; justify-content: center; margin-bottom: 8px; }
+    .pulse-table { border-collapse: collapse; font-size: 12px; }
+    .pulse-table td { padding: 2px 8px 2px 0; white-space: nowrap; }
+    .pulse-table td:last-child { padding-right: 0; }
+    .pulse-cat-label { font-weight: 600; }
+    .pulse-cat-trend { display: inline-flex; align-items: center; gap: 3px; }
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
@@ -2261,10 +2262,10 @@ function renderPulseOverlay(pulse) {
     const cat = cats[key];
     if (!cat) continue;
     const trend = cat.trend || 'stable';
-    const isStable = trend === 'stable' && cat.status === 'clear';
     const arrow = {worsening:'↗',improving:'↘',stable:'→'}[trend] || '';
-    catsHtml += `<div class="pulse-cat${isStable ? ' stable' : ''}">${meta.emoji} <span class="pulse-cat-label">${meta.label}</span> ${cat.status} <span class="pulse-cat-trend ${trend}">${arrow}</span></div>`;
+    catsHtml += `<tr><td><span class="pulse-cat-label">${meta.emoji} ${meta.label}</span></td><td>${cat.status}</td><td><span class="pulse-cat-trend ${trend}">${arrow} ${trend}</span></td></tr>`;
   }
+  catsHtml = `<table class="pulse-table">${catsHtml}</table>`;
 
   let refsHtml = '';
   const refs = pulse.references || [];
@@ -2280,11 +2281,10 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Based on (${refCount} alert${refCount !== 1 ? 's' : ''})</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
-  const legendHtml = `<div class="pulse-method" style="margin-bottom:6px"><strong>Trend arrows:</strong> ↗ worsening (more alerts than usual) · ↘ improving (fewer alerts) · → stable (no significant change)</div>`;
   const methodHtml = `<div class="pulse-method">Trends computed using EWMA (exponential weighted moving average) over 7 days of hourly alert data. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
-    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${legendHtml}${methodHtml}</div>`
+    ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${methodHtml}</div>`
     : '';
 
   return `<div class="pulse-header">
