@@ -3109,13 +3109,18 @@ function updateTicker() {
   tickerItems = [];
   tickerCurrent = 0;
   const _2d = 2 * 86400000;
+  const _1h = 3600000;
   const _now = Date.now();
-  const _startsOrEndsSoon = a => {
+  const _tickerWorthy = a => {
     if (a.valid_from && new Date(a.valid_from) > new Date() && new Date(a.valid_from) - _now <= _2d) return true;
-    if (a.valid_until && new Date(a.valid_until) > new Date() && new Date(a.valid_until) - _now <= _2d) return true;
+    if (a.valid_until && new Date(a.valid_until) > new Date()) {
+      const endsIn = new Date(a.valid_until) - _now;
+      if (a.stale && endsIn <= _2d) return true;
+      if (!a.stale && endsIn <= _1h) return true;
+    }
     return false;
   };
-  const tickerAlerts = [...visible(), ...visibleLongRunning()].filter(_startsOrEndsSoon).sort(() => Math.random() - 0.5);
+  const tickerAlerts = [...visible(), ...visibleLongRunning()].filter(_tickerWorthy).sort(() => Math.random() - 0.5);
   tickerAlerts.forEach(a => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
