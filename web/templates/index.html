@@ -2778,6 +2778,19 @@ function buildFilterBar() {
     });
   }
 
+  // Roads
+  html += '<div class="filter-sep"></div>';
+  const abOn = filters.sources.autobahn !== false;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+  if (abOn) {
+    const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
+    if (roadAlerts.length) {
+      const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
+      const roadPartial = enabledRoadTypes < 3;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    }
+  }
+
   // Incidents (grouped: police + strikes)
   html += '<div class="filter-sep"></div>';
   const incOn = filters.sources.incidents !== false;
@@ -2789,19 +2802,6 @@ function buildFilterBar() {
       const enabledIncTypes = ['police','strikes'].filter(k => filters.incidentTypes[k] !== false).length;
       const incPartial = enabledIncTypes < 2;
       html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
-    }
-  }
-
-  // Roads
-  html += '<div class="filter-sep"></div>';
-  const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
-  if (abOn) {
-    const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
-    if (roadAlerts.length) {
-      const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
-      const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
