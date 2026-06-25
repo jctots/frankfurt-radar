@@ -28,7 +28,11 @@ The following shows severity-weighted scores per category over each category's n
 {timeseries_json}
 
 - `current.ongoing`: active disruptions right now — count and severity-weighted score
-- `current.projected`: predicted score at the end of the category's lookahead window — ongoing score minus expiring alerts plus starting alerts. Compare ongoing vs projected to see the direction: projected < ongoing = situation improving, projected > ongoing = worsening.
+- `current.projected`: predicted score at the end of the **next sample interval** (1h for Transport, 6h for Weather, 24h for Roadworks/Events) — ongoing score minus alerts expiring within that interval plus alerts starting within it. Compare ongoing vs projected to see near-term direction: projected < ongoing = improving, projected > ongoing = worsening.
+- `current.horizon` (categories with a lookahead window only — not present for Incidents):
+  - `total_score`: severity-weighted sum of all upcoming alerts across the category's full lookahead window
+  - `near_score`: the portion of `total_score` that falls within the next sample interval
+  - `samples`: recent `total_score` values at the category's sample interval (oldest → newest), showing how the forward-looking total has changed over recent samples. A rising sequence means new alerts are being published for the lookahead window faster than old ones are dropping off.
 - `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts) and `score` (severity-weighted sum). Use both: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
 - `window`: the time range and sample interval used
 
@@ -52,10 +56,22 @@ How to judge status — use the history to calibrate what's "normal" for each ca
 - **Level 2**: Score is significantly above the baseline range seen in history, OR score is within baseline but alert content indicates a high-impact disruption (e.g., a single severe weather warning, a major line suspension). Content-based escalation is valid when the alert body reveals outsized impact not reflected in the score.
 - **Level 3**: Score is far above the baseline range AND alert content confirms widespread or extreme impact. Both the numbers and the content must agree — do not assign Level 3 based on dramatic-sounding text alone.
 
-How to judge trend — use both history and the projected score:
+How to judge trend — two signals, one label:
+
+**Default: next-interval projection + history (Signal 1)**
 - Compare current ongoing scores against the history (rising = worsening, falling = improving, flat = stable).
-- Then compare ongoing vs projected — if projected is significantly lower, the situation is improving (alerts ending, few starting). If projected is significantly higher, it's worsening (new disruptions incoming).
+- Then compare ongoing vs projected — if projected is significantly lower, the situation is improving (alerts ending within the next interval, few starting). If projected is significantly higher, it's worsening (new disruptions starting within the next interval).
 - Consider the full history window, not just the last data point.
+- This is the primary trend signal and determines the label in most cases.
+
+**Override: horizon momentum (Signal 2) — sharp + near test**
+The `horizon` data may override the Signal 1 trend, but ONLY when BOTH conditions are met:
+1. **Sharp**: `horizon.samples` shows a clear acceleration (not just a small increase or normal fluctuation). Compare the most recent values — a doubling or tripling over 2–3 samples is sharp; a 10–20% drift is not.
+2. **Near**: the newly-detected activity falls early in the lookahead window. Check `horizon.near_score` relative to `horizon.total_score` — a high ratio means the buildup is imminent, a low ratio means it's distant.
+
+When both conditions are met, escalate `trend` (e.g. `stable` → `worsening`, or prevent `improving` from being assigned when a second wave is close). When the horizon signal overrides the near-term signal, the narrative MUST use bridging language that connects both ("clearing up today, but a second system is expected tomorrow night") — never state two disconnected facts.
+
+When only one condition is met (sharp but distant, or near but small), do NOT change the trend label. Instead, mention the upcoming activity in the narrative or recommendation if it would be useful context — e.g. a wave of newly-announced roadworks for next week, or event closures just published for the weekend. Keep these mentions brief: one clause, not a paragraph. If multiple categories have sub-threshold horizon signals in the same hour, mention at most two — follow the synthesis hierarchy (aggregate, don't enumerate).
 
 ## Output format
 

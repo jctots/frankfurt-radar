@@ -142,16 +142,23 @@ def compute_snapshot(
             "ongoing_score": 0.0,
             "projected_count": 0,
             "projected_score": 0.0,
+            "upcoming_count": 0,
+            "upcoming_score": 0.0,
+            "upcoming_near_score": 0.0,
         }
 
-    lookahead_ends: dict[str, str] = {}
+    near_ends: dict[str, str] = {}
+    full_ends: dict[str, str] = {}
     for cat, window in CATEGORY_WINDOWS.items():
         if window["lookahead_hours"] > 0:
-            end = now + timedelta(hours=window["lookahead_hours"])
-            lookahead_ends[cat] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            near = now + timedelta(hours=window["interval_hours"])
+            full = now + timedelta(hours=window["lookahead_hours"])
+            near_ends[cat] = near.strftime("%Y-%m-%dT%H:%M:%SZ")
+            full_ends[cat] = full.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    expiring: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
-    starting: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    expiring_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    starting_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    starting_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
 
     for alert in alerts:
         if alert.get("stale"):
@@ -163,19 +170,25 @@ def compute_snapshot(
         if _is_ongoing(alert, now_iso):
             snapshot[cat]["ongoing_count"] += 1
             snapshot[cat]["ongoing_score"] += weight
-            if cat in lookahead_ends and _is_expiring(alert, now_iso, lookahead_ends[cat]):
-                expiring[cat]["count"] += 1
-                expiring[cat]["score"] += weight
-        elif cat in lookahead_ends and _is_upcoming(alert, now_iso, lookahead_ends[cat]):
-            starting[cat]["count"] += 1
-            starting[cat]["score"] += weight
+            if cat in near_ends and _is_expiring(alert, now_iso, near_ends[cat]):
+                expiring_near[cat]["count"] += 1
+                expiring_near[cat]["score"] += weight
+        elif cat in full_ends and _is_upcoming(alert, now_iso, full_ends[cat]):
+            starting_full[cat]["count"] += 1
+            starting_full[cat]["score"] += weight
+            if _is_upcoming(alert, now_iso, near_ends[cat]):
+                starting_near[cat]["count"] += 1
+                starting_near[cat]["score"] += weight
 
     for cat in snapshot:
         snapshot[cat]["ongoing_score"] = round(snapshot[cat]["ongoing_score"], 2)
-        projected_count = snapshot[cat]["ongoing_count"] - expiring[cat]["count"] + starting[cat]["count"]
-        projected_score = snapshot[cat]["ongoing_score"] - expiring[cat]["score"] + starting[cat]["score"]
+        projected_count = snapshot[cat]["ongoing_count"] - expiring_near[cat]["count"] + starting_near[cat]["count"]
+        projected_score = snapshot[cat]["ongoing_score"] - expiring_near[cat]["score"] + starting_near[cat]["score"]
         snapshot[cat]["projected_count"] = max(0, projected_count)
         snapshot[cat]["projected_score"] = round(max(0.0, projected_score), 2)
+        snapshot[cat]["upcoming_count"] = starting_full[cat]["count"]
+        snapshot[cat]["upcoming_score"] = round(starting_full[cat]["score"], 2)
+        snapshot[cat]["upcoming_near_score"] = round(starting_near[cat]["score"], 2)
 
     return snapshot
 
@@ -221,6 +234,29 @@ def _aggregate_buckets(
     return result
 
 
+def _extract_horizon_samples(
+    rows: list[dict], interval_hours: int, n_samples: int = 4,
+) -> list[float]:
+    if not rows:
+        return []
+
+    if interval_hours <= 1:
+        return [round(r.get("upcoming_score", 0.0), 2) for r in rows[-n_samples:]]
+
+    buckets: dict[str, list[float]] = {}
+    for r in rows:
+        ts = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
+        bucket_hour = (ts.hour // interval_hours) * interval_hours
+        bucket_ts = ts.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        bucket_key = bucket_ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if bucket_key not in buckets:
+            buckets[bucket_key] = []
+        buckets[bucket_key].append(r.get("upcoming_score", 0.0))
+
+    sorted_keys = sorted(buckets)[-n_samples:]
+    return [round(max(buckets[k]), 2) for k in sorted_keys]
+
+
 def build_category_timeseries(
     get_snapshots_fn: Callable[[str, str], list[dict]],
     current_snapshot: dict[str, dict],
@@ -247,17 +283,27 @@ def build_category_timeseries(
         )
 
         snap = current_snapshot.get(cat, {})
-        timeseries[cat] = {
-            "current": {
-                "ongoing": {
-                    "count": snap.get("ongoing_count", 0),
-                    "score": snap.get("ongoing_score", 0.0),
-                },
-                "projected": {
-                    "count": snap.get("projected_count", 0),
-                    "score": snap.get("projected_score", 0.0),
-                },
+        current: dict = {
+            "ongoing": {
+                "count": snap.get("ongoing_count", 0),
+                "score": snap.get("ongoing_score", 0.0),
             },
+            "projected": {
+                "count": snap.get("projected_count", 0),
+                "score": snap.get("projected_score", 0.0),
+            },
+        }
+
+        if window["lookahead_hours"] > 0:
+            samples = _extract_horizon_samples(rows, window["interval_hours"])
+            current["horizon"] = {
+                "total_score": snap.get("upcoming_score", 0.0),
+                "near_score": snap.get("upcoming_near_score", 0.0),
+                "samples": samples,
+            }
+
+        timeseries[cat] = {
+            "current": current,
             "history": history,
             "window": f"{interval_label} {freq}",
         }

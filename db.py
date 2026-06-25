@@ -94,13 +94,16 @@ CREATE TABLE IF NOT EXISTS pulse_daily_summary (
 );
 
 CREATE TABLE IF NOT EXISTS category_snapshots (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp        TEXT NOT NULL,
-    category         TEXT NOT NULL,
-    ongoing_count    INTEGER NOT NULL DEFAULT 0,
-    ongoing_score    REAL NOT NULL DEFAULT 0.0,
-    projected_count  INTEGER NOT NULL DEFAULT 0,
-    projected_score  REAL NOT NULL DEFAULT 0.0,
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp           TEXT NOT NULL,
+    category            TEXT NOT NULL,
+    ongoing_count       INTEGER NOT NULL DEFAULT 0,
+    ongoing_score       REAL NOT NULL DEFAULT 0.0,
+    projected_count     INTEGER NOT NULL DEFAULT 0,
+    projected_score     REAL NOT NULL DEFAULT 0.0,
+    upcoming_count      INTEGER NOT NULL DEFAULT 0,
+    upcoming_score      REAL NOT NULL DEFAULT 0.0,
+    upcoming_near_score REAL NOT NULL DEFAULT 0.0,
     UNIQUE(timestamp, category)
 );
 """
@@ -199,6 +202,9 @@ def init_db() -> None:
                 ongoing_score REAL NOT NULL DEFAULT 0.0,
                 projected_count INTEGER NOT NULL DEFAULT 0,
                 projected_score REAL NOT NULL DEFAULT 0.0,
+                upcoming_count INTEGER NOT NULL DEFAULT 0,
+                upcoming_score REAL NOT NULL DEFAULT 0.0,
+                upcoming_near_score REAL NOT NULL DEFAULT 0.0,
                 UNIQUE(timestamp, category)
             )""")
         except Exception:
@@ -216,8 +222,20 @@ def init_db() -> None:
                     ongoing_score REAL NOT NULL DEFAULT 0.0,
                     projected_count INTEGER NOT NULL DEFAULT 0,
                     projected_score REAL NOT NULL DEFAULT 0.0,
+                    upcoming_count INTEGER NOT NULL DEFAULT 0,
+                    upcoming_score REAL NOT NULL DEFAULT 0.0,
+                    upcoming_near_score REAL NOT NULL DEFAULT 0.0,
                     UNIQUE(timestamp, category)
                 )""")
+        except Exception:
+            pass
+        # v0.9.16: add upcoming columns for horizon momentum
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(category_snapshots)")]
+            if "upcoming_score" not in cols:
+                conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_count INTEGER NOT NULL DEFAULT 0")
+                conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_score REAL NOT NULL DEFAULT 0.0")
+                conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_near_score REAL NOT NULL DEFAULT 0.0")
         except Exception:
             pass
     log.info("DB ready: %s", DB_PATH)
@@ -806,8 +824,10 @@ def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
         for category, data in snapshots.items():
             conn.execute(
                 """INSERT OR REPLACE INTO category_snapshots
-                   (timestamp, category, ongoing_count, ongoing_score, projected_count, projected_score)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (timestamp, category, ongoing_count, ongoing_score,
+                    projected_count, projected_score,
+                    upcoming_count, upcoming_score, upcoming_near_score)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     timestamp,
                     category,
@@ -815,6 +835,9 @@ def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
                     data.get("ongoing_score", 0.0),
                     data.get("projected_count", 0),
                     data.get("projected_score", 0.0),
+                    data.get("upcoming_count", 0),
+                    data.get("upcoming_score", 0.0),
+                    data.get("upcoming_near_score", 0.0),
                 ),
             )
 

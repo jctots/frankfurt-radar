@@ -52,9 +52,9 @@ This layer computes severity-weighted scores and stores hourly snapshots. It han
 
 **Hourly snapshots** — Every hour, the pipeline stores a snapshot for each category containing:
 - `ongoing_count` / `ongoing_score`: number and severity-weighted score of active alerts
-- `upcoming_count` / `upcoming_score`: number and severity-weighted score of alerts within the category's lookahead window
-
-Each snapshot also includes a **projected score** — the estimated ongoing score at the end of the category's lookahead window, computed as: `ongoing_score - expiring_score + starting_score`. This gives the LLM a pre-computed net direction signal without having to count individual alert timestamps.
+- `projected_count` / `projected_score`: estimated ongoing score at the end of the **next sample interval** (1h for Transport, 6h for Weather, 24h for Roadworks/Events), computed as: `ongoing_score - expiring_near + starting_near`, where `expiring_near` and `starting_near` only count alerts within one sample interval, not the full lookahead window. This makes `projected_score` directly comparable to `ongoing_score` and to each history data point — they all cover the same time scale.
+- `upcoming_count` / `upcoming_score`: number and severity-weighted score of all alerts starting within the category's full lookahead window. Used to compute the rate-of-growth signal (horizon momentum) by comparing across consecutive snapshots.
+- `upcoming_near_score`: the portion of `upcoming_score` that falls within the next sample interval. Gives the LLM a proximity signal — a high ratio of `upcoming_near_score / upcoming_score` means the upcoming activity is imminent.
 
 Snapshots are stored in the `category_snapshots` table (one row per category per hour).
 
@@ -68,7 +68,7 @@ Snapshots are stored in the `category_snapshots` table (one row per category per
 | Events | Daily | 1 week (7 points) | 1 week |
 | Incidents | Daily | 1 week (7 points) | None (retrospective) |
 
-When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). History rows carry ongoing count and score only — upcoming values appear only in the current snapshot, since what's "upcoming" in one time slice becomes "ongoing" in the next.
+When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). History rows carry ongoing count and score only — upcoming values appear only in the current snapshot's `horizon` block and as a time-series of recent `total_score` samples for rate-of-growth comparison.
 
 ### 2. LLM layer (Gemini Flash)
 
@@ -86,7 +86,10 @@ The LLM receives the active alerts, category time-series data, and recent histor
 | Incidents | clear | low | elevated | major |
 | Events | clear | crowds | busy | peak |
 
-**Trend judgment** — The LLM judges trend from both history and upcoming: it compares current ongoing scores against the category's history (backward-looking) and factors in upcoming alerts and expiring ongoing alerts (forward-looking). A flat history with high-severity upcoming alerts = worsening; ongoing alerts ending soon with nothing upcoming = improving. Assigns: `improving`, `stable`, or `worsening`.
+**Trend judgment** — The LLM assigns trend (`improving`, `stable`, `worsening`) from two computed signals that feed a single consolidated label:
+
+- **Signal 1 (next-interval projection)**: compares `ongoing_score` against `projected_score`, which covers only the next sample interval (1h/6h/24h). Combined with the history shape, this is the default basis for trend.
+- **Signal 2 (horizon momentum)**: tracks how the full-lookahead `upcoming_score` changes across recent snapshots (`horizon.samples`). This may **override** the Signal 1 trend, but only when both conditions are met: (a) the rate of growth is **sharp** (clear acceleration, not noise), and (b) the newly-detected activity is **near** (high `horizon.near_score` relative to `horizon.total_score`). When both conditions hold, the LLM escalates trend and uses bridging language in the narrative to connect the near-term signal with the longer-horizon one. When only one condition holds, the horizon signal may appear in the narrative but does not change the trend label.
 
 The LLM uses the time-series data (scores over time) combined with alert content to make these judgments. This approach gives the LLM the full context to judge severity — a single extreme-severity weather warning can warrant "warning" status even with a low alert count, and chronic low-level roadworks can be correctly identified as "works" rather than escalating due to count alone.
 
@@ -128,7 +131,11 @@ The log structure mirrors the analysis layers:
   "layer_1_deterministic": {
     "timeseries": {
       "transport": {
-        "current": {"ongoing": {"count": 8, "score": 12.5}, "upcoming": {"count": 3, "score": 4.5}},
+        "current": {
+          "ongoing": {"count": 8, "score": 12.5},
+          "projected": {"count": 6, "score": 10.0},
+          "horizon": {"total_score": 4.5, "near_score": 2.0, "samples": [3.0, 3.5, 4.5]}
+        },
         "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0}],
         "window": "24h hourly"
       }
@@ -164,7 +171,7 @@ The log structure mirrors the analysis layers:
 ```
 
 Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the weighted scores correct? What does the time-series look like? Is the upcoming window capturing imminent alerts?
+- **Layer 1**: Were the weighted scores correct? What does the time-series look like? Is the projected score (next-interval) reflecting near-term direction? Is `horizon.samples` showing a rate-of-growth trend?
 - **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules? Did it assign appropriate status labels given the data?
 - **Layer 3**: Does the final output include valid category judgments?
 

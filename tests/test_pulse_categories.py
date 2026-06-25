@@ -7,6 +7,7 @@ from pulse_categories import (
     CATEGORY_STATUS_LABELS,
     CATEGORY_WINDOWS,
     _compute_weight,
+    _extract_horizon_samples,
     _is_ongoing,
     _is_upcoming,
     build_category_timeseries,
@@ -166,14 +167,19 @@ class TestComputeSnapshot:
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
 
-    def test_projected_counted(self):
+    def test_upcoming_counted_projected_excludes_distant(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=upcoming_time, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap = compute_snapshot(alerts, now=_NOW)
-        assert snap["transport"]["projected_count"] == 1
         assert snap["transport"]["ongoing_count"] == 0
+        # +3h is beyond next 1h interval — not in projected
+        assert snap["transport"]["projected_count"] == 0
+        # but within 6h lookahead — counted in upcoming
+        assert snap["transport"]["upcoming_count"] == 1
+        assert snap["transport"]["upcoming_score"] == pytest.approx(1.0)
+        assert snap["transport"]["upcoming_near_score"] == pytest.approx(0.0)
 
     def test_upcoming_beyond_lookahead_excluded(self):
         far_future = (_NOW + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -195,6 +201,8 @@ class TestComputeSnapshot:
             assert cat_data == {
                 "ongoing_count": 0, "ongoing_score": 0.0,
                 "projected_count": 0, "projected_score": 0.0,
+                "upcoming_count": 0, "upcoming_score": 0.0,
+                "upcoming_near_score": 0.0,
             }
 
     def test_severity_weighting_in_snapshot(self):
@@ -212,22 +220,30 @@ class TestComputeSnapshot:
         assert snap["incidents"]["ongoing_count"] == 2
         assert snap["incidents"]["projected_count"] == 2
 
-    def test_projected_net_calculation(self):
-        expiring_time = (_NOW + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        starting_time = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def test_projected_uses_next_interval_only(self):
+        expiring_soon = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        starting_soon = (_NOW + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        starting_later = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
-            _alert("rmv", valid_from=_PAST, valid_until=expiring_time, service="S-Bahn"),
+            _alert("rmv", valid_from=_PAST, valid_until=expiring_soon, service="S-Bahn"),
             _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
-            _alert("rmv", valid_from=starting_time, valid_until="2026-06-25T00:00:00Z"),
+            _alert("rmv", valid_from=starting_soon, valid_until="2026-06-25T00:00:00Z"),
+            _alert("rmv", valid_from=starting_later, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
+        # projected uses next 1h only: -1.5 (S-Bahn expiring) +1.0 (starting_soon)
         assert snap["transport"]["projected_count"] == 2
         assert snap["transport"]["projected_score"] == pytest.approx(2.0)
+        # upcoming covers full 6h lookahead: both starting alerts
+        assert snap["transport"]["upcoming_count"] == 2
+        assert snap["transport"]["upcoming_score"] == pytest.approx(2.0)
+        # near_score = only the one starting within next 1h
+        assert snap["transport"]["upcoming_near_score"] == pytest.approx(1.0)
 
     def test_projected_floor_at_zero(self):
-        expiring_time = (_NOW + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        expiring_time = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=_PAST, valid_until=expiring_time),
         ]
@@ -235,6 +251,7 @@ class TestComputeSnapshot:
         assert snap["transport"]["ongoing_count"] == 1
         assert snap["transport"]["projected_count"] == 0
         assert snap["transport"]["projected_score"] == 0.0
+        assert snap["transport"]["upcoming_count"] == 0
 
     def test_no_lookahead_category(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -274,6 +291,8 @@ class TestBuildCategoryTimeseries:
                 "timestamp": ts, "category": category,
                 "ongoing_count": 3, "ongoing_score": score,
                 "projected_count": 1, "projected_score": 2.0,
+                "upcoming_count": 1, "upcoming_score": 2.0,
+                "upcoming_near_score": 0.5,
             })
         rows.sort(key=lambda r: r["timestamp"])
         return rows
@@ -285,7 +304,9 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 3, "ongoing_score": 5.0,
-                         "projected_count": 1, "projected_score": 2.0}
+                         "projected_count": 1, "projected_score": 2.0,
+                         "upcoming_count": 1, "upcoming_score": 2.0,
+                         "upcoming_near_score": 0.5}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -304,7 +325,9 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -319,7 +342,9 @@ class TestBuildCategoryTimeseries:
             return snapshots.get(cat, [])
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -331,7 +356,9 @@ class TestBuildCategoryTimeseries:
             return []
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert set(ts.keys()) == set(CATEGORY_SOURCES.keys())
@@ -342,27 +369,127 @@ class TestBuildCategoryTimeseries:
 
         current = {
             "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
-                          "projected_count": 2, "projected_score": 3.0},
+                          "projected_count": 2, "projected_score": 3.0,
+                          "upcoming_count": 3, "upcoming_score": 4.5,
+                          "upcoming_near_score": 1.5},
         }
         for cat in CATEGORY_SOURCES:
             if cat not in current:
                 current[cat] = {"ongoing_count": 0, "ongoing_score": 0.0,
-                                "projected_count": 0, "projected_score": 0.0}
+                                "projected_count": 0, "projected_score": 0.0,
+                                "upcoming_count": 0, "upcoming_score": 0.0,
+                                "upcoming_near_score": 0.0}
 
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["current"]["ongoing"]["count"] == 5
         assert ts["transport"]["current"]["ongoing"]["score"] == 8.5
         assert ts["transport"]["current"]["projected"]["count"] == 2
+        assert ts["transport"]["current"]["horizon"]["total_score"] == 4.5
+        assert ts["transport"]["current"]["horizon"]["near_score"] == 1.5
 
     def test_empty_history(self):
         def get_fn(cat, since):
             return []
 
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0}
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["history"] == []
+
+
+class TestExtractHorizonSamples:
+    def _make_rows(self, n, base_upcoming=5.0, step=1.0):
+        rows = []
+        for i in range(n):
+            ts = (_NOW - timedelta(hours=n - 1 - i)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "category": "transport",
+                "ongoing_count": 3, "ongoing_score": 5.0,
+                "projected_count": 1, "projected_score": 2.0,
+                "upcoming_count": 2, "upcoming_score": base_upcoming + i * step,
+                "upcoming_near_score": 1.0,
+            })
+        return rows
+
+    def test_hourly_returns_last_n(self):
+        rows = self._make_rows(6)
+        samples = _extract_horizon_samples(rows, interval_hours=1, n_samples=4)
+        assert len(samples) == 4
+        assert samples == [7.0, 8.0, 9.0, 10.0]
+
+    def test_empty_rows(self):
+        assert _extract_horizon_samples([], interval_hours=1) == []
+
+    def test_fewer_rows_than_requested(self):
+        rows = self._make_rows(2)
+        samples = _extract_horizon_samples(rows, interval_hours=1, n_samples=4)
+        assert len(samples) == 2
+
+    def test_6h_aggregation(self):
+        rows = self._make_rows(12, base_upcoming=2.0, step=0.5)
+        samples = _extract_horizon_samples(rows, interval_hours=6, n_samples=4)
+        assert len(samples) <= 4
+        for s in samples:
+            assert isinstance(s, float)
+
+
+class TestHorizonInTimeseries:
+    def test_incidents_has_no_horizon(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert "horizon" not in ts["incidents"]["current"]
+
+    def test_transport_has_horizon(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert "horizon" in ts["transport"]["current"]
+        assert "total_score" in ts["transport"]["current"]["horizon"]
+        assert "near_score" in ts["transport"]["current"]["horizon"]
+        assert "samples" in ts["transport"]["current"]["horizon"]
+
+    def test_horizon_samples_from_history(self):
+        rows = []
+        for i in range(6):
+            ts = (_NOW - timedelta(hours=5 - i)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "category": "transport",
+                "ongoing_count": 3, "ongoing_score": 5.0,
+                "projected_count": 1, "projected_score": 2.0,
+                "upcoming_count": 2, "upcoming_score": 4.0 + i,
+                "upcoming_near_score": 1.0,
+            })
+
+        def get_fn(cat, since):
+            return rows if cat == "transport" else []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 2, "upcoming_score": 10.0,
+                         "upcoming_near_score": 3.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        horizon = ts["transport"]["current"]["horizon"]
+        assert horizon["total_score"] == 10.0
+        assert horizon["near_score"] == 3.0
+        assert len(horizon["samples"]) == 4
+        assert horizon["samples"][-1] > horizon["samples"][0]
 
 
 class TestCategoryConfig:

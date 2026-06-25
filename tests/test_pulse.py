@@ -366,25 +366,37 @@ class TestPulseDB:
     def test_store_and_get_category_snapshots(self):
         snapshots = {
             "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
-                          "projected_count": 2, "projected_score": 3.0},
+                          "projected_count": 2, "projected_score": 3.0,
+                          "upcoming_count": 3, "upcoming_score": 4.5,
+                          "upcoming_near_score": 1.5},
             "weather": {"ongoing_count": 1, "ongoing_score": 1.5,
-                        "projected_count": 0, "projected_score": 0.0},
+                        "projected_count": 0, "projected_score": 0.0,
+                        "upcoming_count": 0, "upcoming_score": 0.0,
+                        "upcoming_near_score": 0.0},
         }
         db.store_category_snapshots("2026-06-22T10:00:00Z", snapshots)
         rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
         assert len(rows) == 1
         assert rows[0]["ongoing_count"] == 5
         assert rows[0]["ongoing_score"] == 8.5
+        assert rows[0]["upcoming_count"] == 3
+        assert rows[0]["upcoming_score"] == 4.5
+        assert rows[0]["upcoming_near_score"] == 1.5
 
     def test_category_snapshot_upsert(self):
         db.store_category_snapshots("2026-06-22T10:00:00Z", {
             "transport": {"ongoing_count": 3, "ongoing_score": 5.0,
-                          "projected_count": 0, "projected_score": 0.0},
+                          "projected_count": 0, "projected_score": 0.0,
+                          "upcoming_count": 0, "upcoming_score": 0.0,
+                          "upcoming_near_score": 0.0},
         })
         db.store_category_snapshots("2026-06-22T10:00:00Z", {
             "transport": {"ongoing_count": 7, "ongoing_score": 12.0,
-                          "projected_count": 1, "projected_score": 2.0},
+                          "projected_count": 1, "projected_score": 2.0,
+                          "upcoming_count": 2, "upcoming_score": 3.0,
+                          "upcoming_near_score": 1.0},
         })
         rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
         assert len(rows) == 1
         assert rows[0]["ongoing_count"] == 7
+        assert rows[0]["upcoming_count"] == 2
