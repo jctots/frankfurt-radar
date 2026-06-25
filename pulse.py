@@ -79,7 +79,7 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
             src = a.get("source", "unknown")
             stale_counts[src] = stale_counts.get(src, 0) + 1
         else:
-            fresh.append({
+            entry = {
                 "alert_id": a.get("alert_id"),
                 "source": a.get("source"),
                 "title": a.get("title_en", ""),
@@ -90,7 +90,10 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
                 "valid_from": a.get("valid_from"),
                 "valid_until": a.get("valid_until"),
                 "age": _age_label(a.get("valid_from")),
-            })
+            }
+            if a.get("location_label"):
+                entry["location_label"] = a["location_label"]
+            fresh.append(entry)
 
     fresh.sort(key=lambda x: x.get("valid_from") or "", reverse=True)
 
