@@ -903,6 +903,23 @@ class StrikePoller(BasePoller):
 
                 seen_ids.add(entry_id)
 
+                cached_match = next(
+                    (s for s in cached_strikes if s.get("alert_id") == entry_id), None
+                )
+                if cached_match:
+                    alerts.append(Alert(
+                        id=entry_id,
+                        source="strike",
+                        title=cached_match.get("title_en", title),
+                        body=cached_match.get("body_en", ""),
+                        url=entry.get("link") or None,
+                        valid_until=cached_match.get("valid_until"),
+                        service=cached_match.get("service"),
+                        published_at=published_at,
+                        valid_from=cached_match.get("valid_from"),
+                    ))
+                    continue
+
                 link = entry.get("link", "")
                 page_body = _fetch_page_body(link) if link else ""
 
