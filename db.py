@@ -604,6 +604,14 @@ def clear_expired_alerts() -> None:
             log.info("Cleared %d expired alerts", cur.rowcount)
 
 
+def get_cached_alert(alert_id: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM alert_cache WHERE alert_id = ?", (alert_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def get_active_strikes() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

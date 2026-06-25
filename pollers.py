@@ -253,30 +253,62 @@ class RMVPoller(BasePoller):
 
 class PolizeiPoller(BasePoller):
     def fetch(self) -> list[Alert]:
+        from db import get_cached_alert
+        from extraction import extract_alert_details, police_location_prompt
+
         feed = feedparser.parse(_POLIZEI_FEED_URL)
         if feed.bozo and not feed.entries:
             log.error("PolizeiPoller: failed to parse feed: %s", feed.bozo_exception)
             self.ok = False
             return []
-        alerts = [
-            Alert(
-                id=entry.get("id") or entry.get("link", ""),
+
+        prompt = police_location_prompt()
+        alerts = []
+        for entry in feed.entries:
+            entry_id = entry.get("id") or entry.get("link", "")
+            title = re.sub(
+                r"^Frankfurt\s*[-–]\s*", "",
+                re.sub(r"^POL-[A-Z]+:\s*\d+\s*-\s*\d+\s*", "",
+                       entry.get("title", "Frankfurt Police")).strip(),
+            )
+            body = _clean_polizei_body(
+                (entry.content[0].value if entry.get("content") else None)
+                or entry.get("summary", "")
+            )
+            published_at = (
+                datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
+                if entry.get("published_parsed") else None
+            )
+
+            lat = lon = location_label = None
+            cached = get_cached_alert(entry_id)
+            if cached and cached.get("lat") is not None:
+                lat = cached["lat"]
+                lon = cached["lon"]
+                location_label = cached.get("location_label")
+            else:
+                loc = extract_alert_details(f"{title}\n\n{body}", prompt)
+                location_label = loc.get("location")
+                lat = loc.get("lat")
+                lon = loc.get("lon")
+                if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+                    lat, lon = float(lat), float(lon)
+                else:
+                    lat = lon = None
+
+            alerts.append(Alert(
+                id=entry_id,
                 source="polizei",
-                title=re.sub(r"^Frankfurt\s*[-–]\s*", "", re.sub(r"^POL-[A-Z]+:\s*\d+\s*-\s*\d+\s*", "", entry.get("title", "Frankfurt Police")).strip()),
-                body=_clean_polizei_body(
-                    (entry.content[0].value if entry.get("content") else None)
-                    or entry.get("summary", "")
-                ),
+                title=title,
+                body=body,
                 url=entry.get("link"),
                 valid_until=None,
                 service=None,
-                published_at=(
-                    datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
-                    if entry.get("published_parsed") else None
-                ),
-            )
-            for entry in feed.entries
-        ]
+                published_at=published_at,
+                lat=lat,
+                lon=lon,
+                location_label=location_label,
+            ))
         log.info("Polizei: fetched %d items", len(alerts))
         return alerts
 
@@ -917,6 +949,9 @@ class StrikePoller(BasePoller):
                         service=cached_match.get("service"),
                         published_at=published_at,
                         valid_from=cached_match.get("valid_from"),
+                        location_label=cached_match.get("location_label"),
+                        lat=cached_match.get("lat"),
+                        lon=cached_match.get("lon"),
                     ))
                     continue
 
@@ -951,6 +986,13 @@ class StrikePoller(BasePoller):
                     except ValueError:
                         pass
 
+                strike_lat = details.get("lat")
+                strike_lon = details.get("lon")
+                if isinstance(strike_lat, (int, float)) and isinstance(strike_lon, (int, float)):
+                    strike_lat, strike_lon = float(strike_lat), float(strike_lon)
+                else:
+                    strike_lat = strike_lon = None
+
                 alert = Alert(
                     id=entry_id,
                     source="strike",
@@ -962,6 +1004,8 @@ class StrikePoller(BasePoller):
                     published_at=published_at,
                     valid_from=valid_from,
                     location_label=details.get("location"),
+                    lat=strike_lat,
+                    lon=strike_lon,
                 )
 
                 existing_to_check = [

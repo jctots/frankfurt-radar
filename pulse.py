@@ -11,6 +11,7 @@ import requests
 import yaml
 
 import db
+from districts import coords_to_district
 from pulse_categories import (
     build_category_timeseries,
     compute_snapshot,
@@ -93,6 +94,9 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
             }
             if a.get("location_label"):
                 entry["location_label"] = a["location_label"]
+            district = coords_to_district(a.get("lat"), a.get("lon"))
+            if district:
+                entry["district"] = district
             fresh.append(entry)
 
     fresh.sort(key=lambda x: x.get("valid_from") or "", reverse=True)
