@@ -125,7 +125,13 @@ def count_alerts_by_category(
 
 def compute_snapshot(
     alerts: list[dict], now: datetime | None = None,
-) -> dict[str, dict]:
+) -> tuple[dict[str, dict], dict[str, dict]]:
+    """Return (snapshot, score_breakdown) for all categories.
+
+    snapshot: per-category scores for DB storage and timeseries.
+    score_breakdown: per-category lists of contributing alerts by bucket,
+        for debug logging only.
+    """
     source_to_cat = {}
     for cat, sources in CATEGORY_SOURCES.items():
         for src in sources:
@@ -160,6 +166,18 @@ def compute_snapshot(
     starting_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
     starting_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
 
+    breakdown: dict[str, dict] = {
+        cat: {"ongoing": [], "expiring_near": [], "starting_near": [], "starting_full": []}
+        for cat in CATEGORY_SOURCES
+    }
+
+    def _alert_entry(alert: dict, weight: float) -> dict:
+        return {
+            "alert_id": alert.get("alert_id"),
+            "source": alert.get("source"),
+            "weight": weight,
+        }
+
     for alert in alerts:
         if alert.get("stale"):
             continue
@@ -167,18 +185,23 @@ def compute_snapshot(
         if not cat:
             continue
         weight = _compute_weight(alert)
+        entry = _alert_entry(alert, weight)
         if _is_ongoing(alert, now_iso):
             snapshot[cat]["ongoing_count"] += 1
             snapshot[cat]["ongoing_score"] += weight
+            breakdown[cat]["ongoing"].append(entry)
             if cat in near_ends and _is_expiring(alert, now_iso, near_ends[cat]):
                 expiring_near[cat]["count"] += 1
                 expiring_near[cat]["score"] += weight
+                breakdown[cat]["expiring_near"].append(entry)
         elif cat in full_ends and _is_upcoming(alert, now_iso, full_ends[cat]):
             starting_full[cat]["count"] += 1
             starting_full[cat]["score"] += weight
+            breakdown[cat]["starting_full"].append(entry)
             if _is_upcoming(alert, now_iso, near_ends[cat]):
                 starting_near[cat]["count"] += 1
                 starting_near[cat]["score"] += weight
+                breakdown[cat]["starting_near"].append(entry)
 
     for cat in snapshot:
         snapshot[cat]["ongoing_score"] = round(snapshot[cat]["ongoing_score"], 2)
@@ -190,7 +213,7 @@ def compute_snapshot(
         snapshot[cat]["upcoming_score"] = round(starting_full[cat]["score"], 2)
         snapshot[cat]["upcoming_near_score"] = round(starting_near[cat]["score"], 2)
 
-    return snapshot
+    return snapshot, breakdown
 
 
 def _aggregate_buckets(

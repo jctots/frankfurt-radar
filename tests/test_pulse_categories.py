@@ -162,7 +162,7 @@ class TestComputeSnapshot:
             _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
             _alert("rmv", valid_from=_PAST, valid_until=_FUTURE, service="S-Bahn"),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
 
@@ -171,7 +171,7 @@ class TestComputeSnapshot:
         alerts = [
             _alert("rmv", valid_from=upcoming_time, valid_until="2026-06-25T00:00:00Z"),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 0
         # +3h is beyond next 1h interval — not in projected
         assert snap["transport"]["projected_count"] == 0
@@ -185,16 +185,16 @@ class TestComputeSnapshot:
         alerts = [
             _alert("rmv", valid_from=far_future, valid_until="2026-06-25T00:00:00Z"),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["projected_count"] == 0
 
     def test_stale_excluded(self):
         alerts = [_alert("rmv", stale=True, valid_from=_PAST)]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 0
 
     def test_all_categories_present(self):
-        snap = compute_snapshot([], now=_NOW)
+        snap, _ = compute_snapshot([], now=_NOW)
         assert set(snap.keys()) == set(CATEGORY_SOURCES.keys())
         for cat_data in snap.values():
             assert cat_data == {
@@ -209,13 +209,13 @@ class TestComputeSnapshot:
             _alert("dwd", valid_from=_PAST, severity=4),
             _alert("dwd", valid_from=_PAST, severity=1),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["weather"]["ongoing_count"] == 2
         assert snap["weather"]["ongoing_score"] == pytest.approx(2.5)
 
     def test_incidents_always_ongoing(self):
         alerts = [_alert("polizei"), _alert("strike")]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["incidents"]["ongoing_count"] == 2
         assert snap["incidents"]["projected_count"] == 2
 
@@ -229,7 +229,7 @@ class TestComputeSnapshot:
             _alert("rmv", valid_from=starting_soon, valid_until="2026-06-25T00:00:00Z"),
             _alert("rmv", valid_from=starting_later, valid_until="2026-06-25T00:00:00Z"),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
         # projected uses next 1h only: -1.5 (S-Bahn expiring) +1.0 (starting_soon)
@@ -246,7 +246,7 @@ class TestComputeSnapshot:
         alerts = [
             _alert("rmv", valid_from=_PAST, valid_until=expiring_time),
         ]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 1
         assert snap["transport"]["projected_count"] == 0
         assert snap["transport"]["projected_score"] == 0.0
@@ -255,9 +255,32 @@ class TestComputeSnapshot:
     def test_no_lookahead_category(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [_alert("polizei", valid_from=upcoming_time)]
-        snap = compute_snapshot(alerts, now=_NOW)
+        snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["incidents"]["ongoing_count"] == 1
         assert snap["incidents"]["projected_count"] == 1
+
+    def test_score_breakdown(self):
+        expiring_soon = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        starting_soon = (_NOW + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        starting_later = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        alerts = [
+            _alert("rmv", valid_from=_PAST, valid_until=expiring_soon, service="S-Bahn"),
+            _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
+            _alert("rmv", valid_from=starting_soon, valid_until="2026-06-25T00:00:00Z"),
+            _alert("rmv", valid_from=starting_later, valid_until="2026-06-25T00:00:00Z"),
+        ]
+        _, breakdown = compute_snapshot(alerts, now=_NOW)
+        t = breakdown["transport"]
+        assert len(t["ongoing"]) == 2
+        assert len(t["expiring_near"]) == 1
+        assert t["expiring_near"][0]["weight"] == 1.5
+        assert len(t["starting_near"]) == 1
+        assert t["starting_near"][0]["weight"] == 1.0
+        assert len(t["starting_full"]) == 2
+        for entry in t["ongoing"]:
+            assert "alert_id" in entry
+            assert "source" in entry
+            assert "weight" in entry
 
 
 class TestIsUpcoming:

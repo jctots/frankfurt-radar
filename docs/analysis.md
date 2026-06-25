@@ -140,6 +140,14 @@ The log structure mirrors the analysis layers:
         "window": "24h hourly"
       }
     },
+    "score_breakdown": {
+      "transport": {
+        "ongoing": [{"alert_id": "HIM_123", "source": "rmv", "weight": 1.5}],
+        "expiring_near": [{"alert_id": "HIM_123", "source": "rmv", "weight": 1.5}],
+        "starting_near": [],
+        "starting_full": [{"alert_id": "HIM_789", "source": "rmv", "weight": 1.0}]
+      }
+    },
     "total_alerts": 42,
     "fresh_alerts": 15,
     "stale_summary": "12 autobahn, 8 baustellen"
@@ -171,7 +179,7 @@ The log structure mirrors the analysis layers:
 ```
 
 Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the weighted scores correct? What does the time-series look like? Is the projected score (next-interval) reflecting near-term direction? Is `horizon.samples` showing a rate-of-growth trend?
+- **Layer 1**: Were the weighted scores correct? Check `score_breakdown` to see which alerts landed in each bucket and with what weight. Is the projected score (next-interval) reflecting near-term direction? Is `horizon_score` in the history showing a rate-of-growth trend?
 - **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules? Did it assign appropriate status labels given the data?
 - **Layer 3**: Does the final output include valid category judgments?
 

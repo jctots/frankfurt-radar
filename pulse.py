@@ -226,7 +226,7 @@ def generate_pulse(config: dict) -> dict | None:
     now = datetime.now(timezone.utc)
     generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    snapshot = compute_snapshot(alerts, now)
+    snapshot, score_breakdown = compute_snapshot(alerts, now)
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
     db.store_category_snapshots(snapshot_ts, snapshot)
 
@@ -285,6 +285,7 @@ def generate_pulse(config: dict) -> dict | None:
         "current_hour_utc": now.hour,
         "layer_1_deterministic": {
             "timeseries": timeseries,
+            "score_breakdown": score_breakdown,
             "total_alerts": len(alerts),
             "fresh_alerts": fresh_count,
             "stale_summary": stale_summary,
