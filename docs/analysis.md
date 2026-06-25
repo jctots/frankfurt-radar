@@ -68,7 +68,7 @@ Snapshots are stored in the `category_snapshots` table (one row per category per
 | Events | Daily | 1 week (7 points) | 1 week |
 | Incidents | Daily | 1 week (7 points) | None (retrospective) |
 
-When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). History rows carry ongoing count and score only — upcoming values appear only in the current snapshot's `horizon` block and as a time-series of recent `total_score` samples for rate-of-growth comparison.
+When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). Each history entry carries `count`, `score` (ongoing), and `horizon_score` (full-lookahead total at that point in time). The `horizon_score` series across history entries gives the LLM the rate-of-growth signal for horizon momentum — a rising sequence means new alerts are being published faster than old ones are dropping off.
 
 ### 2. LLM layer (Gemini Flash)
 
@@ -134,9 +134,9 @@ The log structure mirrors the analysis layers:
         "current": {
           "ongoing": {"count": 8, "score": 12.5},
           "projected": {"count": 6, "score": 10.0},
-          "horizon": {"total_score": 4.5, "near_score": 2.0, "samples": [3.0, 3.5, 4.5]}
+          "horizon": {"total_score": 4.5, "near_score": 2.0}
         },
-        "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0}],
+        "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0, "horizon_score": 3.5}],
         "window": "24h hourly"
       }
     },

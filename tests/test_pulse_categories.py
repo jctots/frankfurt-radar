@@ -7,7 +7,6 @@ from pulse_categories import (
     CATEGORY_STATUS_LABELS,
     CATEGORY_WINDOWS,
     _compute_weight,
-    _extract_horizon_samples,
     _is_ongoing,
     _is_upcoming,
     build_category_timeseries,
@@ -316,6 +315,7 @@ class TestBuildCategoryTimeseries:
         assert "hour" in ts["transport"]["history"][0]
         assert "count" in ts["transport"]["history"][0]
         assert "score" in ts["transport"]["history"][0]
+        assert "horizon_score" in ts["transport"]["history"][0]
         assert "projected_score" not in ts["transport"]["history"][0]
 
     def test_weather_6hourly_aggregation(self):
@@ -400,42 +400,6 @@ class TestBuildCategoryTimeseries:
         assert ts["transport"]["history"] == []
 
 
-class TestExtractHorizonSamples:
-    def _make_rows(self, n, base_upcoming=5.0, step=1.0):
-        rows = []
-        for i in range(n):
-            ts = (_NOW - timedelta(hours=n - 1 - i)).strftime("%Y-%m-%dT%H:00:00Z")
-            rows.append({
-                "timestamp": ts, "category": "transport",
-                "ongoing_count": 3, "ongoing_score": 5.0,
-                "projected_count": 1, "projected_score": 2.0,
-                "upcoming_count": 2, "upcoming_score": base_upcoming + i * step,
-                "upcoming_near_score": 1.0,
-            })
-        return rows
-
-    def test_hourly_returns_last_n(self):
-        rows = self._make_rows(6)
-        samples = _extract_horizon_samples(rows, interval_hours=1, n_samples=4)
-        assert len(samples) == 4
-        assert samples == [7.0, 8.0, 9.0, 10.0]
-
-    def test_empty_rows(self):
-        assert _extract_horizon_samples([], interval_hours=1) == []
-
-    def test_fewer_rows_than_requested(self):
-        rows = self._make_rows(2)
-        samples = _extract_horizon_samples(rows, interval_hours=1, n_samples=4)
-        assert len(samples) == 2
-
-    def test_6h_aggregation(self):
-        rows = self._make_rows(12, base_upcoming=2.0, step=0.5)
-        samples = _extract_horizon_samples(rows, interval_hours=6, n_samples=4)
-        assert len(samples) <= 4
-        for s in samples:
-            assert isinstance(s, float)
-
-
 class TestHorizonInTimeseries:
     def test_incidents_has_no_horizon(self):
         def get_fn(cat, since):
@@ -462,9 +426,8 @@ class TestHorizonInTimeseries:
         assert "horizon" in ts["transport"]["current"]
         assert "total_score" in ts["transport"]["current"]["horizon"]
         assert "near_score" in ts["transport"]["current"]["horizon"]
-        assert "samples" in ts["transport"]["current"]["horizon"]
 
-    def test_horizon_samples_from_history(self):
+    def test_horizon_score_in_history(self):
         rows = []
         for i in range(6):
             ts = (_NOW - timedelta(hours=5 - i)).strftime("%Y-%m-%dT%H:00:00Z")
@@ -488,8 +451,10 @@ class TestHorizonInTimeseries:
         horizon = ts["transport"]["current"]["horizon"]
         assert horizon["total_score"] == 10.0
         assert horizon["near_score"] == 3.0
-        assert len(horizon["samples"]) == 4
-        assert horizon["samples"][-1] > horizon["samples"][0]
+        history = ts["transport"]["history"]
+        assert len(history) == 6
+        assert "horizon_score" in history[0]
+        assert history[-1]["horizon_score"] > history[0]["horizon_score"]
 
 
 class TestCategoryConfig:

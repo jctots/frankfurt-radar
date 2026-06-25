@@ -32,8 +32,7 @@ The following shows severity-weighted scores per category over each category's n
 - `current.horizon` (categories with a lookahead window only — not present for Incidents):
   - `total_score`: severity-weighted sum of all upcoming alerts across the category's full lookahead window
   - `near_score`: the portion of `total_score` that falls within the next sample interval
-  - `samples`: recent `total_score` values at the category's sample interval (oldest → newest), showing how the forward-looking total has changed over recent samples. A rising sequence means new alerts are being published for the lookahead window faster than old ones are dropping off.
-- `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts) and `score` (severity-weighted sum). Use both: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
+- `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts), `score` (severity-weighted sum), and `horizon_score` (total upcoming score across the full lookahead window at that point in time). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones. Use `horizon_score` across entries to see the rate of growth — a rising sequence means new alerts are being published faster than old ones are dropping off.
 - `window`: the time range and sample interval used
 
 ## Category status vocabulary
@@ -66,7 +65,7 @@ How to judge trend — two signals, one label:
 
 **Override: horizon momentum (Signal 2) — sharp + near test**
 The `horizon` data may override the Signal 1 trend, but ONLY when BOTH conditions are met:
-1. **Sharp**: `horizon.samples` shows a clear acceleration (not just a small increase or normal fluctuation). Compare the most recent values — a doubling or tripling over 2–3 samples is sharp; a 10–20% drift is not.
+1. **Sharp**: `horizon_score` in the history shows a clear acceleration (not just a small increase or normal fluctuation). Compare the most recent values — a doubling or tripling over 2–3 samples is sharp; a 10–20% drift is not.
 2. **Near**: the newly-detected activity falls early in the lookahead window. Check `horizon.near_score` relative to `horizon.total_score` — a high ratio means the buildup is imminent, a low ratio means it's distant.
 
 When both conditions are met, escalate `trend` (e.g. `stable` → `worsening`, or prevent `improving` from being assigned when a second wave is close). When the horizon signal overrides the near-term signal, the narrative MUST use bridging language that connects both ("clearing up today, but a second system is expected tomorrow night") — never state two disconnected facts.

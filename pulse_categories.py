@@ -202,6 +202,7 @@ def _aggregate_buckets(
                 "hour": r["timestamp"],
                 "count": r["ongoing_count"],
                 "score": r["ongoing_score"],
+                "horizon_score": round(r.get("upcoming_score", 0.0), 2),
             }
             for r in rows
         ]
@@ -217,9 +218,11 @@ def _aggregate_buckets(
             buckets[bucket_key] = {
                 "counts": [],
                 "scores": [],
+                "upcoming_scores": [],
             }
         buckets[bucket_key]["counts"].append(r["ongoing_count"])
         buckets[bucket_key]["scores"].append(r["ongoing_score"])
+        buckets[bucket_key]["upcoming_scores"].append(r.get("upcoming_score", 0.0))
 
     label = "date" if interval_hours >= 24 else "period"
     result = []
@@ -229,32 +232,10 @@ def _aggregate_buckets(
             label: key[:10] if interval_hours >= 24 else key,
             "count": max(b["counts"]),
             "score": round(max(b["scores"]), 2),
+            "horizon_score": round(max(b["upcoming_scores"]), 2),
         }
         result.append(entry)
     return result
-
-
-def _extract_horizon_samples(
-    rows: list[dict], interval_hours: int, n_samples: int = 4,
-) -> list[float]:
-    if not rows:
-        return []
-
-    if interval_hours <= 1:
-        return [round(r.get("upcoming_score", 0.0), 2) for r in rows[-n_samples:]]
-
-    buckets: dict[str, list[float]] = {}
-    for r in rows:
-        ts = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
-        bucket_hour = (ts.hour // interval_hours) * interval_hours
-        bucket_ts = ts.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
-        bucket_key = bucket_ts.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if bucket_key not in buckets:
-            buckets[bucket_key] = []
-        buckets[bucket_key].append(r.get("upcoming_score", 0.0))
-
-    sorted_keys = sorted(buckets)[-n_samples:]
-    return [round(max(buckets[k]), 2) for k in sorted_keys]
 
 
 def build_category_timeseries(
@@ -295,11 +276,9 @@ def build_category_timeseries(
         }
 
         if window["lookahead_hours"] > 0:
-            samples = _extract_horizon_samples(rows, window["interval_hours"])
             current["horizon"] = {
                 "total_score": snap.get("upcoming_score", 0.0),
                 "near_score": snap.get("upcoming_near_score", 0.0),
-                "samples": samples,
             }
 
         timeseries[cat] = {
