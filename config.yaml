@@ -1,3 +1,12 @@
+cost:
+  monthly_budget: 5.00          # EUR — /cost alert thresholds at 50%, 80%, 100%
+  usd_to_eur: 0.92
+  gemini:
+    input_per_million: 0.15     # USD per 1M input tokens (Gemini 2.5 Flash)
+    output_per_million: 0.60    # USD per 1M output tokens (incl. thinking)
+  google_translate:
+    chars_per_million: 20.00    # USD per 1M characters
+
 stale_after_days: 30        # alerts whose valid_from is older than this move to "Long-running Disruptions"
 cleared_retention_days: 7   # how many days to keep cleared alerts visible in the Cleared section
 

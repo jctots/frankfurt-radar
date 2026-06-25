@@ -702,12 +702,12 @@
       #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: none; overflow-y: visible; }
     }
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .pulse-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex: 1; }
+    .pulse-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; flex: 1; color: var(--clr-muted); }
     .pulse-time { font-size: 11px; color: var(--clr-muted); }
     .pulse-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
     .pulse-close:hover { color: var(--clr-text); }
     .dark .pulse-close:hover { color: #e5e7eb; }
-    .pulse-subtitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .pulse-subtitle { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
     .pulse-summary { font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
     .pulse-trends-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
     .pulse-categories { display: flex; justify-content: center; margin-bottom: 8px; }
@@ -726,7 +726,7 @@
     .pulse-cat-trend.worsening { color: #ef4444; }
     .pulse-cat-trend.improving { color: #22c55e; }
     .pulse-cat-trend.stable    { color: var(--clr-muted); }
-    .pulse-legend { font-size: 11px; display: flex; gap: 10px; flex-wrap: wrap; margin: 2px 0; }
+    .pulse-legend { font-size: 11px; display: flex; gap: 10px; flex-wrap: wrap; margin: 1px 0; justify-content: center; }
     .pulse-recommendation { font-size: 13px; line-height: 1.5; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
     .dark .pulse-recommendation { background: #1a2030; border-color: #2a3344; }
     .dark .pulse-disclaimer-toggle { color: #8892a4; }
@@ -754,15 +754,15 @@
     .pulse-disclaimer-toggle:hover .pulse-disclaimer-cta { text-decoration-color: var(--clr-muted); }
     .pulse-collapsible { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
     .pulse-collapsible.open { max-height: 400px; }
-    .pulse-refs-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-top: 8px; margin-bottom: 4px; }
-    .pulse-refs { list-style: none; padding: 0; margin: 0; }
-    .pulse-ref { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.4; padding: 3px 0; cursor: pointer; color: var(--clr-text); transition: color 0.15s; }
+    .pulse-refs-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-top: 12px; margin-bottom: 2px; }
+    .pulse-refs { list-style: none; padding: 0; margin: 0 0 10px; }
+    .pulse-ref { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.4; padding: 2px 0; cursor: pointer; color: var(--clr-text); transition: color 0.15s; }
     .pulse-ref:hover { color: var(--clr-transport); }
     .pulse-ref-icon { font-size: 12px; flex-shrink: 0; width: 18px; text-align: center; }
     .pulse-ref-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .pulse-ref-arrow { font-size: 10px; color: var(--clr-muted); flex-shrink: 0; transition: color 0.15s; }
     .pulse-ref:hover .pulse-ref-arrow { color: var(--clr-transport); }
-    .pulse-method { font-size: 11px; color: var(--clr-muted); line-height: 1.6; margin-top: 8px; }
+    .pulse-method { font-size: 11px; color: var(--clr-muted); line-height: 1.6; margin-top: 12px; }
     .pulse-method a { color: var(--clr-muted); text-decoration: underline; text-underline-offset: 2px; }
     .pulse-method a:hover { color: var(--clr-text); }
 
@@ -1190,7 +1190,7 @@
       </div>
       <div class="feed-toggle">
         <span class="toggle-icon">📅</span>
-        <span class="toggle-label">Show future events</span>
+        <span class="toggle-label">Show upcoming</span>
         <span class="toggle-count" id="future-count">0</span>
         <label class="toggle-switch">
           <input type="checkbox" id="future-switch" onchange="toggleFutureEvents()">
@@ -2228,7 +2228,7 @@ function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
   const dateLine = esc(fmtPostedAge(pulse.generated_at));
-  return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
+  return `<div class="card card-pulse card-pinned" data-id="__pulse__" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">🏙️</span>
     <div class="card-body">
@@ -2288,6 +2288,13 @@ function isMobileView() {
 function openWeatherWidget(e) {
   e.preventDefault();
   _track('weather_widget_click');
+  const dwdAlerts = alerts.filter(a => a.source === 'dwd' && !a.stale);
+  if (dwdAlerts.length) {
+    const latest = dwdAlerts.reduce((a, b) =>
+      (b.published_at || '') > (a.published_at || '') ? b : a);
+    selectAlert(latest.id);
+    return;
+  }
   if (!radarPreloaded) return;
   resetState();
   const doOpen = () => {
@@ -2394,7 +2401,7 @@ function renderPulseOverlay(pulse) {
     if (refItems) refsHtml = `<div class="pulse-refs-label">Mainly based on ${refCount} alert${refCount !== 1 ? 's' : ''}</div><ul class="pulse-refs">${refItems}</ul>`;
   }
 
-  const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● Quiet</span> <span class="pulse-cat-status level-1">● Baseline</span> <span class="pulse-cat-status level-2">● Significant</span> <span class="pulse-cat-status level-3">● Severe</span></div><div class="pulse-legend">Trend: <span class="pulse-cat-trend stable">→ stable</span> <span class="pulse-cat-trend worsening">↗ worsening</span> <span class="pulse-cat-trend improving">↘ improving</span></div>`;
+  const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● quiet</span> <span class="pulse-cat-status level-1">● baseline</span> <span class="pulse-cat-status level-2">● significant</span> <span class="pulse-cat-status level-3">● severe</span></div><div class="pulse-legend">Trend: <span class="pulse-cat-trend stable">→ stable</span> <span class="pulse-cat-trend worsening">↗ worsening</span> <span class="pulse-cat-trend improving">↘ improving</span></div>`;
   const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
@@ -2424,9 +2431,11 @@ function togglePulseDetails(btn) {
 function selectPulseCard() {
   const show = () => {
     resetState();
-    map.setView(FRANKFURT, 12, { animate: true });
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+    const pulseCard = document.querySelector('.card-pulse');
+    if (pulseCard) { pulseCard.classList.add('sel'); pulseCard.scrollIntoView({ block: 'nearest' }); }
     _pulseManualClose = false;
-    _showPulseOverlay();
+    map.setView(FRANKFURT, 12, { animate: true });
     _track('pulse_card_click');
   };
   if (isMobileView()) openMobileMap(show);
@@ -2771,6 +2780,19 @@ function buildFilterBar() {
     });
   }
 
+  // Roads
+  html += '<div class="filter-sep"></div>';
+  const abOn = filters.sources.autobahn !== false;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+  if (abOn) {
+    const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
+    if (roadAlerts.length) {
+      const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
+      const roadPartial = enabledRoadTypes < 3;
+      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    }
+  }
+
   // Incidents (grouped: police + strikes)
   html += '<div class="filter-sep"></div>';
   const incOn = filters.sources.incidents !== false;
@@ -2782,19 +2804,6 @@ function buildFilterBar() {
       const enabledIncTypes = ['police','strikes'].filter(k => filters.incidentTypes[k] !== false).length;
       const incPartial = enabledIncTypes < 2;
       html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
-    }
-  }
-
-  // Roads
-  html += '<div class="filter-sep"></div>';
-  const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
-  if (abOn) {
-    const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
-    if (roadAlerts.length) {
-      const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
-      const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
 
@@ -3475,13 +3484,16 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    const cards = [...document.querySelectorAll('.feed-section.open .card')];
+    const cards = [...document.querySelectorAll('.feed-section.open .card[data-id]')];
     if (!cards.length) return;
-    const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
+    const curId = selectedId || (_pulseVisible ? '__pulse__' : null);
+    const currentIndex = curId ? cards.findIndex(c => c.dataset.id === curId) : -1;
     const nextIndex = e.key === 'ArrowDown'
       ? (currentIndex < cards.length - 1 ? currentIndex + 1 : 0)
       : (currentIndex > 0 ? currentIndex - 1 : cards.length - 1);
-    selectAlert(cards[nextIndex].dataset.id);
+    const nextId = cards[nextIndex].dataset.id;
+    if (nextId === '__pulse__') { selectPulseCard(); }
+    else { closePulse(); selectAlert(nextId); }
   }
 });
 </script>

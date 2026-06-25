@@ -237,6 +237,9 @@ def main() -> None:
 
         set_meta("admin_health", json.dumps(current_health))
 
+    from notifier.bot import check_cost_threshold
+    check_cost_threshold(config)
+
 
 if __name__ == "__main__":
     main()

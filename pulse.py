@@ -129,7 +129,7 @@ def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | Non
     return "\n\n".join(parts)
 
 
-def _call_gemini(prompt_config: dict, prompt_text: str) -> dict:
+def _call_gemini(prompt_config: dict, prompt_text: str, service: str = "gemini_pulse") -> dict:
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         log.warning("GEMINI_API_KEY not set — pulse skipped")
@@ -161,7 +161,16 @@ def _call_gemini(prompt_config: dict, prompt_text: str) -> dict:
                 time.sleep(wait)
                 continue
             resp.raise_for_status()
-            candidates = resp.json().get("candidates", [])
+            data = resp.json()
+            usage = data.get("usageMetadata", {})
+            if usage:
+                db.record_api_usage(
+                    service,
+                    tokens_in=usage.get("promptTokenCount", 0),
+                    tokens_out=usage.get("candidatesTokenCount", 0)
+                        + usage.get("thoughtsTokenCount", 0),
+                )
+            candidates = data.get("candidates", [])
             if not candidates:
                 log.error("Gemini returned no candidates for pulse")
                 _health["ok"] = False
@@ -340,7 +349,7 @@ def generate_daily_summary(config: dict, date: str | None = None) -> dict | None
         "previous_summaries": prev_text,
     })
 
-    result = _call_gemini(prompt_config, prompt_text)
+    result = _call_gemini(prompt_config, prompt_text, service="gemini_daily")
     if not result:
         return None
 

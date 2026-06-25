@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import psutil
@@ -15,6 +15,7 @@ from db import (
     get_all_active_alerts,
     get_latest_pulse,
     get_meta,
+    get_monthly_cost,
     get_status_json,
     get_subscriber_by_chat_id,
     get_subscriber_counts,
@@ -39,7 +40,7 @@ _RATE_WINDOW = 60
 _rate_hits: dict[int, list[float]] = defaultdict(list)
 _rate_cooldown: dict[int, float] = {}
 _RATE_COOLDOWN = 300
-_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban"))
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban", "/cost"))
 _SEARCH_PAGE_SIZE = 3
 _ban_notified: set[int] = set()
 
@@ -495,6 +496,8 @@ def _handle_admin_cmd(cmd: str, text: str, chat_id: int, config: dict) -> None:
         _admin_ban(chat_id, text)
     elif cmd == "/unban":
         _admin_unban(chat_id, text)
+    elif cmd == "/cost":
+        _admin_cost(chat_id, config)
 
 
 def _admin_status(chat_id: int) -> None:
@@ -557,6 +560,82 @@ def _admin_alerts(chat_id: int) -> None:
     lines += [f"• {src}: {n}" for src, n in counts.items()]
     lines.append(f"\nTotal: {sum(counts.values())}")
     _send(chat_id, "\n".join(lines))
+
+
+_SERVICE_LABELS = {
+    "gemini_pulse": "Gemini Pulse",
+    "gemini_extraction": "Gemini Extraction",
+    "gemini_daily": "Gemini Daily",
+    "google_translate": "Google Translate",
+}
+
+_COST_THRESHOLDS = (50, 80, 100)
+
+
+def _admin_cost(chat_id: int, config: dict) -> None:
+    now = datetime.now(timezone.utc)
+    current_month = now.strftime("%Y-%m")
+    prev = (now.replace(day=1) - timedelta(days=1))
+    prev_month = prev.strftime("%Y-%m")
+
+    budget = config.get("cost", {}).get("monthly_budget", 5.0)
+
+    lines = ["<b>💰 API Cost Report</b>"]
+
+    for month, label in ((current_month, f"{current_month} (running)"), (prev_month, prev_month)):
+        total, breakdown = get_monthly_cost(month, config)
+        if not breakdown:
+            lines.append(f"\n<b>{label}</b>: no data")
+            continue
+        lines.append(f"\n<b>{label}</b>")
+        for svc, data in sorted(breakdown.items()):
+            name = _SERVICE_LABELS.get(svc, svc)
+            detail_parts = []
+            if data["tokens_in"] or data["tokens_out"]:
+                detail_parts.append(f"{data['calls']} calls, {data['tokens_in'] + data['tokens_out']:,} tok")
+            if data["characters"]:
+                detail_parts.append(f"{data['calls']} calls, {data['characters']:,} chars")
+            detail = " · ".join(detail_parts)
+            lines.append(f"  {name}: €{data['cost']:.2f} ({detail})")
+        pct = (total / budget * 100) if budget > 0 else 0
+        lines.append(f"  <b>Total: €{total:.2f}</b> / €{budget:.2f} ({pct:.0f}%)")
+
+    _send(chat_id, "\n".join(lines))
+
+
+def check_cost_threshold(config: dict) -> None:
+    """Send admin alert when running cost crosses 50%, 80%, or 100% of budget."""
+    cost_cfg = config.get("cost", {})
+    budget = cost_cfg.get("monthly_budget", 5.0)
+    if budget <= 0:
+        return
+
+    admin_id = config.get("admin_health_notifier", {}).get("telegram_chat_id")
+    if not admin_id:
+        return
+
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    total, _ = get_monthly_cost(month, config)
+    pct = total / budget * 100
+
+    sent_raw = get_meta("cost_alerts_sent")
+    sent: dict = json.loads(sent_raw) if sent_raw else {}
+    already = sent.get(month, [])
+
+    for threshold in _COST_THRESHOLDS:
+        if pct >= threshold and threshold not in already:
+            already.append(threshold)
+            _send(
+                int(admin_id),
+                f"⚠️ <b>Cost alert: {threshold}% of monthly budget</b>\n"
+                f"Running total: €{total:.2f} / €{budget:.2f}",
+            )
+
+    sent[month] = already
+    old_months = [k for k in sent if k < month]
+    for k in old_months:
+        del sent[k]
+    set_meta("cost_alerts_sent", json.dumps(sent))
 
 
 _umami_token: str | None = None
