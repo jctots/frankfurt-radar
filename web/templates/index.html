@@ -2288,6 +2288,13 @@ function isMobileView() {
 function openWeatherWidget(e) {
   e.preventDefault();
   _track('weather_widget_click');
+  const dwdAlerts = alerts.filter(a => a.source === 'dwd' && !a.stale);
+  if (dwdAlerts.length) {
+    const latest = dwdAlerts.reduce((a, b) =>
+      (b.published_at || '') > (a.published_at || '') ? b : a);
+    selectAlert(latest.id);
+    return;
+  }
   if (!radarPreloaded) return;
   resetState();
   const doOpen = () => {
