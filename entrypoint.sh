@@ -34,9 +34,9 @@ job_block = "\n".join([
     f"# Poll every {interval_min} min, 24/7",
     f"{poll_minutes} * * * * root cd /app && python main.py --mode poll >> /proc/1/fd/1 2>&1",
     f"{poll_minutes} * * * * root cd /app && python radar.py >> /proc/1/fd/1 2>&1",
-    "# City Pulse — hourly situational summary",
+    "# City Pulse -- hourly situational summary",
     "0 * * * * root cd /app && python pulse.py >> /proc/1/fd/1 2>&1",
-    "# City Pulse — daily summary at 23:00 Frankfurt time",
+    "# City Pulse -- daily summary at 23:00 Frankfurt time",
     "0 23 * * * root cd /app && python pulse.py --daily >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])

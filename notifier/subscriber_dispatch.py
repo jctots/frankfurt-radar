@@ -279,7 +279,7 @@ def dispatch_pulse_to_subscribers(config: dict) -> int:
         body = _fmt_pulse_message(pulse, config)
         ok = notify_subscriber_dm(
             chat_id=sub["chat_id"],
-            title="\U0001f4ca City Pulse",
+            title="🏙️ City Pulse",
             body=body,
             url=None,
             config=config,
@@ -330,13 +330,23 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
         arrow = trend_arrows.get(trend, "")
         cat_lines.append(f"{emoji} {key.title()}  {status}  {arrow}")
 
-    parts = [f"🏙️ {summary}{time_str}"]
+    title = pulse.get("title", "")
+    header = title if title else "City Pulse"
+    parts = [f"<b>{header}</b>{time_str}\n\n{summary}"]
     if cat_lines:
         parts.append(f"<b>Status & Trend</b>\n" + "\n".join(cat_lines))
     if recommendation:
         parts.append(f"\U0001f4a1 <b>Recommendation:</b> {recommendation}")
+
+    references = pulse.get("references") or []
+    if references and site_url:
+        ref_links = []
+        for ref_id in references:
+            ref_links.append(f'<a href="{site_url}/alert/{ref_id}">#{len(ref_links) + 1}</a>')
+        parts.append(f"Mainly based on {len(references)} alerts: " + " ".join(ref_links))
+
     if site_url:
-        parts.append(f'<a href="{site_url}">View on Frankfurt Radar</a>')
+        parts.append(f'<a href="{site_url}">View on Frankfurt Radar</a> ↗️')
 
     return "\n\n".join(parts)
 

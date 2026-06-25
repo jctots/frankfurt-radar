@@ -55,10 +55,10 @@ def _reload_crontab(cfg: dict) -> None:
         f" >> /proc/1/fd/1 2>&1\n"
         f"{poll_minutes} * * * * root cd /app && python radar.py"
         f" >> /proc/1/fd/1 2>&1\n"
-        f"# City Pulse — hourly\n"
+        f"# City Pulse -- hourly\n"
         f"0 * * * * root cd /app && python pulse.py"
         f" >> /proc/1/fd/1 2>&1\n"
-        f"# City Pulse — daily summary at 23:00 Frankfurt time\n"
+        f"# City Pulse -- daily summary at 23:00 Frankfurt time\n"
         f"0 23 * * * root cd /app && python pulse.py --daily"
         f" >> /proc/1/fd/1 2>&1\n"
     )

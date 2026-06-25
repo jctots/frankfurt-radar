@@ -384,7 +384,7 @@ def _cmd_pulse(chat_id: int, config: dict) -> None:
         return
 
     body = _fmt_pulse_message(pulse, config)
-    _send(chat_id, f"\U0001f4ca <b>City Pulse</b>\n\n{body}")
+    _send(chat_id, f"🏙️ <b>City Pulse</b>\n\n{body}")
 
 
 def _cmd_stop(chat_id: int) -> None:
