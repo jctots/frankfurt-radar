@@ -58,6 +58,16 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS api_usage (
+    month      TEXT NOT NULL,
+    service    TEXT NOT NULL,
+    calls      INTEGER NOT NULL DEFAULT 0,
+    tokens_in  INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0,
+    characters INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (month, service)
+);
+
 CREATE TABLE IF NOT EXISTS sent_alerts (
     subscriber_id INTEGER NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
     alert_id      TEXT NOT NULL,
@@ -227,6 +237,14 @@ def init_db() -> None:
                     upcoming_near_score REAL NOT NULL DEFAULT 0.0,
                     UNIQUE(timestamp, category)
                 )""")
+        except Exception:
+            pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+                month TEXT NOT NULL, service TEXT NOT NULL,
+                calls INTEGER NOT NULL DEFAULT 0, tokens_in INTEGER NOT NULL DEFAULT 0,
+                tokens_out INTEGER NOT NULL DEFAULT 0, characters INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (month, service))""")
         except Exception:
             pass
         # v0.9.16: add upcoming columns for horizon momentum
@@ -868,3 +886,71 @@ def search_active_alerts(query: str) -> list[dict]:
     sev_order = {4: 0, 3: 1, 2: 2, 1: 3}
     results.sort(key=lambda r: (sev_order.get(r.get("severity") or 0, 4), r.get("cached_at") or ""), reverse=False)
     return results
+
+
+# ── api_usage ────────────────────────────────────────────────────────────────
+
+def record_api_usage(
+    service: str,
+    *,
+    tokens_in: int = 0,
+    tokens_out: int = 0,
+    characters: int = 0,
+) -> None:
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO api_usage (month, service, calls, tokens_in, tokens_out, characters)
+               VALUES (?, ?, 1, ?, ?, ?)
+               ON CONFLICT(month, service) DO UPDATE SET
+                 calls = calls + 1,
+                 tokens_in = tokens_in + excluded.tokens_in,
+                 tokens_out = tokens_out + excluded.tokens_out,
+                 characters = characters + excluded.characters""",
+            (month, service, tokens_in, tokens_out, characters),
+        )
+
+
+def get_api_usage(month: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT service, calls, tokens_in, tokens_out, characters FROM api_usage WHERE month = ?",
+            (month,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:
+    """Return (total_eur, {service: {calls, tokens_in, tokens_out, characters, cost}})."""
+    cost_cfg = config.get("cost", {})
+    gemini_cfg = cost_cfg.get("gemini", {})
+    translate_cfg = cost_cfg.get("google_translate", {})
+    usd_to_eur = cost_cfg.get("usd_to_eur", 0.92)
+
+    gemini_pricing = {
+        "input_per_m": gemini_cfg.get("input_per_million", 0.15),
+        "output_per_m": gemini_cfg.get("output_per_million", 0.60),
+    }
+    PRICING = {
+        "gemini_pulse": gemini_pricing,
+        "gemini_extraction": gemini_pricing,
+        "gemini_daily": gemini_pricing,
+        "google_translate": {"chars_per_m": translate_cfg.get("chars_per_million", 20.0)},
+    }
+
+    rows = get_api_usage(month)
+    breakdown: dict[str, dict] = {}
+    total = 0.0
+    for row in rows:
+        svc = row["service"]
+        pricing = PRICING.get(svc, {})
+        cost_usd = 0.0
+        if "input_per_m" in pricing:
+            cost_usd += row["tokens_in"] / 1_000_000 * pricing["input_per_m"]
+            cost_usd += row["tokens_out"] / 1_000_000 * pricing["output_per_m"]
+        if "chars_per_m" in pricing:
+            cost_usd += row["characters"] / 1_000_000 * pricing["chars_per_m"]
+        cost_eur = cost_usd * usd_to_eur
+        total += cost_eur
+        breakdown[svc] = {**row, "cost": cost_eur}
+    return total, breakdown

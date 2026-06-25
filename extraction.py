@@ -64,7 +64,17 @@ def extract_alert_details(text: str, prompt: str) -> dict:
                 time.sleep(wait)
                 continue
             resp.raise_for_status()
-            candidates = resp.json().get("candidates", [])
+            data = resp.json()
+            usage = data.get("usageMetadata", {})
+            if usage:
+                from db import record_api_usage
+                record_api_usage(
+                    "gemini_extraction",
+                    tokens_in=usage.get("promptTokenCount", 0),
+                    tokens_out=usage.get("candidatesTokenCount", 0)
+                        + usage.get("thoughtsTokenCount", 0),
+                )
+            candidates = data.get("candidates", [])
             if not candidates:
                 log.error("Gemini returned no candidates")
                 _health["ok"] = False

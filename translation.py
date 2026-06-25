@@ -66,6 +66,8 @@ def _translate_google(text: str) -> str:
             timeout=20,
         )
         resp.raise_for_status()
+        from db import record_api_usage
+        record_api_usage("google_translate", characters=len(text))
         return resp.json()["data"]["translations"][0]["translatedText"]
     except (requests.RequestException, KeyError) as e:
         _health["ok"] = False
