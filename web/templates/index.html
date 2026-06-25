@@ -2228,7 +2228,7 @@ function _renderPulseCard() {
   if (!_pulseData) return '';
   const pulse = _pulseData;
   const dateLine = esc(fmtPostedAge(pulse.generated_at));
-  return `<div class="card card-pulse card-pinned" onclick="selectPulseCard()">
+  return `<div class="card card-pulse card-pinned" data-id="__pulse__" onclick="selectPulseCard()">
   <span class="pin-badge">📌</span><div class="card-inner">
     <span class="card-icon">🏙️</span>
     <div class="card-body">
@@ -2431,9 +2431,11 @@ function togglePulseDetails(btn) {
 function selectPulseCard() {
   const show = () => {
     resetState();
-    map.setView(FRANKFURT, 12, { animate: true });
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+    const pulseCard = document.querySelector('.card-pulse');
+    if (pulseCard) { pulseCard.classList.add('sel'); pulseCard.scrollIntoView({ block: 'nearest' }); }
     _pulseManualClose = false;
-    _showPulseOverlay();
+    map.setView(FRANKFURT, 12, { animate: true });
     _track('pulse_card_click');
   };
   if (isMobileView()) openMobileMap(show);
@@ -3482,13 +3484,16 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-    const cards = [...document.querySelectorAll('.feed-section.open .card')];
+    const cards = [...document.querySelectorAll('.feed-section.open .card[data-id]')];
     if (!cards.length) return;
-    const currentIndex = selectedId ? cards.findIndex(c => c.dataset.id === selectedId) : -1;
+    const curId = selectedId || (_pulseVisible ? '__pulse__' : null);
+    const currentIndex = curId ? cards.findIndex(c => c.dataset.id === curId) : -1;
     const nextIndex = e.key === 'ArrowDown'
       ? (currentIndex < cards.length - 1 ? currentIndex + 1 : 0)
       : (currentIndex > 0 ? currentIndex - 1 : cards.length - 1);
-    selectAlert(cards[nextIndex].dataset.id);
+    const nextId = cards[nextIndex].dataset.id;
+    if (nextId === '__pulse__') { selectPulseCard(); }
+    else { closePulse(); selectAlert(nextId); }
   }
 });
 </script>
