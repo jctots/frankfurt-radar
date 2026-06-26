@@ -765,7 +765,7 @@
     .dark .wx-attr { color: #4a5568; }
     .dark .wx-attr a { color: #8892a4; }
     .wx-details-toggle {
-      display: none; width: 100%; background: none; border: none;
+      display: block; width: 100%; background: none; border: none;
       padding: 8px 0 0; cursor: pointer;
       font-size: 11px; font-weight: 600; color: #94a3b8; text-align: center;
       font-family: inherit;
@@ -773,13 +773,11 @@
     .wx-details-toggle:hover { color: var(--clr-text); }
     .dark .wx-details-toggle { color: #4a5568; }
     .dark .wx-details-toggle:hover { color: #d1d5db; }
-    .wx-details { transition: max-height 0.3s ease; overflow: hidden; }
+    .wx-details { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .wx-details.open { max-height: none; }
     @media (max-width: 767px) {
       #weather-overlay { overflow-y: visible; max-height: none; }
       .wx-alert { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
-      .wx-details-toggle { display: block; }
-      .wx-details { max-height: 0; }
-      .wx-details.open { max-height: none; }
     }
 
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
