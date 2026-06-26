@@ -3741,19 +3741,19 @@ function _initWeatherSwipe() {
     const toggle = el.querySelector('.wx-details-toggle');
     const details = el.querySelector('.wx-details');
 
-    if (dy < 0) {
+    if (dy > 0) {
       if (toggle && details && !details.classList.contains('open')) {
         details.classList.add('open');
         toggle.textContent = 'Hide conditions ▴';
       } else {
-        _closeWeatherSwipe('up');
+        _closeWeatherSwipe('down');
       }
     } else {
       if (toggle && details && details.classList.contains('open')) {
         details.classList.remove('open');
         toggle.textContent = 'Show conditions ▾';
       } else {
-        _closeWeatherSwipe('down');
+        _closeWeatherSwipe('up');
       }
     }
   }, { passive: true });
