@@ -80,7 +80,7 @@ def _transliterate(text: str) -> str:
 
 
 def translate_alert(alert: "Alert", config: dict) -> tuple[str, str]:
-    if alert.source in ("dwd", "events"):
+    if alert.source == "events":
         return alert.title, alert.body
     if alert.source == "strike":
         en_title = _transliterate(translate(alert.title, config))

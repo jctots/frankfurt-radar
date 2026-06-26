@@ -98,15 +98,15 @@ class TestDWDPoller:
         alerts = DWDPoller(min_severity=1).fetch()
         assert len(alerts) == 2
 
-    def test_english_fields_preferred(self, mocker):
+    def test_german_fields_preferred(self, mocker):
         from pollers import DWDPoller
         fixture = json.loads((FIXTURES_DIR / "dwd_brightsky_response.json").read_text())
         mocker.patch("pollers.requests.get", return_value=_mock_response(fixture))
 
         alert = DWDPoller(min_severity=1).fetch()[0]
-        assert alert.title == "Thunderstorm warning level 3"
-        assert "Severe thunderstorms" in alert.body
-        assert "Seek shelter" in alert.body
+        assert alert.title == "Gewitter Warnung Stufe 3"
+        assert "Starke Gewitter" in alert.body
+        assert "Suchen Sie sofort Schutz" in alert.body
 
     def test_null_severity_filtered_out(self, mocker):
         from pollers import DWDPoller

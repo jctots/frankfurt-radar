@@ -62,12 +62,11 @@ class TestGoogleTranslate:
 
 
 class TestTranslateAlert:
-    def test_dwd_alert_skips_translation(self, mocker, dwd_alert, config):
-        mock_translate = mocker.patch("translation.translate")
+    def test_dwd_alert_translated(self, mocker, dwd_alert, config):
+        mock_translate = mocker.patch("translation.translate", return_value="Translated")
         en_title, en_body = translation.translate_alert(dwd_alert, config)
-        mock_translate.assert_not_called()
-        assert en_title == dwd_alert.title
-        assert en_body == dwd_alert.body
+        assert mock_translate.call_count == 2
+        assert en_title == "Translated"
 
     def test_events_alert_skips_translation(self, mocker, events_alert, config):
         mock_translate = mocker.patch("translation.translate")
