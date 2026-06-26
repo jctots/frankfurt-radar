@@ -249,10 +249,11 @@ def dispatch_pulse_to_subscribers(config: dict) -> int:
 
     pulse_gen = pulse.get("generated_at", "")
     try:
-        pulse_hour = int(pulse_gen[11:13])
-    except (ValueError, IndexError):
-        return 0
-    if pulse_hour != now_local.hour:
+        pulse_dt = datetime.fromisoformat(pulse_gen.replace("Z", "+00:00"))
+        pulse_local = pulse_dt.astimezone(tz)
+        if pulse_local.hour != now_local.hour:
+            return 0
+    except (ValueError, TypeError):
         return 0
 
     subscribers = get_active_subscribers()
