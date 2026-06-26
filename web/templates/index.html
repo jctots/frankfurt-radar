@@ -712,7 +712,6 @@
       pointer-events: auto;
       scrollbar-width: thin;
       opacity: 0; transition: opacity 0.3s ease;
-      display: none;
     }
     #weather-overlay.visible { opacity: 1; }
     .dark #weather-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
@@ -1634,6 +1633,7 @@ function initMap() {
 
   const wxEl = document.createElement('div');
   wxEl.id = 'weather-overlay';
+  wxEl.style.display = 'none';
   L.DomEvent.disableClickPropagation(wxEl);
   L.DomEvent.disableScrollPropagation(wxEl);
   map.getContainer().appendChild(wxEl);
