@@ -3672,9 +3672,12 @@ function buildWeatherOverlayHtml(alertObj) {
 
   detailsHtml += `<div class="wx-attr">via <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> / DWD</div>`;
 
-  const autoOpen = !alertObj;
-  html += `<button class="wx-details-toggle" onclick="this.nextElementSibling.classList.toggle('open'); this.textContent = this.nextElementSibling.classList.contains('open') ? 'Hide conditions ▴' : 'Show conditions ▾'">${autoOpen ? 'Hide conditions ▴' : 'Show conditions ▾'}</button>`;
-  html += `<div class="wx-details${autoOpen ? ' open' : ''}">${detailsHtml}</div>`;
+  if (alertObj) {
+    html += `<button class="wx-details-toggle" onclick="this.nextElementSibling.classList.toggle('open'); this.textContent = this.nextElementSibling.classList.contains('open') ? 'Hide conditions ▴' : 'Show conditions ▾'">Show conditions ▾</button>`;
+    html += `<div class="wx-details">${detailsHtml}</div>`;
+  } else {
+    html += detailsHtml;
+  }
   return html;
 }
 
