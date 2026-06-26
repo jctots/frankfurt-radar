@@ -714,6 +714,10 @@
       opacity: 0; transition: opacity 0.3s ease;
     }
     #weather-overlay.visible { opacity: 1; }
+    #weather-overlay.swipe-left  { opacity: 0; transform: translateX(-80px); transition: opacity 0.25s ease, transform 0.25s ease; }
+    #weather-overlay.swipe-right { opacity: 0; transform: translateX(80px);  transition: opacity 0.25s ease, transform 0.25s ease; }
+    #weather-overlay.swipe-up    { opacity: 0; transform: translateY(-60px); transition: opacity 0.25s ease, transform 0.25s ease; }
+    #weather-overlay.swipe-down  { opacity: 0; transform: translateY(60px);  transition: opacity 0.25s ease, transform 0.25s ease; }
     .dark #weather-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     @media (max-width: 767px) {
       #weather-overlay { top: 8px; left: 8px; right: 8px; max-width: none; max-height: 50vh; }
@@ -3684,6 +3688,7 @@ function openWeatherOverlay(alertObj) {
   el.style.display = '';
   requestAnimationFrame(() => el.classList.add('visible'));
   _weatherOverlayVisible = true;
+  _initWeatherSwipe();
 }
 
 function closeWeatherOverlay() {
@@ -3692,6 +3697,66 @@ function closeWeatherOverlay() {
   el.classList.remove('visible');
   setTimeout(() => { if (!el.classList.contains('visible')) el.style.display = 'none'; }, 300);
   _weatherOverlayVisible = false;
+}
+
+function _closeWeatherSwipe(direction) {
+  const el = document.getElementById('weather-overlay');
+  if (!el) return;
+  el.classList.remove('visible');
+  el.classList.add(`swipe-${direction}`);
+  _weatherOverlayVisible = false;
+  setTimeout(() => {
+    el.style.display = 'none';
+    el.classList.remove(`swipe-${direction}`);
+  }, 280);
+  _track('weather_swipe_' + direction);
+}
+
+function _initWeatherSwipe() {
+  const el = document.getElementById('weather-overlay');
+  if (!el || el._swipeInit) return;
+  el._swipeInit = true;
+  const THRESH = 50;
+  let startX, startY, tracking;
+
+  el.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; tracking = true;
+  }, { passive: true });
+
+  el.addEventListener('touchend', e => {
+    if (!tracking) return;
+    tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX, dy = t.clientY - startY;
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+
+    if (absDx < THRESH && absDy < THRESH) return;
+
+    if (absDx > absDy) {
+      _closeWeatherSwipe(dx < 0 ? 'left' : 'right');
+      return;
+    }
+
+    const toggle = el.querySelector('.wx-details-toggle');
+    const details = el.querySelector('.wx-details');
+
+    if (dy < 0) {
+      if (toggle && details && !details.classList.contains('open')) {
+        details.classList.add('open');
+        toggle.textContent = 'Hide conditions ▴';
+      } else {
+        _closeWeatherSwipe('up');
+      }
+    } else {
+      if (toggle && details && details.classList.contains('open')) {
+        details.classList.remove('open');
+        toggle.textContent = 'Show conditions ▾';
+      } else {
+        _closeWeatherSwipe('down');
+      }
+    }
+  }, { passive: true });
 }
 
 init();
