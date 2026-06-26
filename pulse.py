@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import requests
@@ -72,6 +73,15 @@ def _age_label(valid_from: str | None) -> str:
         return "unknown"
 
 
+def _to_berlin_iso(iso: str | None) -> str | None:
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso).astimezone(ZoneInfo("Europe/Berlin")).isoformat()
+    except ValueError:
+        return iso
+
+
 def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
     fresh = []
     stale_counts: dict[str, int] = {}
@@ -88,8 +98,8 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
                 "service": a.get("service"),
                 "lines": json.loads(a["lines"]) if isinstance(a.get("lines"), str) else (a.get("lines") or []),
                 "severity": a.get("severity"),
-                "valid_from": a.get("valid_from"),
-                "valid_until": a.get("valid_until"),
+                "valid_from": _to_berlin_iso(a.get("valid_from")),
+                "valid_until": _to_berlin_iso(a.get("valid_until")),
                 "age": _age_label(a.get("valid_from")),
             }
             if a.get("location_label"):
@@ -259,7 +269,9 @@ def generate_pulse(config: dict) -> dict | None:
     prompt_config, template = load_prompt("pulse")
     alerts_json, stale_summary = _build_alert_data(alerts)
     history = _build_history_section(db.get_recent_pulses(3), db.get_recent_daily_summaries(3))
-    timestamp = now.strftime("%Y-%m-%d %H:%M UTC")
+    _BERLIN = ZoneInfo("Europe/Berlin")
+    now_berlin = now.astimezone(_BERLIN)
+    timestamp = now_berlin.strftime("%Y-%m-%d %H:%M %Z")
 
     fresh_count = sum(1 for a in alerts if not a.get("stale"))
     prompt_text = template.format_map({

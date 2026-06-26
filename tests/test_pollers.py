@@ -459,7 +459,7 @@ class TestStaticEventsPoller:
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
         assert dippemess.location_label == "Festplatz Ratsweg"
         assert "2026-09-11T22:00:00" in dippemess.valid_from
-        assert "2026-09-27T22:00:00" in dippemess.valid_until
+        assert "2026-09-28T21:59:00" in dippemess.valid_until
 
     def test_url_forwarded(self):
         alerts = self._fetch(advance_days=30)
@@ -478,7 +478,7 @@ class TestStaticEventsPoller:
     def test_valid_until_is_event_end(self):
         alerts = self._fetch()
         dippemess = next(a for a in alerts if a.title == "Autumn Dippemess")
-        assert "2026-09-27T22:00:00" in dippemess.valid_until
+        assert "2026-09-28T21:59:00" in dippemess.valid_until
 
     def test_malformed_entry_skipped(self):
         from pollers import StaticEventsPoller

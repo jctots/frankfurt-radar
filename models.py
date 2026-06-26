@@ -94,10 +94,12 @@ def _fmt_alert_status(row: dict) -> str:
         return "\U0001f7e2 Ongoing"
 
     from zoneinfo import ZoneInfo
-    local = target.astimezone(ZoneInfo("Europe/Berlin"))
+    _berlin = ZoneInfo("Europe/Berlin")
+    local = target.astimezone(_berlin)
     dt_str = f"{local.day} {local.strftime('%b %H:%M')}"
 
-    day_diff = (target.date() - now.date()).days
+    now_berlin = now.astimezone(_berlin)
+    day_diff = (local.date() - now_berlin.date()).days
     if day_diff <= 0:
         mins = int(diff // 60)
         if mins < 60:
@@ -111,15 +113,16 @@ def _fmt_alert_status(row: dict) -> str:
 
 def _fmt_event_meta(row: dict) -> str:
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
     parts = []
     if row.get("valid_from") and row.get("valid_until"):
         def _d(iso):
-            dt = datetime.fromisoformat(iso)
+            dt = datetime.fromisoformat(iso).astimezone(ZoneInfo("Europe/Berlin"))
             return f"{dt.day} {dt.strftime('%b')}"
         parts.append(f"{_d(row['valid_from'])} – {_d(row['valid_until'])}")
     elif row.get("valid_from"):
-        dt = datetime.fromisoformat(row["valid_from"])
+        dt = datetime.fromisoformat(row["valid_from"]).astimezone(ZoneInfo("Europe/Berlin"))
         parts.append(f"From {dt.day} {dt.strftime('%b')}")
     if row.get("location_label"):
         parts.append(row["location_label"])

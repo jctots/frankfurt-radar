@@ -40,7 +40,7 @@ _RATE_WINDOW = 60
 _rate_hits: dict[int, list[float]] = defaultdict(list)
 _rate_cooldown: dict[int, float] = {}
 _RATE_COOLDOWN = 300
-_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban", "/cost"))
+_ADMIN_CMDS = frozenset(("/status", "/alerts", "/visits", "/poll", "/ban", "/unban", "/costs"))
 _SEARCH_PAGE_SIZE = 3
 _ban_notified: set[int] = set()
 
@@ -469,8 +469,9 @@ def _esc(text: str) -> str:
 
 
 def _fmt_date(iso: str) -> str:
+    from zoneinfo import ZoneInfo
     try:
-        dt = datetime.fromisoformat(iso)
+        dt = datetime.fromisoformat(iso).astimezone(ZoneInfo("Europe/Berlin"))
         return dt.strftime("%d %b %Y %H:%M")
     except ValueError:
         return iso
@@ -496,7 +497,7 @@ def _handle_admin_cmd(cmd: str, text: str, chat_id: int, config: dict) -> None:
         _admin_ban(chat_id, text)
     elif cmd == "/unban":
         _admin_unban(chat_id, text)
-    elif cmd == "/cost":
+    elif cmd == "/costs":
         _admin_cost(chat_id, config)
 
 
