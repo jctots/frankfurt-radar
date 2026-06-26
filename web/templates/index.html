@@ -701,6 +701,69 @@
     @media (max-width: 767px) {
       #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: none; overflow-y: visible; }
     }
+    /* ── Weather overlay ────────────────────────────────── */
+    #weather-overlay {
+      position: absolute; top: 12px; right: 12px; z-index: 1000;
+      background: rgba(255,255,255,0.95); color: #1e293b;
+      border-radius: 12px; padding: 14px 16px 12px;
+      width: 300px; max-height: 60vh; overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      pointer-events: auto;
+      scrollbar-width: thin;
+      opacity: 0; transition: opacity 0.3s ease;
+      display: none;
+    }
+    #weather-overlay.visible { opacity: 1; }
+    .dark #weather-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    @media (max-width: 767px) {
+      #weather-overlay { top: 8px; left: 8px; right: 8px; width: auto; max-height: 50vh; }
+    }
+    .wx-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .wx-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; flex: 1; color: var(--clr-weather); }
+    .wx-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
+    .wx-close:hover { color: var(--clr-text); }
+    .dark .wx-close:hover { color: #e5e7eb; }
+    .wx-alert { border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 10px; }
+    .dark .wx-alert { border-color: #2a3344; }
+    .wx-alert-title { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+    .wx-alert-meta { font-size: 11px; color: var(--clr-muted); margin-bottom: 4px; }
+    .wx-alert-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #fef3c7; color: #92400e; margin-bottom: 6px; }
+    .dark .wx-alert-pill { background: #422006; color: #fbbf24; }
+    .wx-alert-body { font-size: 12px; line-height: 1.6; color: #334155; max-height: 80px; overflow-y: auto; }
+    .dark .wx-alert-body { color: #b0b8c8; }
+    .wx-alert-link { display: inline-flex; align-items: center; margin-top: 8px; padding: 4px 10px; background: #f8fafc; color: #1e293b; border-radius: 5px; font-size: 11px; font-weight: 500; text-decoration: none; border: 1px solid #e2e8f0; }
+    .dark .wx-alert-link { background: #1a2332; color: #d1d5db; border-color: #2a3344; }
+    .wx-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 8px; }
+    .dark .wx-section-label { color: #4a5568; }
+    .wx-current { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .wx-current-icon { font-size: 32px; line-height: 1; }
+    .wx-current-temp { font-size: 26px; font-weight: 700; line-height: 1; }
+    .wx-current-details { display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--clr-muted); }
+    .wx-current-desc { font-size: 12px; font-weight: 600; color: #334155; }
+    .dark .wx-current-desc { color: #b0b8c8; }
+    .wx-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 10px; }
+    .wx-stat { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #f8fafc; border-radius: 6px; }
+    .dark .wx-stat { background: #1a2332; }
+    .wx-stat-icon { font-size: 13px; margin-bottom: 2px; }
+    .wx-stat-val { font-size: 11px; font-weight: 600; }
+    .wx-stat-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+    .dark .wx-stat-lbl { color: #4a5568; }
+    .wx-forecast { display: flex; gap: 0; border-top: 1px solid #f1f5f9; padding-top: 8px; }
+    .dark .wx-forecast { border-color: #1e2a3a; }
+    .wx-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; }
+    .wx-hour-time { font-size: 9px; color: #94a3b8; font-weight: 600; }
+    .dark .wx-hour-time { color: #4a5568; }
+    .wx-hour-icon { font-size: 15px; line-height: 1; }
+    .wx-hour-temp { font-size: 11px; font-weight: 600; }
+    .wx-hour-rain { font-size: 8px; color: #3b82f6; font-weight: 600; }
+    .wx-hour.now { background: #f0f4ff; border-radius: 6px; }
+    .dark .wx-hour.now { background: #1e2a3e; }
+    .wx-attr { font-size: 9px; color: #94a3b8; text-align: right; margin-top: 8px; }
+    .wx-attr a { color: #64748b; text-decoration: none; }
+    .dark .wx-attr { color: #4a5568; }
+    .dark .wx-attr a { color: #8892a4; }
+
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .pulse-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; flex: 1; color: var(--clr-muted); }
     .pulse-time { font-size: 11px; color: var(--clr-muted); }
@@ -1568,6 +1631,13 @@ function initMap() {
   L.DomEvent.disableClickPropagation(pulseEl);
   L.DomEvent.disableScrollPropagation(pulseEl);
   map.getContainer().appendChild(pulseEl);
+
+  const wxEl = document.createElement('div');
+  wxEl.id = 'weather-overlay';
+  L.DomEvent.disableClickPropagation(wxEl);
+  L.DomEvent.disableScrollPropagation(wxEl);
+  map.getContainer().appendChild(wxEl);
+
   L.DomEvent.disableClickPropagation(hudEl);
 }
 
@@ -1681,7 +1751,7 @@ function renderMarkers() {
     if ((a.source === 'events' || a.source === 'sports') && (a.lat == null || a.lon == null)) return;
     if (markers[a.id]) {
       const m = markers[a.id];
-      if (m.getPopup()) m.setPopupContent(buildPopupHtml(a));
+      if (a.source !== 'dwd' && m.getPopup()) m.setPopupContent(buildPopupHtml(a));
       if (policeCircles[a.id]?.getPopup()) policeCircles[a.id].setPopupContent(buildPopupHtml(a));
       return;
     }
@@ -1689,6 +1759,8 @@ function renderMarkers() {
     const { coords } = alertCoords(a);
     const m = L.marker(coords, { icon: sourceIcon(a) });
     if (a.source === 'polizei') {
+      m.on('click', () => selectAlert(a.id, true));
+    } else if (a.source === 'dwd') {
       m.on('click', () => selectAlert(a.id, true));
     } else {
       m.bindPopup(buildPopupHtml(a), { maxWidth: 360, minWidth: 260, autoPan: false });
@@ -2285,37 +2357,52 @@ function isMobileView() {
   return window.matchMedia('(max-width: 767px)').matches;
 }
 
-function openWeatherWidget(e) {
-  e.preventDefault();
-  _track('weather_widget_click');
-  const dwdAlerts = alerts.filter(a => a.source === 'dwd' && !a.stale);
-  if (dwdAlerts.length) {
-    const latest = dwdAlerts.reduce((a, b) =>
-      (b.published_at || '') > (a.published_at || '') ? b : a);
-    selectAlert(latest.id);
-    return;
-  }
+function _enterRadarWithOverlay(alertObj) {
   if (!radarPreloaded) return;
-  resetState();
   const doOpen = () => {
     const c = map.getCenter();
     const alreadyThere = map.getZoom() === RADAR_ZOOM &&
       Math.abs(c.lat - FRANKFURT[0]) < 0.0001 &&
       Math.abs(c.lng - FRANKFURT[1]) < 0.0001;
-    if (alreadyThere) { openRadarView(); return; }
+    if (alreadyThere) {
+      openRadarView();
+      openWeatherOverlay(alertObj);
+      return;
+    }
+    const afterZoom = () => {
+      openRadarView();
+      openWeatherOverlay(alertObj);
+    };
     if (map.getZoom() > 13) {
       map.once('moveend', () => {
-        map.once('moveend', openRadarView);
+        map.once('moveend', afterZoom);
         map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
       });
       map.setView(FRANKFURT, 12, { animate: true });
     } else {
-      map.once('moveend', openRadarView);
+      map.once('moveend', afterZoom);
       map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
     }
   };
   if (isMobileView()) openMobileMap(doOpen);
   else doOpen();
+}
+
+function openWeatherWidget(e) {
+  e.preventDefault();
+  _track('weather_widget_click');
+  const dwdAlerts = alerts.filter(a => a.source === 'dwd' && !a.stale);
+  const alertObj = dwdAlerts.length
+    ? dwdAlerts.reduce((a, b) => (b.published_at || '') > (a.published_at || '') ? b : a)
+    : null;
+  resetState();
+  if (alertObj) {
+    selectedId = alertObj.id;
+    document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.id === alertObj.id));
+    const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === alertObj.id);
+    if (card) card.scrollIntoView({ block: 'nearest' });
+  }
+  _enterRadarWithOverlay(alertObj);
 }
 
 function openMobileMap(cb) {
@@ -2528,6 +2615,7 @@ function _initPulseSwipe() {
 // ── Alert selection ───────────────────────────────────────────────────────────
 function resetState() {
   closeRadarView();
+  closeWeatherOverlay();
   map.closePopup();
   Object.keys(policeCircles).forEach(cid => {
     policeCircles[cid].remove();
@@ -2540,11 +2628,17 @@ function resetState() {
 
 function selectAlert(id, fromMap = false) {
   if (id === selectedId) {
+    const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
+    if (a && a.source === 'dwd') {
+      if (!_weatherOverlayVisible) openWeatherOverlay(a);
+      return;
+    }
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
   closePulse();
   closeRadarView();
+  closeWeatherOverlay();
   map.closePopup();
 
   const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
@@ -2566,6 +2660,12 @@ function selectAlert(id, fromMap = false) {
   const card = [...document.querySelectorAll('.card')].find(c => c.dataset.id === id);
   if (card) card.scrollIntoView({ block: 'nearest' });
 
+  // DWD alerts use the weather overlay instead of a popup
+  if (a.source === 'dwd') {
+    _enterRadarWithOverlay(a);
+    return;
+  }
+
   const openPopup = (m) => {
     if (a.source === 'polizei') {
       const { coords } = alertCoords(a);
@@ -2573,14 +2673,12 @@ function selectAlert(id, fromMap = false) {
       return;
     }
 
-    // In radar view all other markers are already removed — skip stale cluster lookup
     const parent = inRadarView ? null : clusterGroup.getVisibleParent(m);
     const siblings = (parent && parent !== m)
       ? parent.getAllChildMarkers().filter(s => s !== m)
       : [];
     siblings.forEach(s => clusterGroup.removeLayer(s));
 
-    // Re-enable autoPan after our centering so the full popup stays in view on any viewport size
     const popup = m.getPopup();
     if (popup) { popup.options.autoPan = true; popup.options.autoPanPadding = [20, 20]; }
 
@@ -2604,29 +2702,6 @@ function selectAlert(id, fromMap = false) {
     if (!marker || !clusterGroup) return;
     const expectedId = id;
 
-    if (a.source === 'dwd') {
-      const enterDwd = () => {
-        map.once('moveend', () => {
-          if (selectedId !== expectedId) return;
-          openRadarView();
-          const latest = markers[id];
-          if (latest) setTimeout(() => openPopup(latest), 100);
-        });
-        map.setView(FRANKFURT, RADAR_ZOOM, { animate: true });
-      };
-      // zoom > 13: large zoom-out to 9 triggers MarkerCluster synthetic moveend mid-animation
-      if (map.getZoom() > 13) {
-        map.once('moveend', () => {
-          if (selectedId !== expectedId) return;
-          enterDwd();
-        });
-        map.setView(FRANKFURT, 12, { animate: true });
-      } else {
-        enterDwd();
-      }
-      return;
-    }
-
     const enterNonDwd = () => {
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
@@ -2639,7 +2714,6 @@ function selectAlert(id, fromMap = false) {
         map.panTo(marker.getLatLng(), { animate: true });
       }
     };
-    // zoom < 11: covers radar exit (zoom 9, mass marker restoration) and deep zoom-out
     if (map.getZoom() < 11) {
       map.once('moveend', () => {
         if (selectedId !== expectedId) return;
@@ -3406,7 +3480,9 @@ async function init() {
   setInterval(updateRelativeTime, 30_000);
 
   fetchCurrentWeather();
+  fetchWeatherForecast();
   setInterval(fetchCurrentWeather, 15 * 60 * 1000);
+  setInterval(fetchWeatherForecast, 15 * 60 * 1000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -3448,11 +3524,15 @@ const WEATHER_DESC = {
   'thunder-showers-day': 'Thunderstorm', 'thunder-showers-night': 'Thunderstorm',
 };
 
+let _weatherCurrent = null;
+let _weatherForecast = [];
+
 async function fetchCurrentWeather() {
   try {
     const r = await fetch('https://api.brightsky.dev/current_weather?lat=50.1109&lon=8.6821');
     const data = await r.json();
     const w = data.weather;
+    _weatherCurrent = w;
     const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
     const desc  = WEATHER_DESC[w.icon]  || '';
     const temp  = Math.round(w.temperature);
@@ -3461,6 +3541,122 @@ async function fetchCurrentWeather() {
       `<span class="ws-icon">${emoji}</span>` +
       `<div class="ws-text"><span class="ws-temp">${temp}°C</span><span class="ws-desc">${desc}</span></div>`;
   } catch (e) { /* non-critical */ }
+}
+
+async function fetchWeatherForecast() {
+  try {
+    const now = new Date();
+    const end = new Date(now.getTime() + 5 * 3600000);
+    const d = now.toISOString().slice(0, 13) + ':00';
+    const e = end.toISOString().slice(0, 13) + ':00';
+    const r = await fetch(`https://api.brightsky.dev/weather?lat=50.1109&lon=8.6821&date=${d}&last_date=${e}`);
+    const data = await r.json();
+    _weatherForecast = (data.weather || []).slice(0, 5);
+  } catch { /* non-critical */ }
+}
+
+function _windDir(deg) {
+  if (deg == null) return '';
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function buildWeatherOverlayHtml(alertObj) {
+  const w = _weatherCurrent;
+  const titleIcon = alertObj ? (alertObj.icon || '🌡️') : (w ? (WEATHER_EMOJI[w.icon] || '☀️') : '☀️');
+  const titleText = alertObj ? 'Weather Warning' : 'Frankfurt Weather';
+
+  let html = `<div class="wx-header">
+    <span class="wx-title">${titleIcon} ${titleText}</span>
+    <button class="wx-close" onclick="closeWeatherOverlay()" title="Close">✕</button>
+  </div>`;
+
+  if (alertObj) {
+    const meta = [];
+    if (alertObj.valid_from)  meta.push('From '  + fmtDateTime(alertObj.valid_from));
+    if (alertObj.valid_until) meta.push('Until ' + fmtDateTime(alertObj.valid_until));
+    if (alertObj.severity)    meta.push(SEV_LABEL[alertObj.severity] || '');
+    const metaText = meta.filter(Boolean).map(esc).join(' · ');
+    const pill = alertObj.removed_at ? clearedPillHtml(alertObj) : statusPillHtml(alertObj);
+    const link = alertObj.url || SOURCE.dwd.officialUrl;
+    html += `<div class="wx-alert">
+      <div class="wx-alert-title">${esc(alertObj.title)}</div>
+      ${metaText ? `<div class="wx-alert-meta">${metaText}</div>` : ''}
+      ${pill ? `<div style="margin-bottom:6px">${pill}</div>` : ''}
+      ${alertObj.body ? `<div class="wx-alert-body">${esc(alertObj.body)}</div>` : ''}
+      ${link ? `<a class="wx-alert-link" href="${esc(link)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
+    </div>`;
+  }
+
+  if (w) {
+    const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
+    const desc = WEATHER_DESC[w.icon] || '';
+    const temp = Math.round(w.temperature);
+    const humidity = w.relative_humidity != null ? Math.round(w.relative_humidity) : null;
+    const wind = w.wind_speed_60 != null ? w.wind_speed_60 : w.wind_speed_10;
+    const windD = w.wind_direction_60 != null ? w.wind_direction_60 : w.wind_direction_10;
+    const cloud = w.cloud_cover != null ? Math.round(w.cloud_cover) : null;
+
+    html += `<div class="wx-section-label">Current conditions</div>
+    <div class="wx-current">
+      <div class="wx-current-icon">${emoji}</div>
+      <div class="wx-current-temp">${temp}°</div>
+      <div class="wx-current-details">
+        <span class="wx-current-desc">${esc(desc)}</span>
+        <span>${w.dew_point != null ? `Dew point ${Math.round(w.dew_point)}°C` : ''}</span>
+      </div>
+    </div>
+    <div class="wx-stats">
+      ${humidity != null ? `<div class="wx-stat"><span class="wx-stat-icon">💧</span><span class="wx-stat-val">${humidity}%</span><span class="wx-stat-lbl">Humidity</span></div>` : ''}
+      ${wind != null ? `<div class="wx-stat"><span class="wx-stat-icon">💨</span><span class="wx-stat-val">${Math.round(wind)} m/s ${_windDir(windD)}</span><span class="wx-stat-lbl">Wind</span></div>` : ''}
+      ${cloud != null ? `<div class="wx-stat"><span class="wx-stat-icon">☁️</span><span class="wx-stat-val">${cloud}%</span><span class="wx-stat-lbl">Clouds</span></div>` : ''}
+    </div>`;
+  } else {
+    html += `<div class="wx-section-label">Current conditions</div><div style="font-size:12px;color:var(--clr-muted);margin-bottom:10px">Weather data unavailable</div>`;
+  }
+
+  if (_weatherForecast.length > 1) {
+    const nowHour = new Date().getHours();
+    html += `<div class="wx-section-label">Next 4 hours</div><div class="wx-forecast">`;
+    _weatherForecast.forEach((f, i) => {
+      const h = new Date(f.timestamp).getHours();
+      const label = i === 0 ? 'Now' : String(h).padStart(2, '0');
+      const icon = WEATHER_EMOJI[f.icon] || '🌡️';
+      const t = Math.round(f.temperature);
+      const rain = f.precipitation_probability;
+      const isNow = i === 0;
+      html += `<div class="wx-hour${isNow ? ' now' : ''}">
+        <span class="wx-hour-time">${label}</span>
+        <span class="wx-hour-icon">${icon}</span>
+        <span class="wx-hour-temp">${t}°</span>
+        ${rain > 0 ? `<span class="wx-hour-rain">${rain}%</span>` : ''}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div class="wx-attr">via <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> / DWD</div>`;
+  return html;
+}
+
+let _weatherOverlayVisible = false;
+
+function openWeatherOverlay(alertObj) {
+  const el = document.getElementById('weather-overlay');
+  if (!el) return;
+  closePulse();
+  el.innerHTML = buildWeatherOverlayHtml(alertObj || null);
+  el.style.display = '';
+  requestAnimationFrame(() => el.classList.add('visible'));
+  _weatherOverlayVisible = true;
+}
+
+function closeWeatherOverlay() {
+  const el = document.getElementById('weather-overlay');
+  if (!el) return;
+  el.classList.remove('visible');
+  setTimeout(() => { if (!el.classList.contains('visible')) el.style.display = 'none'; }, 300);
+  _weatherOverlayVisible = false;
 }
 
 init();
