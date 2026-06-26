@@ -256,6 +256,11 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_near_score REAL NOT NULL DEFAULT 0.0")
         except Exception:
             pass
+        for col in ("title_de", "body_de"):
+            try:
+                conn.execute(f"ALTER TABLE alert_cache ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -344,8 +349,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
-        cached = {r["alert_id"]: (r["image"], r["stale"], r["valid_until"], r["valid_from"], r["published_at"]) for r in conn.execute(
-            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+        cached = {r["alert_id"]: dict(r) for r in conn.execute(
+            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at, title_de, body_de FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
@@ -353,6 +358,7 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
     to_update_image = []
     to_update_stale = []
     to_update_content = []
+    to_update_meta = []
     for alert in alerts:
         stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
@@ -363,40 +369,53 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 json.dumps(alert.lines) if alert.lines else None,
                 alert.published_at, alert.valid_from, alert.severity,
                 alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
-                alert.icon,
+                alert.icon, alert.title or "", alert.body or "",
             ))
         else:
-            cached_image, cached_stale, cached_valid_until, cached_valid_from, cached_published = cached[alert.id]
-            published_changed = (alert.published_at is not None
-                                 and cached_published != alert.published_at)
-            if (cached_valid_until != alert.valid_until
-                    or cached_valid_from != alert.valid_from
-                    or published_changed):
+            c = cached[alert.id]
+            text_changed = ((alert.title or "") != (c["title_de"] or "")
+                            or (alert.body or "") != (c["body_de"] or ""))
+            meta_changed = (c["valid_until"] != alert.valid_until
+                            or c["valid_from"] != alert.valid_from
+                            or (alert.published_at is not None
+                                and c["published_at"] != alert.published_at))
+
+            if text_changed:
                 en_title, en_body = translate_alert(alert, config)
-                effective_published = alert.published_at if alert.published_at is not None else cached_published
+                effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_content.append((
-                    en_title, en_body, alert.url, alert.valid_until,
-                    alert.valid_from, effective_published, alert.image, stale_int, alert.icon,
+                    en_title, en_body, alert.title or "", alert.body or "",
+                    alert.url, alert.valid_until, alert.valid_from,
+                    effective_published, alert.image, stale_int, alert.icon,
                     alert.id,
                 ))
-                log.info("alert_cache: updated %s (content changed)", alert.id)
+                log.info("alert_cache: updated %s (text changed)", alert.id)
+            elif meta_changed:
+                effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
+                to_update_meta.append((
+                    alert.url, alert.valid_until, alert.valid_from,
+                    effective_published, alert.image, stale_int, alert.icon,
+                    alert.id,
+                ))
+                log.info("alert_cache: updated %s (metadata changed, no re-translation)", alert.id)
             else:
-                if cached_image != alert.image:
+                if c["image"] != alert.image:
                     to_update_image.append((alert.image, alert.id))
-                if cached_stale != stale_int:
+                if c["stale"] != stale_int:
                     to_update_stale.append((stale_int, alert.id))
 
-    # Batch write: insert new + refresh changed images/stale + remove gone alerts
+    # Batch write: insert new + refresh changed content/meta/images/stale + remove gone alerts
     with _conn() as conn:
         if to_insert:
             conn.executemany(
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
-                    lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, icon, cached_at)
+                    lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, icon,
+                    cached_at, title_de, body_de)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?,
                            COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
                            ?, ?, ?, ?, ?, ?, ?, ?,
-                           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))""",
+                           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?)""",
                 to_insert,
             )
         if to_update_image:
@@ -406,8 +425,9 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             )
         if to_update_content:
             conn.executemany(
-                """UPDATE alert_cache SET title_en = ?, body_en = ?, url = ?,
-                   valid_until = ?, valid_from = ?, published_at = ?, image = ?, stale = ?, icon = ?,
+                """UPDATE alert_cache SET title_en = ?, body_en = ?, title_de = ?, body_de = ?,
+                   url = ?, valid_until = ?, valid_from = ?, published_at = ?,
+                   image = ?, stale = ?, icon = ?,
                    cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                    WHERE alert_id = ?""",
                 to_update_content,
@@ -417,6 +437,20 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.execute(
                 f"DELETE FROM sent_alerts WHERE alert_id IN ({uph})",
                 updated_ids,
+            )
+        if to_update_meta:
+            conn.executemany(
+                """UPDATE alert_cache SET url = ?, valid_until = ?, valid_from = ?,
+                   published_at = ?, image = ?, stale = ?, icon = ?,
+                   cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                   WHERE alert_id = ?""",
+                to_update_meta,
+            )
+            meta_ids = [row[-1] for row in to_update_meta]
+            mph = ",".join("?" * len(meta_ids))
+            conn.execute(
+                f"DELETE FROM sent_alerts WHERE alert_id IN ({mph})",
+                meta_ids,
             )
         if to_update_stale:
             conn.executemany(
@@ -434,8 +468,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
 
-    log.info("alert_cache: %d total (%d cached, %d translated, %d updated, %d image updated, %d stale updated)",
-             len(alerts), len(cached), len(to_insert), len(to_update_content), len(to_update_image), len(to_update_stale))
+    log.info("alert_cache: %d total (%d cached, %d translated, %d meta-only, %d updated, %d image updated, %d stale updated)",
+             len(alerts), len(cached), len(to_insert), len(to_update_meta), len(to_update_content), len(to_update_image), len(to_update_stale))
 
 
 def get_status_json() -> dict:
