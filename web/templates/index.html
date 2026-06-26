@@ -727,8 +727,8 @@
     .wx-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
     .wx-close:hover { color: var(--clr-text); }
     .dark .wx-close:hover { color: #e5e7eb; }
-    .wx-alert { border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 10px; }
-    .dark .wx-alert { border-color: #2a3344; }
+    .wx-alert { padding-bottom: 10px; margin-bottom: 10px; }
+    .dark .wx-alert { }
     .wx-alert-title { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
     .wx-alert-meta { font-size: 11px; color: var(--clr-muted); margin-bottom: 4px; }
     .wx-alert-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #fef3c7; color: #92400e; margin-bottom: 6px; }
@@ -750,8 +750,8 @@
     .wx-stat { display: flex; align-items: center; gap: 4px; font-size: 11px; }
     .wx-stat-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
     .wx-stat-val { font-weight: 600; white-space: nowrap; }
-    .wx-forecast { display: flex; gap: 0; border-top: 1px solid #f1f5f9; padding-top: 10px; }
-    .dark .wx-forecast { border-color: #1e2a3a; }
+    .wx-forecast { display: flex; gap: 0; padding-top: 10px; }
+    .dark .wx-forecast { }
     .wx-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; }
     .wx-hour-time { font-size: 11px; color: #94a3b8; font-weight: 600; }
     .dark .wx-hour-time { color: #4a5568; }
@@ -777,7 +777,7 @@
     .wx-details.open { max-height: none; }
     @media (max-width: 767px) {
       #weather-overlay { overflow-y: visible; max-height: none; }
-      .wx-alert { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+      .wx-alert { padding-bottom: 0; margin-bottom: 0; }
     }
 
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -3614,7 +3614,7 @@ function buildWeatherOverlayHtml(alertObj) {
       <div class="wx-alert-title">${esc(alertObj.title)}</div>
       ${metaText ? `<div class="wx-alert-meta">${metaText}</div>` : ''}
       ${pill ? `<div style="margin-bottom:6px">${pill}</div>` : ''}
-      ${alertObj.body ? `<div class="wx-alert-body">${alertObj.body.split('\n\n').map(p => `<p style="margin:0 0 8px">${esc(p.replace(/\n/g, ' ').trim())}</p>`).join('')}</div>` : ''}
+      ${alertObj.body ? `<div class="wx-alert-body">${alertObj.body.split('\n\n').map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean).map(p => `<p style="margin:0 0 8px">${esc(p)}</p>`).join('')}</div>` : ''}
       ${link ? `<a class="wx-alert-link" href="${esc(link)}" target="_blank" rel="noopener">Details ↗</a>` : ''}
     </div>`;
   }
