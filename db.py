@@ -327,12 +327,33 @@ def expire_processed_alerts() -> None:
 
 # ── alert_cache (replaces status.json) ───────────────────────────────────────
 
+_TRANSLATE_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "translate_debug"
+_TRANSLATE_DEBUG_RETENTION_DAYS = 7
+
+
+def _write_translate_debug(debug_data: dict) -> None:
+    try:
+        _TRANSLATE_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%S")
+        path = _TRANSLATE_DEBUG_DIR / f"{ts}.json"
+        path.write_text(json.dumps(debug_data, ensure_ascii=False, indent=2))
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_TRANSLATE_DEBUG_RETENTION_DAYS)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H")
+        for old in _TRANSLATE_DEBUG_DIR.glob("*.json"):
+            if old.stem < cutoff_str:
+                old.unlink(missing_ok=True)
+    except OSError as e:
+        log.warning("Translate debug log write failed: %s", e)
+
+
 def sync_alert_cache(alerts: list, config: dict) -> None:
     """Translate new alerts and sync the cache to match the current fetch result."""
     from translation import translate_alert
 
     retention_days = config.get('cleared_retention_days', 1)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+    _debug_entries = []
 
     if not alerts:
         with _conn() as conn:
@@ -371,6 +392,10 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
                 alert.icon, alert.title or "", alert.body or "",
             ))
+            _debug_entries.append({
+                "alert_id": alert.id, "source": alert.source, "action": "new",
+                "title": (alert.title or "")[:80],
+            })
         else:
             c = cached[alert.id]
             text_changed = ((alert.title or "") != (c["title_de"] or "")
@@ -381,9 +406,6 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                                 and c["published_at"] != alert.published_at))
 
             if text_changed:
-                log.info("alert_cache: text diff for %s — title_de cached=%r new=%r, body_de cached=%r new=%r",
-                         alert.id, (c["title_de"] or "")[:60], (alert.title or "")[:60],
-                         (c["body_de"] or "")[:60], (alert.body or "")[:60])
                 en_title, en_body = translate_alert(alert, config)
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_content.append((
@@ -393,6 +415,14 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                     alert.id,
                 ))
                 log.info("alert_cache: updated %s (text changed)", alert.id)
+                _debug_entries.append({
+                    "alert_id": alert.id, "source": alert.source, "action": "retranslate",
+                    "reason": "text_changed",
+                    "cached_title_de": (c["title_de"] or "")[:100],
+                    "new_title_de": (alert.title or "")[:100],
+                    "cached_body_de": (c["body_de"] or "")[:200],
+                    "new_body_de": (alert.body or "")[:200],
+                })
             elif meta_changed:
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_meta.append((
@@ -401,6 +431,10 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                     alert.id,
                 ))
                 log.info("alert_cache: updated %s (metadata changed, no re-translation)", alert.id)
+                _debug_entries.append({
+                    "alert_id": alert.id, "source": alert.source, "action": "meta_only",
+                    "title": (alert.title or "")[:80],
+                })
             else:
                 if c["image"] != alert.image:
                     to_update_image.append((alert.image, alert.id))
@@ -473,6 +507,18 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
 
     log.info("alert_cache: %d total (%d cached, %d translated, %d meta-only, %d updated, %d image updated, %d stale updated)",
              len(alerts), len(cached), len(to_insert), len(to_update_meta), len(to_update_content), len(to_update_image), len(to_update_stale))
+
+    if _debug_entries:
+        _write_translate_debug({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_alerts": len(alerts),
+            "cached": len(cached),
+            "new_translated": len(to_insert),
+            "retranslated": len(to_update_content),
+            "meta_only": len(to_update_meta),
+            "skipped": len(cached) - len(to_update_content) - len(to_update_meta) - len(to_update_image) - len(to_update_stale),
+            "entries": _debug_entries,
+        })
 
 
 def get_status_json() -> dict:
