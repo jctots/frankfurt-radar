@@ -2087,9 +2087,10 @@ function _ongoingStatus(a) {
   if (!a.valid_until) return { label: 'Ongoing', cls: 'ongoing' };
   const now = new Date();
   const until = new Date(a.valid_until);
-  const today = new Date(now); today.setHours(0, 0, 0, 0);
-  const untilDay = new Date(until); untilDay.setHours(0, 0, 0, 0);
-  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
+  const today = new Date(_berlinDateStr(now) + 'T00:00:00');
+  const untilDay = new Date(_berlinDateStr(until) + 'T00:00:00');
+  const bUntil = _berlin(until);
+  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(+bUntil.hh === 0 && +bUntil.mm === 0);
 
   if (untilDay.getTime() === today.getTime() && hasTime) {
     const diffMs = until - now;
@@ -2108,9 +2109,10 @@ function _staleEndStatus(a) {
   const until = new Date(a.valid_until);
   const diffMs = until - now;
   if (diffMs <= 0) return null;
-  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(until.getHours() === 0 && until.getMinutes() === 0);
-  const today = new Date(now); today.setHours(0, 0, 0, 0);
-  const untilDay = new Date(until); untilDay.setHours(0, 0, 0, 0);
+  const bUntil = _berlin(until);
+  const hasTime = /T\d{2}:\d{2}/.test(a.valid_until) && !(+bUntil.hh === 0 && +bUntil.mm === 0);
+  const today = new Date(_berlinDateStr(now) + 'T00:00:00');
+  const untilDay = new Date(_berlinDateStr(until) + 'T00:00:00');
 
   if (untilDay.getTime() === today.getTime() && hasTime) {
     if (diffMs < 5 * 60000) return 'Ending soon';
@@ -2157,9 +2159,13 @@ function clearedPillHtml(a) {
 function fmtDate(iso) {
   if (!iso) return '';
   try {
-    const d = new Date(iso);
-    return `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+    const b = _berlin(new Date(iso));
+    return `${b.date} ${b.mon} ${b.yr}`;
   } catch { return iso; }
+}
+
+function _berlinDateStr(d) {
+  return d.toLocaleDateString('en-CA', { timeZone: _TZ });
 }
 
 function daysUntil(iso) {
@@ -2169,8 +2175,8 @@ function daysUntil(iso) {
   const diffMs = target - now;
   if (diffMs <= 0) return 'Starts today';
 
-  const tDay = new Date(target); tDay.setHours(0, 0, 0, 0);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tDay = new Date(_berlinDateStr(target) + 'T00:00:00');
+  const today = new Date(_berlinDateStr(now) + 'T00:00:00');
   const dayDiff = Math.round((tDay - today) / 86400000);
 
   if (dayDiff <= 0) {
@@ -2188,8 +2194,8 @@ function fmtPostedAge(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   const now = new Date();
-  const today = new Date(now); today.setHours(0, 0, 0, 0);
-  const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+  const today = new Date(_berlinDateStr(now) + 'T00:00:00');
+  const dDay = new Date(_berlinDateStr(d) + 'T00:00:00');
   if (dDay < today) return 'Posted at ' + fmtDateTimeShort(iso);
   const diffMs = now - d;
   if (diffMs < 0) return 'Posted just now';
@@ -2202,7 +2208,7 @@ function fmtPostedAge(iso) {
 
 function fmtTime(iso) {
   if (!iso) return '';
-  try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: _TZ }); }
   catch { return ''; }
 }
 
@@ -3334,20 +3340,30 @@ function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+const _TZ = 'Europe/Berlin';
+function _berlin(d) {
+  const p = (k, o) => d.toLocaleDateString('en-GB', { [k]: o, timeZone: _TZ });
+  const t = (o) => d.toLocaleTimeString('en-GB', { ...o, timeZone: _TZ, hour12: false });
+  return {
+    day: p('weekday', 'short'),
+    dd: String(+p('day', 'numeric')).padStart(2, '0'),
+    mon: p('month', 'short'),
+    yr: +p('year', 'numeric'),
+    hh: t({ hour: '2-digit', minute: '2-digit' }).split(':')[0],
+    mm: t({ hour: '2-digit', minute: '2-digit' }).split(':')[1],
+    ss: String(d.toLocaleTimeString('en-GB', { second: '2-digit', timeZone: _TZ, hour12: false }).split(':')[2] || '00').padStart(2, '0'),
+    date: +p('day', 'numeric'),
+  };
+}
+
 function fmt(iso, withSeconds = false) {
   if (!iso) return '';
   try {
-    const d   = new Date(iso);
-    const day = d.toLocaleDateString('en-GB', { weekday: 'short' });
-    const dd  = String(d.getDate()).padStart(2, '0');
-    const mon = d.toLocaleDateString('en-GB', { month: 'short' });
-    const yr  = d.getFullYear();
-    const hh  = String(d.getHours()).padStart(2, '0');
-    const mm  = String(d.getMinutes()).padStart(2, '0');
-    const ss  = String(d.getSeconds()).padStart(2, '0');
+    const d = new Date(iso);
+    const b = _berlin(d);
     return withSeconds
-      ? `${day}, ${dd} ${mon} ${yr} ${hh}:${mm}:${ss}`
-      : `${day}, ${dd} ${mon} ${yr} ${hh}:${mm}`;
+      ? `${b.day}, ${b.dd} ${b.mon} ${b.yr} ${b.hh}:${b.mm}:${b.ss}`
+      : `${b.day}, ${b.dd} ${b.mon} ${b.yr} ${b.hh}:${b.mm}`;
   } catch { return iso || ''; }
 }
 
@@ -3356,12 +3372,8 @@ function fmtDateTime(iso) { return fmt(iso); }
 function fmtDateTimeShort(iso) {
   if (!iso) return '';
   try {
-    const d = new Date(iso);
-    const dd  = String(d.getDate()).padStart(2, '0');
-    const mon = d.toLocaleDateString('en-GB', { month: 'short' });
-    const hh  = String(d.getHours()).padStart(2, '0');
-    const mm  = String(d.getMinutes()).padStart(2, '0');
-    return `${dd} ${mon} ${hh}:${mm}`;
+    const b = _berlin(new Date(iso));
+    return `${b.dd} ${b.mon} ${b.hh}:${b.mm}`;
   } catch { return iso || ''; }
 }
 

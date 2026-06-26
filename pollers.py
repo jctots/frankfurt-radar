@@ -345,15 +345,22 @@ class DWDPoller(BasePoller):
             instruction = w.get("instruction_en") or w.get("instruction_de", "")
             body = "\n\n".join(filter(None, [desc, instruction]))
             title = w.get("headline_en") or w.get("headline_de", "DWD Warning")
+            def _to_utc(iso):
+                if not iso:
+                    return None
+                try:
+                    return datetime.fromisoformat(iso).astimezone(timezone.utc).isoformat()
+                except ValueError:
+                    return iso
             alerts.append(Alert(
                 id=w.get("alert_id", ""),
                 source="dwd",
                 title=title,
                 body=body,
                 url=None,
-                published_at=w.get("published"),
-                valid_from=w.get("onset"),
-                valid_until=w.get("expires"),
+                published_at=_to_utc(w.get("published")),
+                valid_from=_to_utc(w.get("onset")),
+                valid_until=_to_utc(w.get("expires")),
                 service=None,
                 severity=rank,
                 icon=dwd_alert_icon(title, desc),
@@ -470,8 +477,18 @@ class StaticEventsPoller(BasePoller):
         alerts = []
         for ev in self.events:
             try:
-                start = datetime.fromisoformat(ev["start"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
-                end   = datetime.fromisoformat(ev["end"]).replace(tzinfo=_BERLIN).astimezone(timezone.utc)
+                start = datetime.fromisoformat(ev["start"])
+                end   = datetime.fromisoformat(ev["end"])
+                if start.hour == 0 and start.minute == 0 and start.tzinfo is None:
+                    start = start.replace(hour=0, minute=0, tzinfo=_BERLIN)
+                else:
+                    start = start.replace(tzinfo=_BERLIN)
+                if end.hour == 0 and end.minute == 0 and end.tzinfo is None:
+                    end = end.replace(hour=23, minute=59, tzinfo=_BERLIN)
+                else:
+                    end = end.replace(tzinfo=_BERLIN)
+                start = start.astimezone(timezone.utc)
+                end = end.astimezone(timezone.utc)
             except (KeyError, ValueError):
                 log.warning("StaticEvents: skipping malformed entry %r", ev)
                 continue
@@ -549,12 +566,27 @@ class TicketmasterPoller(BasePoller):
                 alerts.append(alert)
         return alerts
 
+    @staticmethod
+    def _normalize_date(iso: str, end_of_day: bool = False) -> str:
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).isoformat()
+        if dt.hour == 0 and dt.minute == 0:
+            if end_of_day:
+                dt = dt.replace(hour=23, minute=59, tzinfo=_BERLIN)
+            else:
+                dt = dt.replace(tzinfo=_BERLIN)
+            return dt.astimezone(timezone.utc).isoformat()
+        return dt.replace(tzinfo=_BERLIN).astimezone(timezone.utc).isoformat()
+
     def _to_alert(self, ev: dict) -> Alert | None:
         start_info = ev.get("dates", {}).get("start", {})
-        valid_from = start_info.get("dateTime") or start_info.get("localDate")
-        if not valid_from:
+        raw_from = start_info.get("dateTime") or start_info.get("localDate")
+        if not raw_from:
             return None
-        valid_until = ev.get("dates", {}).get("end", {}).get("dateTime") or valid_from
+        raw_until = ev.get("dates", {}).get("end", {}).get("dateTime") or raw_from
+        valid_from = self._normalize_date(raw_from)
+        valid_until = self._normalize_date(raw_until, end_of_day=True)
 
         venues = ev.get("_embedded", {}).get("venues", [])
         lat = lon = location_label = None

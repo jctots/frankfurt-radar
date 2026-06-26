@@ -469,8 +469,9 @@ def _esc(text: str) -> str:
 
 
 def _fmt_date(iso: str) -> str:
+    from zoneinfo import ZoneInfo
     try:
-        dt = datetime.fromisoformat(iso)
+        dt = datetime.fromisoformat(iso).astimezone(ZoneInfo("Europe/Berlin"))
         return dt.strftime("%d %b %Y %H:%M")
     except ValueError:
         return iso
