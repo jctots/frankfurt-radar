@@ -261,6 +261,17 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE alert_cache ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
             except Exception:
                 pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS api_usage_hourly (
+                hour       TEXT NOT NULL,
+                service    TEXT NOT NULL,
+                calls      INTEGER NOT NULL DEFAULT 0,
+                tokens_in  INTEGER NOT NULL DEFAULT 0,
+                tokens_out INTEGER NOT NULL DEFAULT 0,
+                characters INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (hour, service))""")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -988,7 +999,9 @@ def record_api_usage(
     tokens_out: int = 0,
     characters: int = 0,
 ) -> None:
-    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    now = datetime.now(timezone.utc)
+    month = now.strftime("%Y-%m")
+    hour = now.strftime("%Y-%m-%dT%H")
     with _conn() as conn:
         conn.execute(
             """INSERT INTO api_usage (month, service, calls, tokens_in, tokens_out, characters)
@@ -1000,6 +1013,16 @@ def record_api_usage(
                  characters = characters + excluded.characters""",
             (month, service, tokens_in, tokens_out, characters),
         )
+        conn.execute(
+            """INSERT INTO api_usage_hourly (hour, service, calls, tokens_in, tokens_out, characters)
+               VALUES (?, ?, 1, ?, ?, ?)
+               ON CONFLICT(hour, service) DO UPDATE SET
+                 calls = calls + 1,
+                 tokens_in = tokens_in + excluded.tokens_in,
+                 tokens_out = tokens_out + excluded.tokens_out,
+                 characters = characters + excluded.characters""",
+            (hour, service, tokens_in, tokens_out, characters),
+        )
 
 
 def get_api_usage(month: str) -> list[dict]:
@@ -1009,6 +1032,44 @@ def get_api_usage(month: str) -> list[dict]:
             (month,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_hourly_usage(hour: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT service, calls, tokens_in, tokens_out, characters FROM api_usage_hourly WHERE hour = ?",
+            (hour,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_daily_usage(date: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT service, SUM(calls) as calls, SUM(tokens_in) as tokens_in,
+               SUM(tokens_out) as tokens_out, SUM(characters) as characters
+               FROM api_usage_hourly WHERE hour LIKE ? GROUP BY service""",
+            (date + "T%",),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_hours_with_usage(date: str) -> int:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT hour) as cnt FROM api_usage_hourly WHERE hour LIKE ?",
+            (date + "T%",),
+        ).fetchone()
+    return row["cnt"] if row else 0
+
+
+def get_days_with_usage(month: str) -> int:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(DISTINCT substr(hour, 1, 10)) as cnt FROM api_usage_hourly WHERE hour LIKE ?",
+            (month + "-%",),
+        ).fetchone()
+    return row["cnt"] if row else 0
 
 
 def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:

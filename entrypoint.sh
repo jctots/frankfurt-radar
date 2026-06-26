@@ -38,6 +38,8 @@ job_block = "\n".join([
     "0 * * * * root cd /app && python pulse.py >> /proc/1/fd/1 2>&1",
     "# City Pulse -- daily summary at 23:00 Frankfurt time",
     "0 23 * * * root cd /app && python pulse.py --daily >> /proc/1/fd/1 2>&1",
+    "# Daily admin report (visits + costs) at midnight Frankfurt time",
+    "0 0 * * * root cd /app && python main.py --daily-report >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 

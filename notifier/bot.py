@@ -13,6 +13,10 @@ from db import (
     add_subscriber,
     deactivate_subscriber,
     get_all_active_alerts,
+    get_daily_usage,
+    get_days_with_usage,
+    get_hourly_usage,
+    get_hours_with_usage,
     get_latest_pulse,
     get_meta,
     get_monthly_cost,
@@ -573,35 +577,163 @@ _SERVICE_LABELS = {
 _COST_THRESHOLDS = (50, 80, 100)
 
 
-def _admin_cost(chat_id: int, config: dict) -> None:
-    now = datetime.now(timezone.utc)
-    current_month = now.strftime("%Y-%m")
-    prev = (now.replace(day=1) - timedelta(days=1))
-    prev_month = prev.strftime("%Y-%m")
+def _cost_breakdown_lines(rows: list[dict], config: dict) -> tuple[float, list[str]]:
+    cost_cfg = config.get("cost", {})
+    gemini_cfg = cost_cfg.get("gemini", {})
+    translate_cfg = cost_cfg.get("google_translate", {})
+    usd_to_eur = cost_cfg.get("usd_to_eur", 0.92)
+    gemini_pricing = {
+        "input_per_m": gemini_cfg.get("input_per_million", 0.15),
+        "output_per_m": gemini_cfg.get("output_per_million", 0.60),
+    }
+    PRICING = {
+        "gemini_pulse": gemini_pricing,
+        "gemini_extraction": gemini_pricing,
+        "gemini_daily": gemini_pricing,
+        "google_translate": {"chars_per_m": translate_cfg.get("chars_per_million", 20.0)},
+    }
+    lines = []
+    total = 0.0
+    for row in sorted(rows, key=lambda r: r["service"]):
+        svc = row["service"]
+        pricing = PRICING.get(svc, {})
+        cost_usd = 0.0
+        if "input_per_m" in pricing:
+            cost_usd += row["tokens_in"] / 1_000_000 * pricing["input_per_m"]
+            cost_usd += row["tokens_out"] / 1_000_000 * pricing["output_per_m"]
+        if "chars_per_m" in pricing:
+            cost_usd += row["characters"] / 1_000_000 * pricing["chars_per_m"]
+        cost_eur = cost_usd * usd_to_eur
+        total += cost_eur
+        name = _SERVICE_LABELS.get(svc, svc)
+        detail_parts = []
+        if row["tokens_in"] or row["tokens_out"]:
+            detail_parts.append(f"{row['calls']} calls, {row['tokens_in'] + row['tokens_out']:,} tok")
+        if row["characters"]:
+            detail_parts.append(f"{row['calls']} calls, {row['characters']:,} chars")
+        lines.append(f"  {name}: €{cost_eur:.3f} ({' · '.join(detail_parts)})")
+    return total, lines
 
+
+def _build_cost_report_text(config: dict) -> str:
+    from zoneinfo import ZoneInfo
+    now = datetime.now(timezone.utc)
+    berlin = now.astimezone(ZoneInfo("Europe/Berlin"))
+    current_hour = now.strftime("%Y-%m-%dT%H")
+    prev_hour = (now.replace(minute=0, second=0) - timedelta(hours=1)).strftime("%Y-%m-%dT%H")
+    today = berlin.strftime("%Y-%m-%d")
+    yesterday = (berlin - timedelta(days=1)).strftime("%Y-%m-%d")
+    current_month = now.strftime("%Y-%m")
+    prev_month = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
     budget = config.get("cost", {}).get("monthly_budget", 5.0)
 
     lines = ["<b>💰 API Cost Report</b>"]
 
-    for month, label in ((current_month, f"{current_month} (running)"), (prev_month, prev_month)):
-        total, breakdown = get_monthly_cost(month, config)
-        if not breakdown:
-            lines.append(f"\n<b>{label}</b>: no data")
-            continue
-        lines.append(f"\n<b>{label}</b>")
-        for svc, data in sorted(breakdown.items()):
-            name = _SERVICE_LABELS.get(svc, svc)
-            detail_parts = []
-            if data["tokens_in"] or data["tokens_out"]:
-                detail_parts.append(f"{data['calls']} calls, {data['tokens_in'] + data['tokens_out']:,} tok")
-            if data["characters"]:
-                detail_parts.append(f"{data['calls']} calls, {data['characters']:,} chars")
-            detail = " · ".join(detail_parts)
-            lines.append(f"  {name}: €{data['cost']:.2f} ({detail})")
-        pct = (total / budget * 100) if budget > 0 else 0
-        lines.append(f"  <b>Total: €{total:.2f}</b> / €{budget:.2f} ({pct:.0f}%)")
+    # ── Hourly ──
+    lines.append("\n<b>⏱ Hourly</b>")
+    hr_total, hr_lines = _cost_breakdown_lines(get_hourly_usage(current_hour), config)
+    if hr_lines:
+        lines.append(f"<i>Running ({current_hour})</i>")
+        lines.extend(hr_lines)
+        lines.append(f"  Total: €{hr_total:.3f}")
+    prev_hr_total, _ = _cost_breakdown_lines(get_hourly_usage(prev_hour), config)
+    lines.append(f"Last hour: €{prev_hr_total:.3f}")
+    hours_today = get_hours_with_usage(today)
+    if hours_today > 0:
+        day_rows = get_daily_usage(today)
+        day_total, _ = _cost_breakdown_lines(day_rows, config)
+        lines.append(f"Avg/hour today: €{day_total / hours_today:.3f} ({hours_today}h)")
 
-    _send(chat_id, "\n".join(lines))
+    # ── Daily ──
+    lines.append("\n<b>📅 Daily</b>")
+    day_total, day_lines = _cost_breakdown_lines(get_daily_usage(today), config)
+    if day_lines:
+        lines.append(f"<i>Running ({today})</i>")
+        lines.extend(day_lines)
+        lines.append(f"  Total: €{day_total:.3f}")
+    yday_total, _ = _cost_breakdown_lines(get_daily_usage(yesterday), config)
+    lines.append(f"Yesterday: €{yday_total:.3f}")
+    days_this_month = get_days_with_usage(current_month)
+    if days_this_month > 0:
+        month_total, _ = get_monthly_cost(current_month, config)
+        lines.append(f"Avg/day this month: €{month_total / days_this_month:.3f} ({days_this_month}d)")
+
+    # ── Monthly ──
+    lines.append("\n<b>📊 Monthly</b>")
+    month_total, month_lines = _cost_breakdown_lines(get_api_usage(current_month), config)
+    if month_lines:
+        lines.append(f"<i>Running ({current_month})</i>")
+        lines.extend(month_lines)
+        pct = (month_total / budget * 100) if budget > 0 else 0
+        lines.append(f"  <b>Total: €{month_total:.2f}</b> / €{budget:.2f} ({pct:.0f}%)")
+    prev_total, _ = get_monthly_cost(prev_month, config)
+    lines.append(f"Last month: €{prev_total:.2f}")
+    if days_this_month > 0:
+        remaining_days = max(1, (berlin.replace(day=1, month=berlin.month % 12 + 1) - berlin).days if berlin.month < 12 else (berlin.replace(year=berlin.year + 1, month=1, day=1) - berlin).days)
+        estimated = month_total + (month_total / days_this_month) * remaining_days
+        lines.append(f"Estimated this month: €{estimated:.2f}")
+
+    return "\n".join(lines)
+
+
+def _build_visits_report_text(config: dict) -> str | None:
+    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
+    username = os.environ.get("UMAMI_USERNAME", "")
+    password = os.environ.get("UMAMI_PASSWORD", "")
+    website_id = config.get("web", {}).get("umami_website_id", "")
+    if not umami_url or not username or not password or not website_id:
+        return None
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start_ms = int(month_start.timestamp() * 1000)
+    day_start_ms = int(day_start.timestamp() * 1000)
+    end_ms = int(now.timestamp() * 1000)
+
+    try:
+        month = _umami_get(
+            f"{umami_url}/api/websites/{website_id}/stats",
+            params={"startAt": month_start_ms, "endAt": end_ms},
+        ).json()
+        day = _umami_get(
+            f"{umami_url}/api/websites/{website_id}/stats",
+            params={"startAt": day_start_ms, "endAt": end_ms},
+        ).json()
+        active = _umami_get(f"{umami_url}/api/websites/{website_id}/active").json()
+    except requests.RequestException as e:
+        return f"❌ Umami query failed: {e}"
+
+    active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
+
+    return (
+        "<b>📊 Visits</b>\n\n"
+        f"<b>Today</b>\n"
+        f"Visits: {_stat_value(day.get('visits'))}\n"
+        f"Unique: {_stat_value(day.get('visitors'))}\n\n"
+        f"<b>This month</b>\n"
+        f"Visits: {_stat_value(month.get('visits'))}\n"
+        f"Unique: {_stat_value(month.get('visitors'))}\n\n"
+        f"Active now: {active_now}"
+    )
+
+
+def _admin_cost(chat_id: int, config: dict) -> None:
+    _send(chat_id, _build_cost_report_text(config))
+
+
+def send_daily_admin_report(config: dict) -> None:
+    admin_id = config.get("admin_health_notifier", {}).get("telegram_chat_id")
+    if not admin_id:
+        return
+    chat_id = int(admin_id)
+
+    visits = _build_visits_report_text(config)
+    if visits:
+        _send(chat_id, visits)
+
+    _send(chat_id, _build_cost_report_text(config))
+    log.info("Daily admin report sent (visits + costs)")
 
 
 def check_cost_threshold(config: dict) -> None:
@@ -681,47 +813,11 @@ def _umami_get(url: str, params: dict | None = None):
 
 
 def _admin_visits(chat_id: int, config: dict) -> None:
-    umami_url = os.environ.get("UMAMI_INTERNAL_URL", "").rstrip("/")
-    username = os.environ.get("UMAMI_USERNAME", "")
-    password = os.environ.get("UMAMI_PASSWORD", "")
-    website_id = config.get("web", {}).get("umami_website_id", "")
-    if not umami_url or not username or not password or not website_id:
+    text = _build_visits_report_text(config)
+    if text is None:
         _send(chat_id, "⛔ Umami not configured (need UMAMI_INTERNAL_URL, UMAMI_USERNAME, UMAMI_PASSWORD, umami_website_id)")
         return
-
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start_ms = int(month_start.timestamp() * 1000)
-    day_start_ms = int(day_start.timestamp() * 1000)
-    end_ms = int(now.timestamp() * 1000)
-
-    try:
-        month = _umami_get(
-            f"{umami_url}/api/websites/{website_id}/stats",
-            params={"startAt": month_start_ms, "endAt": end_ms},
-        ).json()
-        day = _umami_get(
-            f"{umami_url}/api/websites/{website_id}/stats",
-            params={"startAt": day_start_ms, "endAt": end_ms},
-        ).json()
-        active = _umami_get(f"{umami_url}/api/websites/{website_id}/active").json()
-    except requests.RequestException as e:
-        _send(chat_id, f"❌ Umami query failed: {e}")
-        return
-
-    active_now = sum(a.get("x", 0) for a in active) if isinstance(active, list) else 0
-
-    _send(chat_id, (
-        "<b>📊 Visits</b>\n\n"
-        f"<b>Today</b>\n"
-        f"Visits: {_stat_value(day.get('visits'))}\n"
-        f"Unique: {_stat_value(day.get('visitors'))}\n\n"
-        f"<b>This month</b>\n"
-        f"Visits: {_stat_value(month.get('visits'))}\n"
-        f"Unique: {_stat_value(month.get('visitors'))}\n\n"
-        f"Active now: {active_now}"
-    ))
+    _send(chat_id, text)
 
 
 def _admin_poll(chat_id: int, config: dict) -> None:

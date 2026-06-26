@@ -242,4 +242,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--daily-report" in sys.argv:
+        config = load_config()
+        init_db()
+        from notifier.bot import send_daily_admin_report
+        send_daily_admin_report(config)
+    else:
+        main()
