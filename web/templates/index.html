@@ -762,6 +762,22 @@
     .wx-attr a { color: #64748b; text-decoration: none; }
     .dark .wx-attr { color: #4a5568; }
     .dark .wx-attr a { color: #8892a4; }
+    .wx-details-toggle {
+      display: none; width: 100%; background: none; border: none; border-top: 1px solid #e2e8f0;
+      margin-top: 8px; padding: 8px 0 0; cursor: pointer;
+      font-size: 11px; font-weight: 600; color: #94a3b8; text-align: center;
+      font-family: inherit;
+    }
+    .wx-details-toggle:hover { color: var(--clr-text); }
+    .dark .wx-details-toggle { border-color: #2a3344; color: #4a5568; }
+    .dark .wx-details-toggle:hover { color: #d1d5db; }
+    .wx-details { transition: max-height 0.3s ease; overflow: hidden; }
+    @media (max-width: 767px) {
+      #weather-overlay { overflow-y: visible; }
+      .wx-details-toggle { display: block; }
+      .wx-details { max-height: 0; }
+      .wx-details.open { max-height: 500px; }
+    }
 
     .pulse-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .pulse-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; flex: 1; color: var(--clr-muted); }
@@ -3600,6 +3616,8 @@ function buildWeatherOverlayHtml(alertObj) {
     </div>`;
   }
 
+  let detailsHtml = '';
+
   if (w) {
     const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
     const desc = WEATHER_DESC[w.icon] || '';
@@ -3609,7 +3627,7 @@ function buildWeatherOverlayHtml(alertObj) {
     const windD = w.wind_direction_60 != null ? w.wind_direction_60 : w.wind_direction_10;
     const cloud = w.cloud_cover != null ? Math.round(w.cloud_cover) : null;
 
-    html += `<div class="wx-section-label">Current conditions</div>
+    detailsHtml += `<div class="wx-section-label">Current conditions</div>
     <div class="wx-current">
       <div class="wx-current-icon">${emoji}</div>
       <div class="wx-current-temp">${temp}°</div>
@@ -3624,12 +3642,11 @@ function buildWeatherOverlayHtml(alertObj) {
       ${cloud != null ? `<div class="wx-stat"><span class="wx-stat-icon">☁️</span><span class="wx-stat-val">${cloud}%</span><span class="wx-stat-lbl">Clouds</span></div>` : ''}
     </div>`;
   } else {
-    html += `<div class="wx-section-label">Current conditions</div><div style="font-size:12px;color:var(--clr-muted);margin-bottom:10px">Weather data unavailable</div>`;
+    detailsHtml += `<div class="wx-section-label">Current conditions</div><div style="font-size:12px;color:var(--clr-muted);margin-bottom:10px">Weather data unavailable</div>`;
   }
 
   if (_weatherForecast.length > 1) {
-    const nowHour = new Date().getHours();
-    html += `<div class="wx-section-label">Next 4 hours</div><div class="wx-forecast">`;
+    detailsHtml += `<div class="wx-section-label">Next 4 hours</div><div class="wx-forecast">`;
     _weatherForecast.forEach((f, i) => {
       const h = new Date(f.timestamp).getHours();
       const label = i === 0 ? 'Now' : String(h).padStart(2, '0');
@@ -3637,17 +3654,21 @@ function buildWeatherOverlayHtml(alertObj) {
       const t = Math.round(f.temperature);
       const rain = f.precipitation_probability;
       const isNow = i === 0;
-      html += `<div class="wx-hour${isNow ? ' now' : ''}">
+      detailsHtml += `<div class="wx-hour${isNow ? ' now' : ''}">
         <span class="wx-hour-time">${label}</span>
         <span class="wx-hour-icon">${icon}</span>
         <span class="wx-hour-temp">${t}°</span>
         ${rain > 0 ? `<span class="wx-hour-rain">${rain}%</span>` : ''}
       </div>`;
     });
-    html += `</div>`;
+    detailsHtml += `</div>`;
   }
 
-  html += `<div class="wx-attr">via <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> / DWD</div>`;
+  detailsHtml += `<div class="wx-attr">via <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> / DWD</div>`;
+
+  const autoOpen = !alertObj;
+  html += `<button class="wx-details-toggle" onclick="this.nextElementSibling.classList.toggle('open'); this.textContent = this.nextElementSibling.classList.contains('open') ? 'Hide conditions ▴' : 'Show conditions ▾'">${autoOpen ? 'Hide conditions ▴' : 'Show conditions ▾'}</button>`;
+  html += `<div class="wx-details${autoOpen ? ' open' : ''}">${detailsHtml}</div>`;
   return html;
 }
 
