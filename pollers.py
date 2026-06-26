@@ -282,9 +282,9 @@ class PolizeiPoller(BasePoller):
 
             lat = lon = location_label = None
             cached = get_cached_alert(entry_id)
-            if cached and cached.get("lat") is not None:
-                lat = cached["lat"]
-                lon = cached["lon"]
+            if cached is not None:
+                lat = cached.get("lat")
+                lon = cached.get("lon")
                 location_label = cached.get("location_label")
             else:
                 loc = extract_alert_details(f"{title}\n\n{body}", prompt)
