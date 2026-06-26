@@ -341,9 +341,9 @@ class DWDPoller(BasePoller):
             rank = self._SEVERITY_RANK.get(w.get("severity", ""), 0)
             if rank < self.min_severity:
                 continue
-            desc = w.get("description_de") or w.get("description_en", "")
-            instruction = w.get("instruction_de") or w.get("instruction_en", "")
-            body = "\n\n".join(filter(None, [desc.strip(), instruction.strip()]))
+            desc = " ".join((w.get("description_de") or w.get("description_en", "")).split())
+            instruction = " ".join((w.get("instruction_de") or w.get("instruction_en", "")).split())
+            body = "\n\n".join(filter(None, [desc, instruction]))
             title = w.get("headline_de") or w.get("headline_en", "DWD Warning")
             def _to_utc(iso):
                 if not iso:

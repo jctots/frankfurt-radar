@@ -381,6 +381,9 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                                 and c["published_at"] != alert.published_at))
 
             if text_changed:
+                log.info("alert_cache: text diff for %s — title_de cached=%r new=%r, body_de cached=%r new=%r",
+                         alert.id, (c["title_de"] or "")[:60], (alert.title or "")[:60],
+                         (c["body_de"] or "")[:60], (alert.body or "")[:60])
                 en_title, en_body = translate_alert(alert, config)
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_content.append((
