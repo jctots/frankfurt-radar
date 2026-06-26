@@ -735,19 +735,17 @@
     .dark .wx-alert-link { background: #1a2332; color: #d1d5db; border-color: #2a3344; }
     .wx-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 8px; }
     .dark .wx-section-label { color: #4a5568; }
-    .wx-current { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .wx-current { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
     .wx-current-icon { font-size: 32px; line-height: 1; }
     .wx-current-temp { font-size: 26px; font-weight: 700; line-height: 1; }
+    .wx-current-left { display: flex; align-items: center; gap: 10px; flex: 1; }
     .wx-current-details { display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--clr-muted); }
     .wx-current-desc { font-size: 12px; font-weight: 600; color: #334155; }
     .dark .wx-current-desc { color: #b0b8c8; }
-    .wx-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 10px; }
-    .wx-stat { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #f8fafc; border-radius: 6px; }
-    .dark .wx-stat { background: #1a2332; }
-    .wx-stat-icon { font-size: 13px; margin-bottom: 2px; }
-    .wx-stat-val { font-size: 11px; font-weight: 600; }
-    .wx-stat-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
-    .dark .wx-stat-lbl { color: #4a5568; }
+    .wx-stats { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .wx-stat { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+    .wx-stat-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
+    .wx-stat-val { font-weight: 600; white-space: nowrap; }
     .wx-forecast { display: flex; gap: 0; border-top: 1px solid #f1f5f9; padding-top: 8px; }
     .dark .wx-forecast { border-color: #1e2a3a; }
     .wx-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; }
@@ -3628,19 +3626,22 @@ function buildWeatherOverlayHtml(alertObj) {
     const windD = w.wind_direction_60 != null ? w.wind_direction_60 : w.wind_direction_10;
     const cloud = w.cloud_cover != null ? Math.round(w.cloud_cover) : null;
 
+    let statsHtml = '';
+    if (humidity != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">💧</span><span class="wx-stat-val">${humidity}%</span></div>`;
+    if (wind != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">💨</span><span class="wx-stat-val">${Math.round(wind)} m/s ${_windDir(windD)}</span></div>`;
+    if (cloud != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">☁️</span><span class="wx-stat-val">${cloud}%</span></div>`;
+
     detailsHtml += `<div class="wx-section-label">Current conditions</div>
     <div class="wx-current">
-      <div class="wx-current-icon">${emoji}</div>
-      <div class="wx-current-temp">${temp}°</div>
-      <div class="wx-current-details">
-        <span class="wx-current-desc">${esc(desc)}</span>
-        <span>${w.dew_point != null ? `Dew point ${Math.round(w.dew_point)}°C` : ''}</span>
+      <div class="wx-current-left">
+        <div class="wx-current-icon">${emoji}</div>
+        <div class="wx-current-temp">${temp}°</div>
+        <div class="wx-current-details">
+          <span class="wx-current-desc">${esc(desc)}</span>
+          <span>${w.dew_point != null ? `Dew point ${Math.round(w.dew_point)}°C` : ''}</span>
+        </div>
       </div>
-    </div>
-    <div class="wx-stats">
-      ${humidity != null ? `<div class="wx-stat"><span class="wx-stat-icon">💧</span><span class="wx-stat-val">${humidity}%</span><span class="wx-stat-lbl">Humidity</span></div>` : ''}
-      ${wind != null ? `<div class="wx-stat"><span class="wx-stat-icon">💨</span><span class="wx-stat-val">${Math.round(wind)} m/s ${_windDir(windD)}</span><span class="wx-stat-lbl">Wind</span></div>` : ''}
-      ${cloud != null ? `<div class="wx-stat"><span class="wx-stat-icon">☁️</span><span class="wx-stat-val">${cloud}%</span><span class="wx-stat-lbl">Clouds</span></div>` : ''}
+      ${statsHtml ? `<div class="wx-stats">${statsHtml}</div>` : ''}
     </div>`;
   } else {
     detailsHtml += `<div class="wx-section-label">Current conditions</div><div style="font-size:12px;color:var(--clr-muted);margin-bottom:10px">Weather data unavailable</div>`;
