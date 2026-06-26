@@ -13,6 +13,7 @@ from db import (
     add_subscriber,
     deactivate_subscriber,
     get_all_active_alerts,
+    get_api_usage,
     get_daily_usage,
     get_days_with_usage,
     get_hourly_usage,
