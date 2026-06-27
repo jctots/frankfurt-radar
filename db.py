@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -115,6 +116,15 @@ CREATE TABLE IF NOT EXISTS category_snapshots (
     upcoming_score      REAL NOT NULL DEFAULT 0.0,
     upcoming_near_score REAL NOT NULL DEFAULT 0.0,
     UNIQUE(timestamp, category)
+);
+
+CREATE TABLE IF NOT EXISTS translation_variants (
+    alert_id   TEXT NOT NULL,
+    text_hash  TEXT NOT NULL,
+    title_en   TEXT NOT NULL,
+    body_en    TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (alert_id, text_hash)
 );
 """
 
@@ -342,6 +352,26 @@ _TRANSLATE_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "translate_debug"
 _TRANSLATE_DEBUG_RETENTION_DAYS = 7
 
 
+def _text_hash(title: str, body: str) -> str:
+    return hashlib.md5((title + "\0" + body).encode()).hexdigest()
+
+
+def _get_cached_variant(conn, alert_id: str, th: str) -> Optional[tuple[str, str]]:
+    row = conn.execute(
+        "SELECT title_en, body_en FROM translation_variants WHERE alert_id = ? AND text_hash = ?",
+        (alert_id, th),
+    ).fetchone()
+    return (row["title_en"], row["body_en"]) if row else None
+
+
+def _store_variant(conn, alert_id: str, th: str, title_en: str, body_en: str) -> None:
+    conn.execute(
+        """INSERT OR IGNORE INTO translation_variants (alert_id, text_hash, title_en, body_en)
+           VALUES (?, ?, ?, ?)""",
+        (alert_id, th, title_en, body_en),
+    )
+
+
 def _write_translate_debug(debug_data: dict) -> None:
     try:
         _TRANSLATE_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
@@ -371,6 +401,12 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             conn.execute(
                 "UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE removed_at IS NULL"
             )
+            expired = [r[0] for r in conn.execute(
+                "SELECT alert_id FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
+            ).fetchall()]
+            if expired:
+                eph = ",".join("?" * len(expired))
+                conn.execute(f"DELETE FROM translation_variants WHERE alert_id IN ({eph})", expired)
             conn.execute(
                 "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
             )
@@ -391,10 +427,13 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
     to_update_stale = []
     to_update_content = []
     to_update_meta = []
+    variant_writes = []
     for alert in alerts:
         stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
             en_title, en_body = translate_alert(alert, config)
+            th = _text_hash(alert.title or "", alert.body or "")
+            variant_writes.append((alert.id, th, en_title, en_body))
             to_insert.append((
                 alert.id, alert.source, en_title, en_body, alert.url,
                 alert.valid_until, alert.service,
@@ -417,7 +456,30 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                                 and c["published_at"] != alert.published_at))
 
             if text_changed:
-                en_title, en_body = translate_alert(alert, config)
+                th = _text_hash(alert.title or "", alert.body or "")
+                with _conn() as vconn:
+                    cached_variant = _get_cached_variant(vconn, alert.id, th)
+                if cached_variant:
+                    en_title, en_body = cached_variant
+                    log.info("alert_cache: variant cache hit for %s", alert.id)
+                    _debug_entries.append({
+                        "alert_id": alert.id, "source": alert.source, "action": "variant_hit",
+                        "reason": "text_changed",
+                        "cached_title_de": (c["title_de"] or "")[:100],
+                        "new_title_de": (alert.title or "")[:100],
+                    })
+                else:
+                    en_title, en_body = translate_alert(alert, config)
+                    variant_writes.append((alert.id, th, en_title, en_body))
+                    log.info("alert_cache: updated %s (text changed)", alert.id)
+                    _debug_entries.append({
+                        "alert_id": alert.id, "source": alert.source, "action": "retranslate",
+                        "reason": "text_changed",
+                        "cached_title_de": (c["title_de"] or "")[:100],
+                        "new_title_de": (alert.title or "")[:100],
+                        "cached_body_de": (c["body_de"] or "")[:200],
+                        "new_body_de": (alert.body or "")[:200],
+                    })
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_content.append((
                     en_title, en_body, alert.title or "", alert.body or "",
@@ -425,15 +487,6 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                     effective_published, alert.image, stale_int, alert.icon,
                     alert.id,
                 ))
-                log.info("alert_cache: updated %s (text changed)", alert.id)
-                _debug_entries.append({
-                    "alert_id": alert.id, "source": alert.source, "action": "retranslate",
-                    "reason": "text_changed",
-                    "cached_title_de": (c["title_de"] or "")[:100],
-                    "new_title_de": (alert.title or "")[:100],
-                    "cached_body_de": (c["body_de"] or "")[:200],
-                    "new_body_de": (alert.body or "")[:200],
-                })
             elif meta_changed:
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_meta.append((
@@ -512,20 +565,31 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             current_ids
         )
         # Delete removed alerts older than cleared_retention_days
+        expired = [r[0] for r in conn.execute(
+            "SELECT alert_id FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
+        ).fetchall()]
+        if expired:
+            eph = ",".join("?" * len(expired))
+            conn.execute(f"DELETE FROM translation_variants WHERE alert_id IN ({eph})", expired)
         conn.execute(
             "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
+        if variant_writes:
+            for aid, th, t_en, b_en in variant_writes:
+                _store_variant(conn, aid, th, t_en, b_en)
 
     log.info("alert_cache: %d total (%d cached, %d translated, %d meta-only, %d updated, %d image updated, %d stale updated)",
              len(alerts), len(cached), len(to_insert), len(to_update_meta), len(to_update_content), len(to_update_image), len(to_update_stale))
 
+    variant_hits = sum(1 for e in _debug_entries if e.get("action") == "variant_hit")
     if _debug_entries:
         _write_translate_debug({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_alerts": len(alerts),
             "cached": len(cached),
             "new_translated": len(to_insert),
-            "retranslated": len(to_update_content),
+            "retranslated": len(to_update_content) - variant_hits,
+            "variant_hits": variant_hits,
             "meta_only": len(to_update_meta),
             "skipped": len(cached) - len(to_update_content) - len(to_update_meta) - len(to_update_image) - len(to_update_stale),
             "entries": _debug_entries,
