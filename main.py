@@ -237,15 +237,6 @@ def main() -> None:
 
         set_meta("admin_health", json.dumps(current_health))
 
-    from notifier.bot import check_cost_threshold
-    check_cost_threshold(config)
-
 
 if __name__ == "__main__":
-    if "--daily-report" in sys.argv:
-        config = load_config()
-        init_db()
-        from notifier.bot import send_daily_admin_report
-        send_daily_admin_report(config)
-    else:
-        main()
+    main()

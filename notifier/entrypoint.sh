@@ -13,13 +13,17 @@ env_block = "\n".join([
     f"TZ={os.environ.get('TZ', 'Europe/Berlin')}",
     f"DATA_DIR={os.environ.get('DATA_DIR', '/app/data')}",
     f"TELEGRAM_BOT_TOKEN={os.environ.get('TELEGRAM_BOT_TOKEN', '')}",
-
+    f"UMAMI_INTERNAL_URL={os.environ.get('UMAMI_INTERNAL_URL', '')}",
+    f"UMAMI_USERNAME={os.environ.get('UMAMI_USERNAME', '')}",
+    f"UMAMI_PASSWORD={os.environ.get('UMAMI_PASSWORD', '')}",
     f"POLLER_TRIGGER_URL={os.environ.get('POLLER_TRIGGER_URL', '')}",
 ])
 
 job_block = "\n".join([
     "# Flush quiet-hour buffers and health check every 10 minutes",
     "*/10 * * * * root cd /app && python -m notifier.main --mode flush >> /proc/1/fd/1 2>&1",
+    "# Daily admin report (visits + costs) at midnight Frankfurt time",
+    "0 0 * * * root cd /app && python -m notifier.main --mode daily-report >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 
