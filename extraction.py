@@ -11,9 +11,9 @@ log = logging.getLogger(__name__)
 
 _health = {"ok": True}
 
-_GEMINI_URL = (
+_GEMINI_URL_TPL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.5-flash:generateContent"
+    "{model}:generateContent"
 )
 
 _KEY_RE = re.compile(r"key=[A-Za-z0-9._-]+")
@@ -31,7 +31,7 @@ def reset_extraction_health() -> None:
     _health["ok"] = True
 
 
-def extract_alert_details(text: str, prompt: str) -> dict:
+def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = None) -> dict:
     """Send *text* to Gemini Flash with *prompt* and return parsed JSON.
 
     The prompt must instruct the model to respond with a JSON object.
@@ -42,18 +42,31 @@ def extract_alert_details(text: str, prompt: str) -> dict:
         log.warning("GEMINI_API_KEY not set — extraction skipped")
         return {}
 
+    if prompt_config is None:
+        prompt_config = {}
+
+    model = prompt_config.get("model", "gemini-2.5-flash")
+    url = _GEMINI_URL_TPL.format(model=model)
+
+    gen_config = {
+        "responseMimeType": prompt_config.get("response_mime_type", "application/json"),
+        "temperature": prompt_config.get("temperature", 0.1),
+    }
+    if "max_output_tokens" in prompt_config:
+        gen_config["maxOutputTokens"] = prompt_config["max_output_tokens"]
+    if "thinking_budget" in prompt_config:
+        gen_config["thinkingConfig"] = {"thinkingBudget": prompt_config["thinking_budget"]}
+
+    combined = f"{prompt}\n\n---\n\n{text}" if text else prompt
     body = {
-        "contents": [{"parts": [{"text": f"{prompt}\n\n---\n\n{text}"}]}],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "temperature": 0.1,
-        },
+        "contents": [{"parts": [{"text": combined}]}],
+        "generationConfig": gen_config,
     }
 
     for attempt in range(3):
         try:
             resp = requests.post(
-                _GEMINI_URL,
+                url,
                 params={"key": api_key},
                 json=body,
                 timeout=30,
@@ -71,8 +84,8 @@ def extract_alert_details(text: str, prompt: str) -> dict:
                 record_api_usage(
                     "gemini_extraction",
                     tokens_in=usage.get("promptTokenCount", 0),
-                    tokens_out=usage.get("candidatesTokenCount", 0)
-                        + usage.get("thoughtsTokenCount", 0),
+                    tokens_out=usage.get("candidatesTokenCount", 0),
+                    tokens_thinking=usage.get("thoughtsTokenCount", 0),
                 )
             candidates = data.get("candidates", [])
             if not candidates:
@@ -95,75 +108,22 @@ def extract_alert_details(text: str, prompt: str) -> dict:
     return {}
 
 
-def strike_extraction_prompt() -> str:
+def _load_extraction_prompt(name: str, **kwargs: str) -> tuple[dict, str]:
+    from pulse import load_prompt
+    config, template = load_prompt(name)
+    if kwargs:
+        template = template.format(**kwargs)
+    return config, template
+
+
+def strike_extraction_prompt() -> tuple[dict, str]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return (
-        f"Today's date is {today}.\n\n"
-        "You are analyzing a German press release about a labor strike or warning strike (Warnstreik).\n"
-        "Extract the following fields and respond with a JSON object:\n\n"
-        "{\n"
-        '  "summary": "2-3 sentence English summary of the strike: who is striking, what sector, when, where, and why",\n'
-        '  "valid_from": "Strike start date/time in ISO 8601 format with Europe/Berlin timezone (e.g. 2026-06-05T00:00:00+02:00), or null if not determinable",\n'
-        '  "valid_until": "Strike end date/time in ISO 8601 format with Europe/Berlin timezone, or null if not determinable. For open-ended strikes use null.",\n'
-        '  "location": "Specific rally/demo location if mentioned (e.g. \'Hauptwache, Frankfurt\'), otherwise the city or region name (e.g. \'Frankfurt und Region\')",\n'
-        '  "lat": "Latitude of the location as a decimal number (e.g. 50.1009), or null if region-wide or unknown",\n'
-        '  "lon": "Longitude of the location as a decimal number (e.g. 8.6821), or null if region-wide or unknown",\n'
-        '  "service": "One of: Transport, Retail, Public Sector, Aviation, Healthcare, Other",\n'
-        '  "affected": ["List of affected companies or institutions, e.g. \'VGF\', \'Rewe\', \'Goethe-Universität\'"]\n'
-        "}\n\n"
-        "Rules:\n"
-        "- All date/times must use Europe/Berlin timezone offset (+01:00 or +02:00 depending on DST).\n"
-        "- Dates must be consistent with the press release's publication date. Do not output dates from prior years.\n"
-        "- If the strike spans multiple days, valid_from is the start of the first day, valid_until is the end of the last day.\n"
-        "- For single-day strikes without specific end time, set valid_until to end of day (23:59).\n"
-        '- If the press release is about negotiations or general union news (not an actual strike call), return {"not_a_strike": true}.\n'
-        "- The summary must be in English.\n"
-        "- For coordinates, use the approximate location of the place mentioned (street, intersection, landmark, station). "
-        "If only a district is mentioned, use the district centre. If the strike is region-wide, return null for lat and lon."
-    )
+    return _load_extraction_prompt("strike_extraction", today=today)
 
 
-def police_location_prompt() -> str:
-    return (
-        "You are extracting the location from a German police report (Polizeimeldung) "
-        "in the Frankfurt am Main area.\n\n"
-        "Extract and respond with a JSON object:\n\n"
-        "{\n"
-        '  "location": "Place and district where the incident occurred '
-        "(e.g. 'Schweizer Platz, Sachsenhausen', 'Hauptbahnhof, Bahnhofsviertel', "
-        "'Berger Strasse, Bornheim'). Use original German place names. "
-        'If the location cannot be determined, use null.",\n'
-        '  "lat": "Latitude as a decimal number (e.g. 50.1009), or null if unknown",\n'
-        '  "lon": "Longitude as a decimal number (e.g. 8.6821), or null if unknown"\n'
-        "}\n\n"
-        "Rules:\n"
-        "- Use well-known Frankfurt districts (Stadtteile): Sachsenhausen, Bornheim, "
-        "Innenstadt, Nordend, Westend, Bockenheim, Gallus, Ostend, Bahnhofsviertel, "
-        "Altstadt, Hoechst, Niederrad, Griesheim, Fechenheim, etc.\n"
-        "- For coordinates, use the approximate location of the place mentioned. "
-        "If only a district is mentioned, use the district centre.\n"
-        "- Do not guess or hallucinate locations not mentioned in the text."
-    )
+def police_location_prompt() -> tuple[dict, str]:
+    return _load_extraction_prompt("police_location")
 
 
-
-STRIKE_DEDUP_PROMPT = """\
-Are these two alerts about the same labor strike or warning strike event?
-
-EXISTING ALERT:
-Title: {existing_title}
-Summary: {existing_body}
-From: {existing_from}
-Until: {existing_until}
-Service: {existing_service}
-
-NEW ALERT:
-Title: {new_title}
-Summary: {new_body}
-From: {new_from}
-Until: {new_until}
-Service: {new_service}
-
-Respond with a JSON object: {{"same_event": true}} or {{"same_event": false}}.
-Only return true if both alerts clearly describe the same strike action by the same union affecting the same workers/companies.\
-"""
+def strike_dedup_prompt(**kwargs: str) -> tuple[dict, str]:
+    return _load_extraction_prompt("strike_dedup", **kwargs)

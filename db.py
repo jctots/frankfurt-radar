@@ -60,12 +60,13 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 
 CREATE TABLE IF NOT EXISTS api_usage (
-    month      TEXT NOT NULL,
-    service    TEXT NOT NULL,
-    calls      INTEGER NOT NULL DEFAULT 0,
-    tokens_in  INTEGER NOT NULL DEFAULT 0,
-    tokens_out INTEGER NOT NULL DEFAULT 0,
-    characters INTEGER NOT NULL DEFAULT 0,
+    month           TEXT NOT NULL,
+    service         TEXT NOT NULL,
+    calls           INTEGER NOT NULL DEFAULT 0,
+    tokens_in       INTEGER NOT NULL DEFAULT 0,
+    tokens_out      INTEGER NOT NULL DEFAULT 0,
+    tokens_thinking INTEGER NOT NULL DEFAULT 0,
+    characters      INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (month, service)
 );
 
@@ -273,15 +274,21 @@ def init_db() -> None:
                 pass
         try:
             conn.execute("""CREATE TABLE IF NOT EXISTS api_usage_hourly (
-                hour       TEXT NOT NULL,
-                service    TEXT NOT NULL,
-                calls      INTEGER NOT NULL DEFAULT 0,
-                tokens_in  INTEGER NOT NULL DEFAULT 0,
-                tokens_out INTEGER NOT NULL DEFAULT 0,
-                characters INTEGER NOT NULL DEFAULT 0,
+                hour             TEXT NOT NULL,
+                service          TEXT NOT NULL,
+                calls            INTEGER NOT NULL DEFAULT 0,
+                tokens_in        INTEGER NOT NULL DEFAULT 0,
+                tokens_out       INTEGER NOT NULL DEFAULT 0,
+                tokens_thinking  INTEGER NOT NULL DEFAULT 0,
+                characters       INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (hour, service))""")
         except Exception:
             pass
+        for tbl in ("api_usage", "api_usage_hourly"):
+            try:
+                conn.execute(f"ALTER TABLE {tbl} ADD COLUMN tokens_thinking INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -1061,6 +1068,7 @@ def record_api_usage(
     *,
     tokens_in: int = 0,
     tokens_out: int = 0,
+    tokens_thinking: int = 0,
     characters: int = 0,
 ) -> None:
     now = datetime.now(timezone.utc)
@@ -1068,31 +1076,33 @@ def record_api_usage(
     hour = now.strftime("%Y-%m-%dT%H")
     with _conn() as conn:
         conn.execute(
-            """INSERT INTO api_usage (month, service, calls, tokens_in, tokens_out, characters)
-               VALUES (?, ?, 1, ?, ?, ?)
+            """INSERT INTO api_usage (month, service, calls, tokens_in, tokens_out, tokens_thinking, characters)
+               VALUES (?, ?, 1, ?, ?, ?, ?)
                ON CONFLICT(month, service) DO UPDATE SET
                  calls = calls + 1,
                  tokens_in = tokens_in + excluded.tokens_in,
                  tokens_out = tokens_out + excluded.tokens_out,
+                 tokens_thinking = tokens_thinking + excluded.tokens_thinking,
                  characters = characters + excluded.characters""",
-            (month, service, tokens_in, tokens_out, characters),
+            (month, service, tokens_in, tokens_out, tokens_thinking, characters),
         )
         conn.execute(
-            """INSERT INTO api_usage_hourly (hour, service, calls, tokens_in, tokens_out, characters)
-               VALUES (?, ?, 1, ?, ?, ?)
+            """INSERT INTO api_usage_hourly (hour, service, calls, tokens_in, tokens_out, tokens_thinking, characters)
+               VALUES (?, ?, 1, ?, ?, ?, ?)
                ON CONFLICT(hour, service) DO UPDATE SET
                  calls = calls + 1,
                  tokens_in = tokens_in + excluded.tokens_in,
                  tokens_out = tokens_out + excluded.tokens_out,
+                 tokens_thinking = tokens_thinking + excluded.tokens_thinking,
                  characters = characters + excluded.characters""",
-            (hour, service, tokens_in, tokens_out, characters),
+            (hour, service, tokens_in, tokens_out, tokens_thinking, characters),
         )
 
 
 def get_api_usage(month: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT service, calls, tokens_in, tokens_out, characters FROM api_usage WHERE month = ?",
+            "SELECT service, calls, tokens_in, tokens_out, tokens_thinking, characters FROM api_usage WHERE month = ?",
             (month,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -1101,7 +1111,7 @@ def get_api_usage(month: str) -> list[dict]:
 def get_hourly_usage(hour: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT service, calls, tokens_in, tokens_out, characters FROM api_usage_hourly WHERE hour = ?",
+            "SELECT service, calls, tokens_in, tokens_out, tokens_thinking, characters FROM api_usage_hourly WHERE hour = ?",
             (hour,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -1111,7 +1121,8 @@ def get_daily_usage(date: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             """SELECT service, SUM(calls) as calls, SUM(tokens_in) as tokens_in,
-               SUM(tokens_out) as tokens_out, SUM(characters) as characters
+               SUM(tokens_out) as tokens_out, SUM(tokens_thinking) as tokens_thinking,
+               SUM(characters) as characters
                FROM api_usage_hourly WHERE hour LIKE ? GROUP BY service""",
             (date + "T%",),
         ).fetchall()
@@ -1137,7 +1148,7 @@ def get_days_with_usage(month: str) -> int:
 
 
 def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:
-    """Return (total_eur, {service: {calls, tokens_in, tokens_out, characters, cost}})."""
+    """Return (total_eur, {service: {calls, tokens_in, tokens_out, tokens_thinking, characters, cost}})."""
     cost_cfg = config.get("cost", {})
     gemini_cfg = cost_cfg.get("gemini", {})
     translate_cfg = cost_cfg.get("google_translate", {})
@@ -1146,6 +1157,7 @@ def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:
     gemini_pricing = {
         "input_per_m": gemini_cfg.get("input_per_million", 0.15),
         "output_per_m": gemini_cfg.get("output_per_million", 0.60),
+        "thinking_per_m": gemini_cfg.get("thinking_per_million", 3.50),
     }
     PRICING = {
         "gemini_pulse": gemini_pricing,
@@ -1164,6 +1176,7 @@ def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:
         if "input_per_m" in pricing:
             cost_usd += row["tokens_in"] / 1_000_000 * pricing["input_per_m"]
             cost_usd += row["tokens_out"] / 1_000_000 * pricing["output_per_m"]
+            cost_usd += row["tokens_thinking"] / 1_000_000 * pricing["thinking_per_m"]
         if "chars_per_m" in pricing:
             cost_usd += row["characters"] / 1_000_000 * pricing["chars_per_m"]
         cost_eur = cost_usd * usd_to_eur

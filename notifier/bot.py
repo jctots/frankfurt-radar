@@ -586,6 +586,7 @@ def _cost_breakdown_lines(rows: list[dict], config: dict) -> tuple[float, list[s
     gemini_pricing = {
         "input_per_m": gemini_cfg.get("input_per_million", 0.15),
         "output_per_m": gemini_cfg.get("output_per_million", 0.60),
+        "thinking_per_m": gemini_cfg.get("thinking_per_million", 3.50),
     }
     PRICING = {
         "gemini_pulse": gemini_pricing,
@@ -602,14 +603,16 @@ def _cost_breakdown_lines(rows: list[dict], config: dict) -> tuple[float, list[s
         if "input_per_m" in pricing:
             cost_usd += row["tokens_in"] / 1_000_000 * pricing["input_per_m"]
             cost_usd += row["tokens_out"] / 1_000_000 * pricing["output_per_m"]
+            cost_usd += row.get("tokens_thinking", 0) / 1_000_000 * pricing["thinking_per_m"]
         if "chars_per_m" in pricing:
             cost_usd += row["characters"] / 1_000_000 * pricing["chars_per_m"]
         cost_eur = cost_usd * usd_to_eur
         total += cost_eur
         name = _SERVICE_LABELS.get(svc, svc)
         detail_parts = []
-        if row["tokens_in"] or row["tokens_out"]:
-            detail_parts.append(f"{row['calls']} calls, {row['tokens_in'] + row['tokens_out']:,} tok")
+        if row["tokens_in"] or row["tokens_out"] or row.get("tokens_thinking", 0):
+            tok_total = row["tokens_in"] + row["tokens_out"] + row.get("tokens_thinking", 0)
+            detail_parts.append(f"{row['calls']} calls, {tok_total:,} tok")
         if row["characters"]:
             detail_parts.append(f"{row['calls']} calls, {row['characters']:,} chars")
         lines.append(f"  {name}: €{cost_eur:.3f} ({' · '.join(detail_parts)})")

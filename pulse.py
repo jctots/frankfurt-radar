@@ -184,8 +184,8 @@ def _call_gemini(prompt_config: dict, prompt_text: str, service: str = "gemini_p
                 db.record_api_usage(
                     service,
                     tokens_in=usage.get("promptTokenCount", 0),
-                    tokens_out=usage.get("candidatesTokenCount", 0)
-                        + usage.get("thoughtsTokenCount", 0),
+                    tokens_out=usage.get("candidatesTokenCount", 0),
+                    tokens_thinking=usage.get("thoughtsTokenCount", 0),
                 )
             candidates = data.get("candidates", [])
             if not candidates:

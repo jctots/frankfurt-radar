@@ -12,7 +12,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-from extraction import STRIKE_DEDUP_PROMPT, extract_alert_details, strike_extraction_prompt
+from extraction import extract_alert_details, strike_extraction_prompt, strike_dedup_prompt
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
 
 log = logging.getLogger(__name__)
@@ -262,7 +262,7 @@ class PolizeiPoller(BasePoller):
             self.ok = False
             return []
 
-        prompt = police_location_prompt()
+        prompt_config, prompt_template = police_location_prompt()
         alerts = []
         for entry in feed.entries:
             entry_id = entry.get("id") or entry.get("link", "")
@@ -287,7 +287,7 @@ class PolizeiPoller(BasePoller):
                 lon = cached.get("lon")
                 location_label = cached.get("location_label")
             else:
-                loc = extract_alert_details(f"{title}\n\n{body}", prompt)
+                loc = extract_alert_details(f"{title}\n\n{body}", prompt_template, prompt_config)
                 location_label = loc.get("location")
                 lat = loc.get("lat")
                 lon = loc.get("lon")
@@ -882,7 +882,7 @@ def _is_duplicate_strike(new_alert: Alert, existing: dict) -> bool:
     ):
         return False
 
-    prompt = STRIKE_DEDUP_PROMPT.format(
+    dedup_config, dedup_template = strike_dedup_prompt(
         existing_title=existing.get("title_en") or existing.get("title", ""),
         existing_body=(existing.get("body_en") or existing.get("body", ""))[:500],
         existing_from=existing.get("valid_from", ""),
@@ -894,7 +894,7 @@ def _is_duplicate_strike(new_alert: Alert, existing: dict) -> bool:
         new_until=new_alert.valid_until or "",
         new_service=new_alert.service or "",
     )
-    result = extract_alert_details("", prompt)
+    result = extract_alert_details("", dedup_template, dedup_config)
     return result.get("same_event", False)
 
 
@@ -990,9 +990,11 @@ class StrikePoller(BasePoller):
                 link = entry.get("link", "")
                 page_body = _fetch_page_body(link) if link else ""
 
+                strike_config, strike_template = strike_extraction_prompt()
                 details = extract_alert_details(
                     page_body or searchable,
-                    strike_extraction_prompt(),
+                    strike_template,
+                    strike_config,
                 )
 
                 if details.get("not_a_strike"):
