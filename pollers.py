@@ -971,13 +971,21 @@ class StrikePoller(BasePoller):
                     (s for s in cached_strikes if s.get("alert_id") == entry_id), None
                 )
                 if cached_match:
+                    cached_until = cached_match.get("valid_until")
+                    if cached_until:
+                        try:
+                            if datetime.fromisoformat(cached_until) < datetime.now(timezone.utc):
+                                log.debug("StrikePoller: skipping expired cached strike %s", entry_id)
+                                continue
+                        except ValueError:
+                            pass
                     alerts.append(Alert(
                         id=entry_id,
                         source="strike",
                         title=cached_match.get("title_en", title),
                         body=cached_match.get("body_en", ""),
                         url=entry.get("link") or None,
-                        valid_until=cached_match.get("valid_until"),
+                        valid_until=cached_until,
                         service=cached_match.get("service"),
                         published_at=published_at,
                         valid_from=cached_match.get("valid_from"),

@@ -395,7 +395,7 @@ def _write_translate_debug(debug_data: dict) -> None:
         log.warning("Translate debug log write failed: %s", e)
 
 
-def sync_alert_cache(alerts: list, config: dict) -> None:
+def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | None = None) -> None:
     """Translate new alerts and sync the cache to match the current fetch result."""
     from translation import translate_alert
 
@@ -566,11 +566,21 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
                 to_update_stale,
             )
         # Mark stale active alerts as removed (keep for rest of day)
-        conn.execute(
-            f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
-            f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL",
-            current_ids
-        )
+        # Skip sources whose poller failed — avoids mass-removing alerts
+        # that are still active but whose fetch timed out.
+        if failed_sources:
+            fph = ",".join("?" * len(failed_sources))
+            conn.execute(
+                f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+                f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL AND source NOT IN ({fph})",
+                current_ids + list(failed_sources)
+            )
+        else:
+            conn.execute(
+                f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+                f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL",
+                current_ids
+            )
         # Delete removed alerts older than cleared_retention_days
         expired = [r[0] for r in conn.execute(
             "SELECT alert_id FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
@@ -585,6 +595,8 @@ def sync_alert_cache(alerts: list, config: dict) -> None:
             for aid, th, t_en, b_en in variant_writes:
                 _store_variant(conn, aid, th, t_en, b_en)
 
+    if failed_sources:
+        log.warning("alert_cache: skipped removal for failed sources: %s", ", ".join(sorted(failed_sources)))
     log.info("alert_cache: %d total (%d cached, %d translated, %d meta-only, %d updated, %d image updated, %d stale updated)",
              len(alerts), len(cached), len(to_insert), len(to_update_meta), len(to_update_content), len(to_update_image), len(to_update_stale))
 
@@ -780,9 +792,9 @@ def get_cached_alert(alert_id: str) -> dict | None:
 def get_active_strikes() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            """SELECT alert_id, valid_from, valid_until, service, title_en, body_en
+            """SELECT alert_id, valid_from, valid_until, service, title_en, body_en, location_label, lat, lon
                FROM alert_cache
-               WHERE source = 'strike' AND removed_at IS NULL"""
+               WHERE source = 'strike'"""
         ).fetchall()
     return [dict(r) for r in rows]
 

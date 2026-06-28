@@ -183,8 +183,19 @@ def main() -> None:
     all_alerts = [a for _, alerts in fetched for a in alerts]
 
     # Collect per-source health; static pollers (no network) are always ok.
+    _POLLER_SOURCE = {
+        "RMVPoller": "rmv", "PolizeiPoller": "polizei", "DWDPoller": "dwd",
+        "AutobahnPoller": "autobahn", "BaustellenPoller": "baustellen",
+        "StrikePoller": "strike", "OpenLigaPoller": "sports",
+        "TicketmasterPoller": "sports",
+    }
     source_health = {type(p).__name__: p.ok for p, _ in fetched}
     set_meta("source_health", json.dumps(source_health))
+    failed_sources = {
+        _POLLER_SOURCE[type(p).__name__]
+        for p, _ in fetched
+        if not p.ok and type(p).__name__ in _POLLER_SOURCE
+    }
 
     max_age = config.get("police", {}).get("max_age_hours", 48)
     if max_age:
@@ -209,7 +220,7 @@ def main() -> None:
             if a.valid_from and a.valid_from < cutoff:
                 a.stale = True
 
-    sync_alert_cache(all_alerts, config)
+    sync_alert_cache(all_alerts, config, failed_sources=failed_sources)
     clear_expired_alerts()
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)

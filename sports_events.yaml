@@ -38,10 +38,10 @@
   sport: triathlon
   start: "2026-06-28"
   end: "2026-06-28"
-  location: "Frankfurt city centre / Deutsche Bank Park"
-  lat: 50.0690
-  lon: 8.6453
-  details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike loop through Frankfurt, marathon finish at Deutsche Bank Park. Major road closures all day across Sachsenhausen, Hanauer Landstraße, and northern Frankfurt; virtually all cross-city bus routes are disrupted. Use S-Bahn and U-Bahn."
+  location: "Römerberg (finish) / Langener Waldsee (swim)"
+  lat: 50.1103
+  lon: 8.6821
+  details: "Full-distance IRONMAN — swim at Langener Waldsee, 180 km bike through Taunus foothills (Bad Vilbel, Schmitten, Oberursel), marathon along the Main river with finish at Römerberg. Major road closures all day across northern Frankfurt, Taunus villages, and the city centre; virtually all cross-city bus routes are disrupted. Use S-Bahn and U-Bahn."
   url: "https://www.ironman.com"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg/960px-Ironman_Frankfurt_2011_-_Susan_Dietrich_im_Ziel.jpg"
 
