@@ -10,6 +10,16 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _health = {"ok": True}
+_cycle_characters = 0
+
+
+def reset_cycle_characters() -> None:
+    global _cycle_characters
+    _cycle_characters = 0
+
+
+def get_cycle_characters() -> int:
+    return _cycle_characters
 
 
 def translation_ok() -> bool:
@@ -66,6 +76,8 @@ def _translate_google(text: str) -> str:
             timeout=20,
         )
         resp.raise_for_status()
+        global _cycle_characters
+        _cycle_characters += len(text)
         from db import record_api_usage
         record_api_usage("google_translate", characters=len(text))
         return resp.json()["data"]["translations"][0]["translatedText"]

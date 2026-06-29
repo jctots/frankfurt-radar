@@ -241,7 +241,21 @@ def api_admin_data():
         "pulse_debug": pulse_debug,
         "cost_debug": cost_debug,
         "budget": config.get("cost", {}).get("monthly_budget_eur", 10),
+        "pricing": _get_pricing(config),
     })
+
+
+def _get_pricing(config: dict) -> dict:
+    cost_cfg = config.get("cost", {})
+    gemini = cost_cfg.get("gemini", {})
+    translate = cost_cfg.get("google_translate", {})
+    return {
+        "usd_to_eur": cost_cfg.get("usd_to_eur", 0.92),
+        "gemini_input_per_m": gemini.get("input_per_million", 0.15),
+        "gemini_output_per_m": gemini.get("output_per_million", 0.60),
+        "gemini_thinking_per_m": gemini.get("thinking_per_million", 3.50),
+        "translate_chars_per_m": translate.get("chars_per_million", 20.0),
+    }
 
 
 @app.route("/api/admin/cost-history")

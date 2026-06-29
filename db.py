@@ -445,7 +445,8 @@ def _write_translate_debug(debug_data: dict) -> None:
 
 def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | None = None) -> None:
     """Translate new alerts and sync the cache to match the current fetch result."""
-    from translation import translate_alert
+    from translation import translate_alert, reset_cycle_characters, get_cycle_characters
+    reset_cycle_characters()
 
     retention_days = config.get('cleared_retention_days', 1)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
@@ -649,6 +650,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
              len(alerts), len(cached), len(to_insert), len(to_update_meta), len(to_update_content), len(to_update_image), len(to_update_stale))
 
     variant_hits = sum(1 for e in _debug_entries if e.get("action") == "variant_hit")
+    total_characters = get_cycle_characters()
     if _debug_entries:
         _write_translate_debug({
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -659,6 +661,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             "variant_hits": variant_hits,
             "meta_only": len(to_update_meta),
             "skipped": len(cached) - len(to_update_content) - len(to_update_meta) - len(to_update_image) - len(to_update_stale),
+            "characters": total_characters,
             "entries": _debug_entries,
         })
 

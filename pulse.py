@@ -148,11 +148,12 @@ def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | Non
     return "\n\n".join(parts)
 
 
-def _call_gemini(prompt_config: dict, prompt_text: str, service: str = "gemini_pulse") -> dict:
+def _call_gemini(prompt_config: dict, prompt_text: str, service: str = "gemini_pulse") -> tuple[dict, dict]:
+    """Returns (result_dict, usage_dict). usage_dict has tokens_in/tokens_out/tokens_thinking."""
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         log.warning("GEMINI_API_KEY not set — pulse skipped")
-        return {}
+        return {}, {}
 
     model = prompt_config.get("model", "gemini-2.5-flash")
     url = _GEMINI_URL_TPL.format(model=model)
@@ -181,34 +182,34 @@ def _call_gemini(prompt_config: dict, prompt_text: str, service: str = "gemini_p
                 continue
             resp.raise_for_status()
             data = resp.json()
-            usage = data.get("usageMetadata", {})
-            if usage:
-                db.record_api_usage(
-                    service,
-                    tokens_in=usage.get("promptTokenCount", 0),
-                    tokens_out=usage.get("candidatesTokenCount", 0),
-                    tokens_thinking=usage.get("thoughtsTokenCount", 0),
-                )
+            raw_usage = data.get("usageMetadata", {})
+            usage = {
+                "tokens_in": raw_usage.get("promptTokenCount", 0),
+                "tokens_out": raw_usage.get("candidatesTokenCount", 0),
+                "tokens_thinking": raw_usage.get("thoughtsTokenCount", 0),
+            }
+            if raw_usage:
+                db.record_api_usage(service, **usage)
             candidates = data.get("candidates", [])
             if not candidates:
                 log.error("Gemini returned no candidates for pulse")
                 _health["ok"] = False
-                return {}
+                return {}, usage
             parts = candidates[0]["content"]["parts"]
             raw = parts[-1]["text"]
-            return json.loads(raw)
+            return json.loads(raw), usage
         except requests.RequestException as e:
             log.error("Gemini pulse request failed: %s", e)
             _health["ok"] = False
-            return {}
+            return {}, {}
         except (KeyError, IndexError, json.JSONDecodeError) as e:
             log.error("Gemini pulse response parse failed: %s", e)
             _health["ok"] = False
-            return {}
+            return {}, {}
 
     log.error("Gemini rate limited — all retries exhausted for pulse")
     _health["ok"] = False
-    return {}
+    return {}, {}
 
 
 _PULSE_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "pulse_debug"
@@ -302,6 +303,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         if skip_info:
             _write_debug_log({
                 "generated_at": generated_at,
+                "service": "gemini_pulse",
                 "skipped": True,
                 **skip_info,
             })
@@ -334,7 +336,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         "timeseries_json": json.dumps(timeseries, indent=2),
     })
 
-    result = _call_gemini(prompt_config, prompt_text)
+    result, usage = _call_gemini(prompt_config, prompt_text)
     if not result:
         return None
 
@@ -362,6 +364,8 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     _write_debug_log({
         "generated_at": generated_at,
         "current_hour_utc": now.hour,
+        "service": "gemini_pulse",
+        "usage": usage,
         "layer_1_deterministic": {
             "timeseries": timeseries,
             "score_breakdown": score_breakdown,
@@ -419,13 +423,22 @@ def generate_daily_summary(config: dict, date: str | None = None) -> dict | None
         "previous_summaries": prev_text,
     })
 
-    result = _call_gemini(prompt_config, prompt_text, service="gemini_daily")
+    result, usage = _call_gemini(prompt_config, prompt_text, service="gemini_daily")
     if not result:
         return None
 
     summary = result.get("summary", "")
     db.store_daily_summary(date, summary, generated_at)
     log.info("Daily summary for %s: %d pulses summarized", date, len(pulses))
+
+    _write_debug_log({
+        "generated_at": generated_at,
+        "service": "gemini_daily",
+        "usage": usage,
+        "date_summarized": date,
+        "pulse_count": len(pulses),
+    })
+
     return {"date": date, "summary": summary, "generated_at": generated_at, **result}
 
 

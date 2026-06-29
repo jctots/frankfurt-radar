@@ -79,7 +79,9 @@
     .chart-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--clr-muted); }
     .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 
+    .log-scroll { max-height: 320px; overflow-y: auto; }
     .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .log-table thead { position: sticky; top: 0; background: var(--clr-surface); z-index: 1; }
     .log-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-muted); padding: 6px 8px; border-bottom: 2px solid var(--clr-border); }
     .log-table td { padding: 8px; border-bottom: 1px solid var(--clr-border); vertical-align: top; }
     .log-table tr:last-child td { border-bottom: none; }
@@ -270,19 +272,19 @@
   <!-- Two-column: Translate + Gemini logs -->
   <div class="grid-2">
     <div class="card">
-      <h2>🌐 Translate Log</h2>
-      <div style="overflow-x:auto;">
+      <h2>🌐 Translate Log <span id="translate-total" style="font-size:12px;font-weight:400;color:var(--clr-muted);margin-left:auto;"></span></h2>
+      <div class="log-scroll" style="overflow-x:auto;">
         <table class="log-table">
           <thead>
-            <tr><th>Time</th><th>New</th><th>Retrans.</th><th>Notes</th><th class="r">Est. Cost</th></tr>
+            <tr><th>Time</th><th>New</th><th>Retrans.</th><th class="r">Chars</th><th>Notes</th><th class="r">Est. Cost</th></tr>
           </thead>
           <tbody id="translate-log"></tbody>
         </table>
       </div>
     </div>
     <div class="card">
-      <h2>🤖 Gemini Log</h2>
-      <div style="overflow-x:auto;">
+      <h2>🤖 Gemini Log <span id="gemini-total" style="font-size:12px;font-weight:400;color:var(--clr-muted);margin-left:auto;"></span></h2>
+      <div class="log-scroll" style="overflow-x:auto;">
         <table class="log-table">
           <thead>
             <tr><th>Time</th><th>Service</th><th>Tokens In</th><th>Tokens Out</th><th>Notes</th><th class="r">Est. Cost</th></tr>
@@ -296,7 +298,7 @@
   <!-- Category status history -->
   <div class="card">
     <h2>📈 Category Status History</h2>
-    <div style="overflow-x:auto;">
+    <div class="log-scroll" style="overflow-x:auto;">
       <table class="log-table">
         <thead>
           <tr><th>Time</th><th>Weather</th><th>Transport</th><th>Roadworks</th><th>Incidents</th><th>Events</th></tr>
@@ -359,6 +361,10 @@ const num = v => v.toLocaleString('en-US');
 const costClass = (val, budget) => val <= budget * 0.8 ? 'ok' : val <= budget ? 'warn' : 'danger';
 const statusPill = s => `<span class="pill ${s}">${s}</span>`;
 
+let P = { usd_to_eur: 0.92, gemini_input_per_m: 0.15, gemini_output_per_m: 0.60, gemini_thinking_per_m: 3.50, translate_chars_per_m: 20.0 };
+const geminiCostEur = (tIn, tOut, tThink) => (tIn / 1e6 * P.gemini_input_per_m + tOut / 1e6 * P.gemini_output_per_m + tThink / 1e6 * P.gemini_thinking_per_m) * P.usd_to_eur;
+const translateCostEur = chars => chars / 1e6 * P.translate_chars_per_m * P.usd_to_eur;
+
 const datePicker = $('#date-picker');
 datePicker.value = new Date().toISOString().slice(0, 10);
 datePicker.addEventListener('change', () => loadData());
@@ -372,31 +378,17 @@ async function loadData() {
   if (dataRes.status === 401 || dataRes.status === 302) { location.href = '/admin/login'; return; }
   const data = await dataRes.json();
   const hist = await histRes.json();
+  if (data.pricing) P = data.pricing;
   renderKPIs(data);
   renderChart(hist);
   renderTranslateLog(data.translate_debug);
   renderGeminiLog(data.pulse_debug);
   renderCategoryHistory(data.pulse_debug);
+  updateTodayCost(data);
 }
 
 function renderKPIs(data) {
   const budget = data.budget || 10;
-  const dailyBudget = budget / 30;
-
-  let todayCost = 0;
-  for (const row of data.daily_usage) {
-    const svc = row.service;
-    if (svc.startsWith('gemini_')) {
-      todayCost += (row.tokens_in / 1e6 * 0.15 + row.tokens_out / 1e6 * 0.60 + row.tokens_thinking / 1e6 * 3.50) * 0.92;
-    } else if (svc === 'google_translate') {
-      todayCost += row.characters / 1e6 * 20.0 * 0.92;
-    }
-  }
-  const hoursActive = data.hours_active || 1;
-  const avgPerHour = todayCost / hoursActive;
-  $('#kpi-today-cost').textContent = eur(todayCost);
-  $('#kpi-today-cost').className = 'kpi-value ' + costClass(todayCost, dailyBudget);
-  $('#kpi-today-sub').textContent = `Avg ${eur(avgPerHour, 3)}/hr · Budget: ${eur(dailyBudget)}/day`;
 
   const mtd = data.monthly.total_eur;
   const svcs = data.monthly.services;
@@ -418,19 +410,26 @@ function renderKPIs(data) {
   $('#kpi-proj-cost').className = 'kpi-value ' + costClass(projected, budget);
   $('#kpi-proj-sub').textContent = `Avg ${eur(avgPerDay)}/day · Budget: ${eur(budget)}/mo`;
 
-  const translateSvc = svcs.google_translate || {};
-  const translateCalls = translateSvc.calls || 0;
-  const variantHits = data.translate_debug.reduce((s, e) => s + (e.variant_hits || 0), 0);
-  const totalAlerts = data.translate_debug.reduce((s, e) => s + (e.total_alerts || 0), 0);
+  const tEntries = data.translate_debug;
+  const translateCalls = tEntries.reduce((s, e) => {
+    return s + (e.entries || []).filter(x => x.action === 'new' || x.action === 'retranslate').length;
+  }, 0);
+  const variantHits = tEntries.reduce((s, e) => s + (e.variant_hits || 0), 0);
+  const totalAlerts = tEntries.reduce((s, e) => s + (e.total_alerts || 0), 0);
   $('#kpi-translate-calls').textContent = translateCalls;
   const savedPct = totalAlerts > 0 ? Math.round(variantHits / totalAlerts * 100) : 0;
   $('#kpi-translate-sub').textContent = totalAlerts > 0 ? `${variantHits} variant hits (${savedPct}% saved)` : 'No polls today';
 
-  const geminiSvcs = Object.entries(svcs).filter(([k]) => k.startsWith('gemini_'));
-  const geminiCalls = geminiSvcs.reduce((s, [, v]) => s + v.calls, 0);
-  const pulseSkipped = data.pulse_debug.filter(e => e.skipped).length;
-  const parts = geminiSvcs.map(([k, v]) => `${v.calls} ${k.replace('gemini_', '')}`);
-  if (pulseSkipped) parts.push(`${pulseSkipped} skipped`);
+  const gEntries = data.pulse_debug.filter(e => !e.skipped && e.usage);
+  const skipped = data.pulse_debug.filter(e => e.skipped).length;
+  const bySvc = {};
+  for (const e of gEntries) {
+    const svc = (e.service || 'gemini_pulse').replace('gemini_', '');
+    bySvc[svc] = (bySvc[svc] || 0) + 1;
+  }
+  const geminiCalls = gEntries.length;
+  const parts = Object.entries(bySvc).map(([k, v]) => `${v} ${k}`);
+  if (skipped) parts.push(`${skipped} skipped`);
   $('#kpi-gemini-calls').textContent = geminiCalls;
   $('#kpi-gemini-sub').textContent = parts.join(' · ') || 'No calls today';
 }
@@ -472,11 +471,20 @@ function renderChart(hist) {
   container.appendChild(lbl);
 }
 
+let _translateDayCost = 0;
+
 function renderTranslateLog(entries) {
   const el = $('#translate-log');
-  if (!entries.length) { el.innerHTML = '<tr><td colspan="5" class="empty">No translate data for this date</td></tr>'; return; }
+  const totalEl = $('#translate-total');
+  if (!entries.length) {
+    el.innerHTML = '<tr><td colspan="6" class="empty">No translate data for this date</td></tr>';
+    totalEl.textContent = '';
+    _translateDayCost = 0;
+    return;
+  }
 
   let html = '';
+  let sumCost = 0;
   for (const e of entries.slice().reverse()) {
     const time = utcToBerlin(e.timestamp);
     const newCount = (e.entries || []).filter(x => x.action === 'new').length;
@@ -484,51 +492,76 @@ function renderTranslateLog(entries) {
     const varHits = e.variant_hits || 0;
     const cached = e.cached || 0;
     const total = e.total_alerts || 0;
+    const chars = e.characters || 0;
 
     let notes = `${total} alerts`;
     if (varHits) notes += ` · ${varHits} var. hits`;
     notes += ` · ${cached} cached`;
 
-    const apiCalls = newCount + retrans;
-    const estCost = apiCalls > 0 ? eur(apiCalls * 500 / 1e6 * 20.0 * 0.92, 3) : eur(0, 3);
-    const costCls = apiCalls === 0 ? ' style="color:var(--clr-muted)"' : '';
+    const costVal = translateCostEur(chars);
+    sumCost += costVal;
+    const costCls = chars === 0 ? ' style="color:var(--clr-muted)"' : '';
 
     html += `<tr>
       <td>${time}</td>
       <td>${newCount}</td>
       <td>${retrans}</td>
+      <td class="r">${chars > 0 ? num(chars) : '—'}</td>
       <td class="note">${notes}</td>
-      <td class="r"${costCls}>${estCost}</td>
+      <td class="r"${costCls}>${eur(costVal, 3)}</td>
     </tr>`;
   }
   el.innerHTML = html;
+  _translateDayCost = sumCost;
+  totalEl.textContent = `Total: ${eur(sumCost, 3)}`;
 }
+
+let _geminiDayCost = 0;
 
 function renderGeminiLog(entries) {
   const el = $('#gemini-log');
-  if (!entries.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No Gemini data for this date</td></tr>'; return; }
+  const totalEl = $('#gemini-total');
+  if (!entries.length) {
+    el.innerHTML = '<tr><td colspan="6" class="empty">No Gemini data for this date</td></tr>';
+    totalEl.textContent = '';
+    _geminiDayCost = 0;
+    return;
+  }
 
   const rows = [];
   for (const e of entries) {
     const time = utcToBerlin(e.generated_at);
+    const svc = (e.service || 'gemini_pulse').replace('gemini_', '');
+
     if (e.skipped) {
       const reason = e.reason || 'adaptive frequency';
-      rows.push({ time, service: 'pulse', skipped: true, tokensIn: 0, tokensOut: 0,
+      rows.push({ time, service: svc, skipped: true, tokensIn: 0, tokensOut: 0,
         notes: `skipped · ${reason}`, cost: 0 });
-    } else if (e.layer_2_llm) {
-      const alertCount = e.layer_1_deterministic?.total_alerts || 0;
-      const prompt = e.layer_2_llm.prompt || '';
-      const resp = e.layer_2_llm.response || {};
-      const tokensIn = prompt.length > 0 ? Math.ceil(prompt.length / 4) : 0;
-      const tokensOut = JSON.stringify(resp).length > 0 ? Math.ceil(JSON.stringify(resp).length / 4) : 0;
-      const cost = (tokensIn / 1e6 * 0.15 + tokensOut / 1e6 * 0.60) * 0.92;
-      rows.push({ time, service: 'pulse', skipped: false, tokensIn, tokensOut,
-        notes: `${alertCount} alerts`, cost });
+    } else if (e.usage) {
+      const u = e.usage;
+      const tokensIn = u.tokens_in || 0;
+      const tokensOut = u.tokens_out || 0;
+      const tokensThinking = u.tokens_thinking || 0;
+      const cost = geminiCostEur(tokensIn, tokensOut, tokensThinking);
+
+      let notes = '';
+      if (svc === 'pulse') {
+        const alertCount = e.layer_1_deterministic?.total_alerts || 0;
+        notes = `${alertCount} alerts`;
+      } else if (svc === 'daily') {
+        notes = `summary for ${e.date_summarized || '?'}`;
+      } else if (svc === 'extraction') {
+        notes = e.model || '';
+      }
+
+      rows.push({ time, service: svc, skipped: false, tokensIn, tokensOut, notes, cost });
     }
   }
 
   let html = '';
+  let sumCost = 0;
   for (const r of rows.reverse()) {
+    sumCost += r.cost;
     const svcClass = r.skipped ? 'skipped' : r.service;
     const costCls = r.cost === 0 ? ' style="color:var(--clr-muted)"' : '';
     html += `<tr>
@@ -541,6 +574,8 @@ function renderGeminiLog(entries) {
     </tr>`;
   }
   el.innerHTML = html;
+  _geminiDayCost = sumCost;
+  totalEl.textContent = `Total: ${eur(sumCost, 3)}`;
 }
 
 function renderCategoryHistory(entries) {
@@ -561,6 +596,17 @@ function renderCategoryHistory(entries) {
     html += '</tr>';
   }
   el.innerHTML = html;
+}
+
+function updateTodayCost(data) {
+  const budget = data.budget || 10;
+  const dailyBudget = budget / 30;
+  const todayCost = _translateDayCost + _geminiDayCost;
+  const hoursActive = data.hours_active || 1;
+  const avgPerHour = todayCost / hoursActive;
+  $('#kpi-today-cost').textContent = eur(todayCost);
+  $('#kpi-today-cost').className = 'kpi-value ' + costClass(todayCost, dailyBudget);
+  $('#kpi-today-sub').textContent = `Avg ${eur(avgPerHour, 3)}/hr · Budget: ${eur(dailyBudget)}/day`;
 }
 
 // ── Server status ───────────────────────────────────────────────────────────

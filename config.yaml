@@ -3,7 +3,8 @@ cost:
   usd_to_eur: 0.92
   gemini:
     input_per_million: 0.15     # USD per 1M input tokens (Gemini 2.5 Flash)
-    output_per_million: 0.60    # USD per 1M output tokens (incl. thinking)
+    output_per_million: 0.60    # USD per 1M output tokens
+    thinking_per_million: 3.50  # USD per 1M thinking tokens
   google_translate:
     chars_per_million: 20.00    # USD per 1M characters
 

@@ -4,10 +4,13 @@ import os
 import re
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 
 log = logging.getLogger(__name__)
+
+_GEMINI_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "pulse_debug"
 
 _health = {"ok": True}
 
@@ -78,22 +81,24 @@ def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = N
                 continue
             resp.raise_for_status()
             data = resp.json()
-            usage = data.get("usageMetadata", {})
-            if usage:
+            raw_usage = data.get("usageMetadata", {})
+            usage = {
+                "tokens_in": raw_usage.get("promptTokenCount", 0),
+                "tokens_out": raw_usage.get("candidatesTokenCount", 0),
+                "tokens_thinking": raw_usage.get("thoughtsTokenCount", 0),
+            }
+            if raw_usage:
                 from db import record_api_usage
-                record_api_usage(
-                    "gemini_extraction",
-                    tokens_in=usage.get("promptTokenCount", 0),
-                    tokens_out=usage.get("candidatesTokenCount", 0),
-                    tokens_thinking=usage.get("thoughtsTokenCount", 0),
-                )
+                record_api_usage("gemini_extraction", **usage)
             candidates = data.get("candidates", [])
             if not candidates:
                 log.error("Gemini returned no candidates")
                 _health["ok"] = False
                 return {}
             raw = candidates[0]["content"]["parts"][0]["text"]
-            return json.loads(raw)
+            result = json.loads(raw)
+            _write_extraction_debug(usage, prompt_config)
+            return result
         except requests.RequestException as e:
             log.error("Gemini API request failed: %s", _mask_key(str(e)))
             _health["ok"] = False
@@ -106,6 +111,23 @@ def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = N
     log.error("Gemini rate limited — all retries exhausted")
     _health["ok"] = False
     return {}
+
+
+def _write_extraction_debug(usage: dict, prompt_config: dict) -> None:
+    try:
+        _GEMINI_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        path = _GEMINI_DEBUG_DIR / f"{today}.jsonl"
+        entry = {
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "service": "gemini_extraction",
+            "usage": usage,
+            "model": prompt_config.get("model", "gemini-2.5-flash"),
+        }
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError as e:
+        log.warning("Extraction debug log write failed: %s", e)
 
 
 def _load_extraction_prompt(name: str, **kwargs: str) -> tuple[dict, str]:
