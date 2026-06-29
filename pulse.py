@@ -90,11 +90,13 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
             src = a.get("source", "unknown")
             stale_counts[src] = stale_counts.get(src, 0) + 1
         else:
+            source = a.get("source")
+            body = "" if source == "baustellen" else (a.get("body_en") or "")[:500]
             entry = {
                 "alert_id": a.get("alert_id"),
-                "source": a.get("source"),
+                "source": source,
                 "title": a.get("title_en", ""),
-                "body": (a.get("body_en") or "")[:500],
+                "body": body,
                 "service": a.get("service"),
                 "lines": json.loads(a["lines"]) if isinstance(a.get("lines"), str) else (a.get("lines") or []),
                 "severity": a.get("severity"),
@@ -229,6 +231,44 @@ def _write_debug_log(debug_data: dict) -> None:
         log.warning("Pulse debug log write failed: %s", e)
 
 
+_LEVEL_2_PLUS = {
+    "transport": {"disrupted", "paralyzed"},
+    "weather": {"warning", "extreme"},
+    "roadworks": {"closures", "gridlock"},
+    "incidents": {"elevated", "major"},
+    "events": {"busy", "peak"},
+}
+
+
+def _should_skip_pulse(now: datetime) -> bool:
+    """Return True if the pulse interval hasn't elapsed based on adaptive frequency."""
+    last = db.get_latest_pulse()
+    if not last:
+        return False
+
+    last_cats = last.get("categories", {})
+    elevated = any(
+        last_cats.get(cat, {}).get("status") in statuses
+        for cat, statuses in _LEVEL_2_PLUS.items()
+    )
+    if elevated:
+        return False
+
+    berlin = now.astimezone(ZoneInfo("Europe/Berlin"))
+    night = berlin.hour >= 23 or berlin.hour < 6
+    interval_hours = 3 if night else 2
+
+    last_ts = datetime.fromisoformat(last["generated_at"].replace("Z", "+00:00"))
+    elapsed = (now - last_ts).total_seconds() / 3600
+    if elapsed < interval_hours:
+        log.info(
+            "Pulse skipped: all calm, next pulse in %.0f min",
+            (interval_hours - elapsed) * 60,
+        )
+        return True
+    return False
+
+
 _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
     "categories": {
@@ -255,6 +295,9 @@ def generate_pulse(config: dict) -> dict | None:
     snapshot, score_breakdown = compute_snapshot(alerts, now)
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
     db.store_category_snapshots(snapshot_ts, snapshot)
+
+    if _should_skip_pulse(now):
+        return None
 
     if not alerts:
         pulse = dict(_ALL_CLEAR_PULSE)
