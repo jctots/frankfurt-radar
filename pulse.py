@@ -236,11 +236,11 @@ def _write_debug_log(debug_data: dict) -> None:
 _LEVEL_2_PLUS = {"moderate", "severe"}
 
 
-def _should_skip_pulse(now: datetime) -> bool:
-    """Return True if the pulse interval hasn't elapsed based on adaptive frequency."""
+def _should_skip_pulse(now: datetime) -> dict | None:
+    """Return skip info dict if pulse should be skipped, None otherwise."""
     last = db.get_latest_pulse()
     if not last:
-        return False
+        return None
 
     last_cats = last.get("categories", {})
     elevated = any(
@@ -248,21 +248,26 @@ def _should_skip_pulse(now: datetime) -> bool:
         for cat in last_cats.values()
     )
     if elevated:
-        return False
+        return None
 
     berlin = now.astimezone(ZoneInfo("Europe/Berlin"))
     night = berlin.hour >= 23 or berlin.hour < 6
     interval_hours = 3 if night else 2
+    mode = "night" if night else "daytime"
 
     last_ts = datetime.fromisoformat(last["generated_at"].replace("Z", "+00:00"))
     elapsed = (now - last_ts).total_seconds() / 3600
+    remaining_min = (interval_hours - elapsed) * 60
     if elapsed < interval_hours:
-        log.info(
-            "Pulse skipped: all calm, next pulse in %.0f min",
-            (interval_hours - elapsed) * 60,
-        )
-        return True
-    return False
+        log.info("Pulse skipped: all calm, next pulse in %.0f min", remaining_min)
+        return {
+            "reason": f"all calm ({mode}, {interval_hours}h interval), next in {remaining_min:.0f} min",
+            "interval_hours": interval_hours,
+            "elapsed_hours": round(elapsed, 2),
+            "mode": mode,
+            "last_categories": {k: v.get("status") for k, v in last_cats.items()},
+        }
+    return None
 
 
 _ALL_CLEAR_PULSE = {
@@ -292,8 +297,15 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
     db.store_category_snapshots(snapshot_ts, snapshot)
 
-    if not force and _should_skip_pulse(now):
-        return None
+    if not force:
+        skip_info = _should_skip_pulse(now)
+        if skip_info:
+            _write_debug_log({
+                "generated_at": generated_at,
+                "skipped": True,
+                **skip_info,
+            })
+            return None
 
     if not alerts:
         pulse = dict(_ALL_CLEAR_PULSE)
