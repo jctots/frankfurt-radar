@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frankfurt Radar — Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clr-bg:      #f0f2f5;
+      --clr-surface: #ffffff;
+      --clr-border:  #e2e8f0;
+      --clr-text:    #1e293b;
+      --clr-muted:   #64748b;
+      --clr-header:  #0f172a;
+      --clr-ok:      #22c55e;
+      --clr-warn:    #eab308;
+      --clr-danger:  #ef4444;
+      --clr-accent:  #1a73e8;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--clr-bg);
+      color: var(--clr-text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--clr-header);
+      color: white;
+      padding: 0 16px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; }
+    .brand a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; font-weight: 400; }
+    .brand a:hover { color: rgba(255,255,255,0.8); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .header-meta { font-size: 12px; color: rgba(255,255,255,0.5); }
+    .logout-btn { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 12px; }
+    .logout-btn:hover { color: rgba(255,255,255,0.8); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+    .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .controls label { font-weight: 600; font-size: 13px; }
+    .controls input[type="date"] { padding: 6px 10px; border: 1px solid var(--clr-border); border-radius: 6px; font-size: 13px; }
+
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .kpi { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 16px; }
+    .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-muted); margin-bottom: 4px; }
+    .kpi-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+    .kpi-sub { font-size: 12px; color: var(--clr-muted); margin-top: 2px; }
+    .kpi-value.ok { color: var(--clr-ok); }
+    .kpi-value.warn { color: var(--clr-warn); }
+    .kpi-value.danger { color: var(--clr-danger); }
+
+    .card { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 16px; }
+    .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+    .chart-container { position: relative; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding: 0 8px; }
+    .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .bar { width: 100%; max-width: 32px; border-radius: 4px 4px 0 0; min-height: 1px; }
+    .bar.gemini { background: #8b5cf6; }
+    .bar.translate { background: #1a73e8; }
+    .bar-label { font-size: 10px; color: var(--clr-muted); }
+    .budget-line { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--clr-danger); z-index: 2; pointer-events: none; }
+    .budget-label { position: absolute; right: 8px; font-size: 10px; color: var(--clr-danger); font-weight: 600; }
+    .chart-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--clr-muted); }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+    .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .log-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-muted); padding: 6px 8px; border-bottom: 2px solid var(--clr-border); }
+    .log-table td { padding: 8px; border-bottom: 1px solid var(--clr-border); vertical-align: top; }
+    .log-table tr:last-child td { border-bottom: none; }
+    .log-table .r { text-align: right; }
+    .log-table .note { font-size: 12px; color: var(--clr-muted); }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .pill.clear     { background: #dcfce7; color: #166534; }
+    .pill.minor     { background: #fef9c3; color: #854d0e; }
+    .pill.moderate  { background: #fed7aa; color: #9a3412; }
+    .pill.severe    { background: #fecaca; color: #991b1b; }
+    .pill.skipped   { background: #e2e8f0; color: #475569; }
+    .pill.pulse     { background: #dbeafe; color: #1e40af; }
+    .pill.extraction { background: #e0e7ff; color: #3730a3; }
+    .pill.daily     { background: #fef3c7; color: #92400e; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .empty { text-align: center; padding: 32px; color: var(--clr-muted); }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--clr-header); color: white; }
+    .btn-primary:hover:not(:disabled) { background: #1e293b; }
+    .btn-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .btn-danger:hover:not(:disabled) { background: #fee2e2; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    .action-result {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .action-result.ok { background: #dcfce7; color: #166534; }
+    .action-result.err { background: #fef2f2; color: #991b1b; }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.up { background: var(--clr-ok); }
+    .status-dot.down { background: var(--clr-danger); }
+    .status-meta {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--clr-muted);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .ban-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .ban-input-row input {
+      padding: 6px 10px;
+      border: 1px solid var(--clr-border);
+      border-radius: 6px;
+      font-size: 13px;
+      width: 160px;
+    }
+    .ban-list { display: flex; flex-direction: column; gap: 6px; }
+    .ban-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+
+    @media (max-width: 700px) {
+      main { padding: 10px; gap: 12px; }
+      .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .kpi { padding: 12px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .kpi-value { font-size: 22px; }
+      .kpi-sub { font-size: 11px; }
+      .bar-chart { height: 120px; }
+      .card { padding: 12px; }
+      .card h2 { font-size: 14px; }
+      .log-table { font-size: 12px; }
+      .log-table th, .log-table td { padding: 6px 4px; }
+      .status-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+      .ban-input-row { flex-direction: column; }
+      .ban-input-row input { width: 100%; }
+      .btn { padding: 10px 16px; }
+    }
+    @media (max-width: 400px) {
+      .kpi-row { grid-template-columns: 1fr; }
+      header { padding: 0 10px; height: 46px; }
+      .brand { font-size: 18px; }
+      .status-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    📡 Admin
+    <a href="/">← Back to radar</a>
+  </div>
+  <div class="header-right">
+    <span class="header-meta">{{ version }}</span>
+    <a href="/admin/logout" class="logout-btn">Logout</a>
+  </div>
+</header>
+
+<main>
+  <div class="controls">
+    <label>Date:</label>
+    <input type="date" id="date-picker">
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Today's Cost</div>
+      <div class="kpi-value" id="kpi-today-cost">—</div>
+      <div class="kpi-sub" id="kpi-today-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Month-to-Date</div>
+      <div class="kpi-value" id="kpi-mtd-cost">—</div>
+      <div class="kpi-sub" id="kpi-mtd-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Month Projection</div>
+      <div class="kpi-value" id="kpi-proj-cost">—</div>
+      <div class="kpi-sub" id="kpi-proj-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Translate Calls</div>
+      <div class="kpi-value" id="kpi-translate-calls">—</div>
+      <div class="kpi-sub" id="kpi-translate-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Gemini Calls</div>
+      <div class="kpi-value" id="kpi-gemini-calls">—</div>
+      <div class="kpi-sub" id="kpi-gemini-sub"></div>
+    </div>
+  </div>
+
+  <!-- Cost trend chart -->
+  <div class="card">
+    <h2>💰 Daily Cost Trend</h2>
+    <div class="chart-container">
+      <div class="bar-chart" id="cost-chart"></div>
+    </div>
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:#8b5cf6"></span>Gemini</span>
+      <span><span class="legend-dot" style="background:#1a73e8"></span>Translate</span>
+    </div>
+  </div>
+
+  <!-- Two-column: Translate + Gemini logs -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>🌐 Translate Log</h2>
+      <div style="overflow-x:auto;">
+        <table class="log-table">
+          <thead>
+            <tr><th>Time</th><th>New</th><th>Retrans.</th><th>Notes</th><th class="r">Est. Cost</th></tr>
+          </thead>
+          <tbody id="translate-log"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>🤖 Gemini Log</h2>
+      <div style="overflow-x:auto;">
+        <table class="log-table">
+          <thead>
+            <tr><th>Time</th><th>Service</th><th>Tokens In</th><th>Tokens Out</th><th>Notes</th><th class="r">Est. Cost</th></tr>
+          </thead>
+          <tbody id="gemini-log"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category status history -->
+  <div class="card">
+    <h2>📈 Category Status History</h2>
+    <div style="overflow-x:auto;">
+      <table class="log-table">
+        <thead>
+          <tr><th>Time</th><th>Weather</th><th>Transport</th><th>Roadworks</th><th>Incidents</th><th>Events</th></tr>
+        </thead>
+        <tbody id="category-history"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Server Status + Actions -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>🖥️ Server Status</h2>
+      <div class="status-grid" id="status-grid"></div>
+      <div class="status-meta" id="status-meta"></div>
+    </div>
+    <div class="card">
+      <h2>⚡ Actions</h2>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-poll" onclick="forcePoll()">Force Poll</button>
+          <span id="poll-result"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-pulse" onclick="forcePulse()">Force Pulse</button>
+          <span id="pulse-result"></span>
+        </div>
+        <div style="border-top: 1px solid var(--clr-border); padding-top:12px; font-size:12px; color:var(--clr-muted);">
+          Poll triggers a full poller cycle. Pulse generates a new city pulse (bypasses adaptive frequency).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ban List -->
+  <div class="card">
+    <h2>🚫 Ban List</h2>
+    <div class="ban-input-row">
+      <input type="text" id="ban-input" placeholder="chat_id (e.g. 123456789)">
+      <button class="btn btn-danger btn-sm" onclick="banUser()">Ban</button>
+      <span id="ban-result"></span>
+    </div>
+    <div class="ban-list" id="ban-list"></div>
+    <div style="margin-top:8px; font-size:12px; color:var(--clr-muted);">
+      Banned users cannot interact with the Telegram bot.
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const utcToBerlin = iso => {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-GB', {timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit'});
+  } catch { return iso; }
+};
+const eur = (v, decimals=2) => '€' + v.toFixed(decimals);
+const num = v => v.toLocaleString('en-US');
+const costClass = (val, budget) => val <= budget * 0.8 ? 'ok' : val <= budget ? 'warn' : 'danger';
+const statusPill = s => `<span class="pill ${s}">${s}</span>`;
+
+const datePicker = $('#date-picker');
+datePicker.value = new Date().toISOString().slice(0, 10);
+datePicker.addEventListener('change', () => loadData());
+
+async function loadData() {
+  const date = datePicker.value;
+  const [dataRes, histRes] = await Promise.all([
+    fetch(`/api/admin/data?date=${date}`),
+    fetch('/api/admin/cost-history?days=7'),
+  ]);
+  if (dataRes.status === 401 || dataRes.status === 302) { location.href = '/admin/login'; return; }
+  const data = await dataRes.json();
+  const hist = await histRes.json();
+  renderKPIs(data);
+  renderChart(hist);
+  renderTranslateLog(data.translate_debug);
+  renderGeminiLog(data.pulse_debug);
+  renderCategoryHistory(data.pulse_debug);
+}
+
+function renderKPIs(data) {
+  const budget = data.budget || 10;
+  const dailyBudget = budget / 30;
+
+  let todayCost = 0;
+  for (const row of data.daily_usage) {
+    const svc = row.service;
+    if (svc.startsWith('gemini_')) {
+      todayCost += (row.tokens_in / 1e6 * 0.15 + row.tokens_out / 1e6 * 0.60 + row.tokens_thinking / 1e6 * 3.50) * 0.92;
+    } else if (svc === 'google_translate') {
+      todayCost += row.characters / 1e6 * 20.0 * 0.92;
+    }
+  }
+  const hoursActive = data.hours_active || 1;
+  const avgPerHour = todayCost / hoursActive;
+  $('#kpi-today-cost').textContent = eur(todayCost);
+  $('#kpi-today-cost').className = 'kpi-value ' + costClass(todayCost, dailyBudget);
+  $('#kpi-today-sub').textContent = `Avg ${eur(avgPerHour, 3)}/hr · Budget: ${eur(dailyBudget)}/day`;
+
+  const mtd = data.monthly.total_eur;
+  const svcs = data.monthly.services;
+  const geminiTotal = Object.entries(svcs).filter(([k]) => k.startsWith('gemini_')).reduce((s, [, v]) => s + v.cost_eur, 0);
+  const geminiParts = Object.entries(svcs).filter(([k]) => k.startsWith('gemini_')).map(([k, v]) => `${k.replace('gemini_', '')} ${eur(v.cost_eur)}`).join(' · ');
+  const translateTotal = (svcs.google_translate || {}).cost_eur || 0;
+  $('#kpi-mtd-cost').textContent = eur(mtd);
+  $('#kpi-mtd-cost').className = 'kpi-value ' + costClass(mtd, budget);
+  let mtdSub = `Gemini ${eur(geminiTotal)}`;
+  if (geminiParts) mtdSub += ` (${geminiParts})`;
+  mtdSub += ` · Translate ${eur(translateTotal)}`;
+  $('#kpi-mtd-sub').textContent = mtdSub;
+
+  const daysActive = data.monthly.days_active || 1;
+  const avgPerDay = mtd / daysActive;
+  const daysInMonth = new Date(parseInt(data.month.slice(0, 4)), parseInt(data.month.slice(5, 7)), 0).getDate();
+  const projected = avgPerDay * daysInMonth;
+  $('#kpi-proj-cost').textContent = eur(projected);
+  $('#kpi-proj-cost').className = 'kpi-value ' + costClass(projected, budget);
+  $('#kpi-proj-sub').textContent = `Avg ${eur(avgPerDay)}/day · Budget: ${eur(budget)}/mo`;
+
+  const translateSvc = svcs.google_translate || {};
+  const translateCalls = translateSvc.calls || 0;
+  const variantHits = data.translate_debug.reduce((s, e) => s + (e.variant_hits || 0), 0);
+  const totalAlerts = data.translate_debug.reduce((s, e) => s + (e.total_alerts || 0), 0);
+  $('#kpi-translate-calls').textContent = translateCalls;
+  const savedPct = totalAlerts > 0 ? Math.round(variantHits / totalAlerts * 100) : 0;
+  $('#kpi-translate-sub').textContent = totalAlerts > 0 ? `${variantHits} variant hits (${savedPct}% saved)` : 'No polls today';
+
+  const geminiSvcs = Object.entries(svcs).filter(([k]) => k.startsWith('gemini_'));
+  const geminiCalls = geminiSvcs.reduce((s, [, v]) => s + v.calls, 0);
+  const pulseSkipped = data.pulse_debug.filter(e => e.skipped).length;
+  const parts = geminiSvcs.map(([k, v]) => `${v.calls} ${k.replace('gemini_', '')}`);
+  if (pulseSkipped) parts.push(`${pulseSkipped} skipped`);
+  $('#kpi-gemini-calls').textContent = geminiCalls;
+  $('#kpi-gemini-sub').textContent = parts.join(' · ') || 'No calls today';
+}
+
+function renderChart(hist) {
+  const el = $('#cost-chart');
+  const history = hist.history || [];
+  const budget = hist.budget || 10;
+  const dailyBudget = budget / 30;
+  if (!history.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  const maxVal = Math.max(...history.map(d => d.gemini_eur + d.translate_eur), dailyBudget * 1.2);
+  const chartH = 160;
+  const budgetY = chartH - (dailyBudget / maxVal * chartH);
+
+  let html = '';
+  for (const d of history) {
+    const gH = Math.max(1, d.gemini_eur / maxVal * chartH);
+    const tH = Math.max(1, d.translate_eur / maxVal * chartH);
+    const label = d.date.slice(5);
+    html += `<div class="bar-group">
+      <div class="bar gemini" style="height:${gH}px" title="Gemini ${eur(d.gemini_eur, 3)}"></div>
+      <div class="bar translate" style="height:${tH}px" title="Translate ${eur(d.translate_eur, 3)}"></div>
+      <div class="bar-label">${label}</div>
+    </div>`;
+  }
+  el.innerHTML = html;
+
+  const container = el.closest('.chart-container');
+  container.querySelectorAll('.budget-line, .budget-label').forEach(e => e.remove());
+  const line = document.createElement('div');
+  line.className = 'budget-line';
+  line.style.bottom = `${chartH - budgetY}px`;
+  const lbl = document.createElement('div');
+  lbl.className = 'budget-label';
+  lbl.style.bottom = `${chartH - budgetY + 2}px`;
+  lbl.textContent = `${eur(dailyBudget)}/day budget`;
+  container.appendChild(line);
+  container.appendChild(lbl);
+}
+
+function renderTranslateLog(entries) {
+  const el = $('#translate-log');
+  if (!entries.length) { el.innerHTML = '<tr><td colspan="5" class="empty">No translate data for this date</td></tr>'; return; }
+
+  let html = '';
+  for (const e of entries.slice().reverse()) {
+    const time = utcToBerlin(e.timestamp);
+    const newCount = (e.entries || []).filter(x => x.action === 'new').length;
+    const retrans = (e.entries || []).filter(x => x.action === 'retranslate').length;
+    const varHits = e.variant_hits || 0;
+    const cached = e.cached || 0;
+    const total = e.total_alerts || 0;
+
+    let notes = `${total} alerts`;
+    if (varHits) notes += ` · ${varHits} var. hits`;
+    notes += ` · ${cached} cached`;
+
+    const apiCalls = newCount + retrans;
+    const estCost = apiCalls > 0 ? eur(apiCalls * 500 / 1e6 * 20.0 * 0.92, 3) : eur(0, 3);
+    const costCls = apiCalls === 0 ? ' style="color:var(--clr-muted)"' : '';
+
+    html += `<tr>
+      <td>${time}</td>
+      <td>${newCount}</td>
+      <td>${retrans}</td>
+      <td class="note">${notes}</td>
+      <td class="r"${costCls}>${estCost}</td>
+    </tr>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderGeminiLog(entries) {
+  const el = $('#gemini-log');
+  if (!entries.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No Gemini data for this date</td></tr>'; return; }
+
+  const rows = [];
+  for (const e of entries) {
+    const time = utcToBerlin(e.generated_at);
+    if (e.skipped) {
+      const reason = e.reason || 'adaptive frequency';
+      rows.push({ time, service: 'pulse', skipped: true, tokensIn: 0, tokensOut: 0,
+        notes: `skipped · ${reason}`, cost: 0 });
+    } else if (e.layer_2_llm) {
+      const alertCount = e.layer_1_deterministic?.total_alerts || 0;
+      const prompt = e.layer_2_llm.prompt || '';
+      const resp = e.layer_2_llm.response || {};
+      const tokensIn = prompt.length > 0 ? Math.ceil(prompt.length / 4) : 0;
+      const tokensOut = JSON.stringify(resp).length > 0 ? Math.ceil(JSON.stringify(resp).length / 4) : 0;
+      const cost = (tokensIn / 1e6 * 0.15 + tokensOut / 1e6 * 0.60) * 0.92;
+      rows.push({ time, service: 'pulse', skipped: false, tokensIn, tokensOut,
+        notes: `${alertCount} alerts`, cost });
+    }
+  }
+
+  let html = '';
+  for (const r of rows.reverse()) {
+    const svcClass = r.skipped ? 'skipped' : r.service;
+    const costCls = r.cost === 0 ? ' style="color:var(--clr-muted)"' : '';
+    html += `<tr>
+      <td>${r.time}</td>
+      <td><span class="pill ${svcClass}">${r.service}</span></td>
+      <td>${r.skipped ? '—' : num(r.tokensIn)}</td>
+      <td>${r.skipped ? '—' : num(r.tokensOut)}</td>
+      <td class="note">${r.notes}</td>
+      <td class="r"${costCls}>${eur(r.cost, 3)}</td>
+    </tr>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderCategoryHistory(entries) {
+  const el = $('#category-history');
+  const generated = entries.filter(e => !e.skipped && e.layer_3_output);
+  if (!generated.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No pulse data for this date</td></tr>'; return; }
+
+  let html = '';
+  for (const e of generated.slice().reverse()) {
+    const time = utcToBerlin(e.generated_at);
+    const cats = e.layer_3_output.categories || {};
+    const catOrder = ['weather', 'transport', 'roadworks', 'incidents', 'events'];
+    html += `<tr><td>${time}</td>`;
+    for (const c of catOrder) {
+      const status = (cats[c] || {}).status || 'clear';
+      html += `<td>${statusPill(status)}</td>`;
+    }
+    html += '</tr>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Server status ───────────────────────────────────────────────────────────
+
+async function loadServerStatus() {
+  try {
+    const res = await fetch('/api/admin/server-status');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const grid = $('#status-grid');
+    const comps = data.components || {};
+    grid.innerHTML = Object.entries(comps).map(([name, ok]) =>
+      `<div class="status-item">
+        <div class="status-dot ${ok ? 'up' : 'down'}"></div>
+        ${name}
+      </div>`
+    ).join('');
+
+    const meta = $('#status-meta');
+    const parts = [];
+    if (data.last_polled) {
+      const age = Math.round((Date.now() - new Date(data.last_polled).getTime()) / 60000);
+      parts.push(`Last poll: ${age} min ago`);
+    }
+    if (data.subscribers) {
+      parts.push(`Subscribers: ${data.subscribers.active}/${data.subscribers.total} active`);
+    }
+    meta.textContent = parts.join(' · ');
+  } catch {}
+}
+
+// ── Actions ─────────────────────────────────────────────────────────────────
+
+async function forcePoll() {
+  const btn = $('#btn-poll');
+  const result = $('#poll-result');
+  btn.disabled = true;
+  result.className = 'action-result';
+  result.textContent = 'Running...';
+  try {
+    const res = await fetch('/api/admin/poll', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      result.className = 'action-result ok';
+      result.textContent = '✓ Poll complete';
+      loadData();
+      loadServerStatus();
+    } else {
+      result.className = 'action-result err';
+      result.textContent = '✗ ' + (data.error || 'Failed');
+    }
+  } catch (e) {
+    result.className = 'action-result err';
+    result.textContent = '✗ ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+async function forcePulse() {
+  const btn = $('#btn-pulse');
+  const result = $('#pulse-result');
+  btn.disabled = true;
+  result.className = 'action-result';
+  result.textContent = 'Running...';
+  try {
+    const res = await fetch('/api/admin/pulse', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      result.className = 'action-result ok';
+      result.textContent = '✓ Pulse generated';
+      loadData();
+    } else {
+      result.className = 'action-result err';
+      result.textContent = '✗ ' + (data.error || 'Failed');
+    }
+  } catch (e) {
+    result.className = 'action-result err';
+    result.textContent = '✗ ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+// ── Ban list ────────────────────────────────────────────────────────────────
+
+async function loadBans() {
+  try {
+    const res = await fetch('/api/admin/bans');
+    if (!res.ok) return;
+    const data = await res.json();
+    renderBanList(data.banned || []);
+  } catch {}
+}
+
+function renderBanList(banned) {
+  const el = $('#ban-list');
+  if (!banned.length) {
+    el.innerHTML = '<div style="font-size:13px; color:var(--clr-muted);">No banned users.</div>';
+    return;
+  }
+  el.innerHTML = banned.map(id =>
+    `<div class="ban-item">
+      <span>${id}</span>
+      <button class="btn btn-sm" style="background:#e2e8f0;color:#475569;" onclick="unbanUser(${id})">Unban</button>
+    </div>`
+  ).join('');
+}
+
+async function banUser() {
+  const input = $('#ban-input');
+  const result = $('#ban-result');
+  const chatId = input.value.trim();
+  if (!chatId || isNaN(chatId)) {
+    result.className = 'action-result err';
+    result.textContent = 'Enter a valid chat_id';
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/ban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: parseInt(chatId) }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      result.className = 'action-result ok';
+      result.textContent = '✓ Banned';
+      input.value = '';
+      renderBanList(data.banned || []);
+    } else {
+      result.className = 'action-result err';
+      result.textContent = data.error || 'Failed';
+    }
+  } catch (e) {
+    result.className = 'action-result err';
+    result.textContent = e.message;
+  }
+}
+
+async function unbanUser(chatId) {
+  try {
+    const res = await fetch('/api/admin/unban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      renderBanList(data.banned || []);
+    }
+  } catch {}
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+
+loadData();
+loadServerStatus();
+loadBans();
+</script>
+
+</body>
+</html>

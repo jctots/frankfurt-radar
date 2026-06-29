@@ -51,6 +51,7 @@ services:
       - TZ=Europe/Berlin
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - STADIA_API_KEY=${STADIA_API_KEY:-}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
     volumes:
       - radar_data:/app/data
     ports:

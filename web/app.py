@@ -1,16 +1,20 @@
+import json
 import os
+import secrets
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests as http_requests
 import yaml
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, session
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from db import get_status_json, init_db
 
 app = Flask(__name__)
+app.secret_key = os.getenv("ADMIN_TOKEN", "") or secrets.token_hex(32)
 
 DATA_DIR             = Path(os.getenv("DATA_DIR", "/app/data"))
 CONFIG_FILE          = DATA_DIR / "config.yaml"
@@ -18,6 +22,7 @@ RADAR_DIR            = DATA_DIR / "radar"
 BUILD_VERSION        = os.getenv("BUILD_VERSION", "dev")
 MAIN_PY              = Path(os.getenv("MAIN_PY", "/app/main.py"))
 POLLER_TRIGGER_URL   = os.getenv("POLLER_TRIGGER_URL", "")
+ADMIN_TOKEN          = os.getenv("ADMIN_TOKEN", "")
 
 
 
@@ -160,6 +165,245 @@ def _allow_manual_poll() -> bool:
     if web is None:
         return False
     return bool(web.get("allow_manual_poll", False))
+
+
+# ── Admin dashboard ──────────────────────────────────────────────────────────
+
+def _admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not ADMIN_TOKEN:
+            abort(404)
+        if not session.get("admin"):
+            return redirect("/admin/login")
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if not ADMIN_TOKEN:
+        abort(404)
+    if request.method == "POST":
+        if request.form.get("token") == ADMIN_TOKEN:
+            session["admin"] = True
+            return redirect("/admin")
+        return render_template("admin_login.html", error="Invalid token"), 401
+    return render_template("admin_login.html", error=None)
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    return redirect("/")
+
+
+@app.route("/admin")
+@_admin_required
+def admin_dashboard():
+    return render_template("admin.html", version=BUILD_VERSION)
+
+
+@app.route("/api/admin/data")
+@_admin_required
+def api_admin_data():
+    from db import get_daily_usage, get_monthly_cost, get_hours_with_usage, get_days_with_usage
+
+    date = request.args.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    month = date[:7]
+    config = {}
+    try:
+        config = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+    except Exception:
+        pass
+
+    daily = get_daily_usage(date)
+    hours_active = get_hours_with_usage(date)
+    total_eur, monthly = get_monthly_cost(month, config)
+    days_active = get_days_with_usage(month)
+
+    translate_debug = _read_jsonl(DATA_DIR / "translate_debug" / f"{date}.jsonl")
+    pulse_debug = _read_jsonl(DATA_DIR / "pulse_debug" / f"{date}.jsonl")
+    cost_debug = _read_jsonl(DATA_DIR / "cost_debug" / f"{date}.jsonl")
+
+    return jsonify({
+        "date": date,
+        "month": month,
+        "daily_usage": daily,
+        "hours_active": hours_active,
+        "monthly": {
+            "total_eur": round(total_eur, 4),
+            "days_active": days_active,
+            "services": {s: {"calls": d["calls"], "cost_eur": round(d["cost"], 4)} for s, d in monthly.items()},
+        },
+        "translate_debug": translate_debug,
+        "pulse_debug": pulse_debug,
+        "cost_debug": cost_debug,
+        "budget": config.get("cost", {}).get("monthly_budget_eur", 10),
+    })
+
+
+@app.route("/api/admin/cost-history")
+@_admin_required
+def api_admin_cost_history():
+    from db import get_daily_usage, get_monthly_cost
+
+    days = int(request.args.get("days", 7))
+    config = {}
+    try:
+        config = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+    except Exception:
+        pass
+
+    today = datetime.now(timezone.utc)
+    history = []
+    for i in range(days - 1, -1, -1):
+        from datetime import timedelta
+        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        usage = get_daily_usage(d)
+        gemini_cost = 0.0
+        translate_cost = 0.0
+        for row in usage:
+            svc = row["service"]
+            if svc.startswith("gemini_"):
+                cost_cfg = config.get("cost", {}).get("gemini", {})
+                usd_to_eur = config.get("cost", {}).get("usd_to_eur", 0.92)
+                cost_usd = (row["tokens_in"] / 1e6 * cost_cfg.get("input_per_million", 0.15)
+                            + row["tokens_out"] / 1e6 * cost_cfg.get("output_per_million", 0.60)
+                            + row["tokens_thinking"] / 1e6 * cost_cfg.get("thinking_per_million", 3.50))
+                gemini_cost += cost_usd * usd_to_eur
+            elif svc == "google_translate":
+                cost_cfg = config.get("cost", {}).get("google_translate", {})
+                usd_to_eur = config.get("cost", {}).get("usd_to_eur", 0.92)
+                cost_usd = row["characters"] / 1e6 * cost_cfg.get("chars_per_million", 20.0)
+                translate_cost += cost_usd * usd_to_eur
+        history.append({
+            "date": d,
+            "gemini_eur": round(gemini_cost, 4),
+            "translate_eur": round(translate_cost, 4),
+        })
+
+    return jsonify({"history": history, "budget": config.get("cost", {}).get("monthly_budget_eur", 10)})
+
+
+@app.route("/api/admin/server-status")
+@_admin_required
+def api_admin_server_status():
+    from db import get_meta, get_subscriber_counts
+
+    health_raw = get_meta("admin_health")
+    health = json.loads(health_raw) if health_raw else {}
+    last_polled = get_meta("last_polled_at")
+    counts = get_subscriber_counts()
+
+    label_map = {
+        "translator": "Translator", "poll_schedule": "Cron",
+    }
+    components = {
+        label_map.get(k, k.replace("Poller", "")): v
+        for k, v in health.items()
+    }
+
+    return jsonify({
+        "components": components,
+        "last_polled": last_polled,
+        "subscribers": counts,
+    })
+
+
+@app.route("/api/admin/poll", methods=["POST"])
+@_admin_required
+def api_admin_poll():
+    if not POLLER_TRIGGER_URL:
+        return jsonify({"error": "POLLER_TRIGGER_URL not configured"}), 500
+    try:
+        resp = http_requests.post(POLLER_TRIGGER_URL, timeout=95)
+        if resp.status_code != 200:
+            return jsonify({"error": resp.text[-500:]}), resp.status_code
+        return jsonify({"status": "ok"})
+    except http_requests.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/admin/pulse", methods=["POST"])
+@_admin_required
+def api_admin_pulse():
+    if not POLLER_TRIGGER_URL:
+        return jsonify({"error": "POLLER_TRIGGER_URL not configured"}), 500
+    pulse_url = POLLER_TRIGGER_URL.rsplit("/", 1)[0] + "/pulse"
+    try:
+        resp = http_requests.post(pulse_url, timeout=65)
+        if resp.status_code != 200:
+            return jsonify({"error": resp.text[-500:]}), resp.status_code
+        return jsonify({"status": "ok"})
+    except http_requests.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/admin/bans")
+@_admin_required
+def api_admin_bans():
+    from db import get_meta
+    raw = get_meta("banned_chat_ids")
+    banned = json.loads(raw) if raw else []
+    return jsonify({"banned": sorted(banned)})
+
+
+@app.route("/api/admin/ban", methods=["POST"])
+@_admin_required
+def api_admin_ban():
+    from db import get_meta, set_meta
+    data = request.get_json(silent=True) or {}
+    try:
+        chat_id = int(data.get("chat_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid chat_id"}), 400
+    if not chat_id:
+        return jsonify({"error": "chat_id required"}), 400
+
+    raw = get_meta("banned_chat_ids")
+    banned = set(json.loads(raw)) if raw else set()
+    if chat_id in banned:
+        return jsonify({"error": f"{chat_id} is already banned"}), 409
+    banned.add(chat_id)
+    set_meta("banned_chat_ids", json.dumps(sorted(banned)))
+    return jsonify({"status": "ok", "banned": sorted(banned)})
+
+
+@app.route("/api/admin/unban", methods=["POST"])
+@_admin_required
+def api_admin_unban():
+    from db import get_meta, set_meta
+    data = request.get_json(silent=True) or {}
+    try:
+        chat_id = int(data.get("chat_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid chat_id"}), 400
+    if not chat_id:
+        return jsonify({"error": "chat_id required"}), 400
+
+    raw = get_meta("banned_chat_ids")
+    banned = set(json.loads(raw)) if raw else set()
+    if chat_id not in banned:
+        return jsonify({"error": f"{chat_id} is not banned"}), 404
+    banned.discard(chat_id)
+    set_meta("banned_chat_ids", json.dumps(sorted(banned)))
+    return jsonify({"status": "ok", "banned": sorted(banned)})
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    entries = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                entries.append(json.loads(line))
+    except (OSError, json.JSONDecodeError):
+        pass
+    return entries
 
 
 @app.errorhandler(404)
