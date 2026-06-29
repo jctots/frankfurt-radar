@@ -106,7 +106,7 @@ class TestDWDPoller:
         alert = DWDPoller(min_severity=1).fetch()[0]
         assert alert.title == "Gewitter Warnung Stufe 3"
         assert "Starke Gewitter" in alert.body
-        assert "Suchen Sie sofort Schutz" in alert.body
+        assert "Suchen Sie sofort Schutz" not in alert.body
 
     def test_null_severity_filtered_out(self, mocker):
         from pollers import DWDPoller
