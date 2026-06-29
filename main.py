@@ -11,7 +11,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache
+from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache, write_cost_debug
 from pipeline import process_alerts
 from extraction import extraction_ok, reset_extraction_health
 from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StrikePoller, TicketmasterPoller
@@ -233,6 +233,8 @@ def main() -> None:
             log.info("Notifier dispatch triggered: %s", resp.status_code)
         except requests.RequestException as e:
             log.warning("Notifier dispatch failed: %s", e)
+
+    write_cost_debug(config)
 
     if health_cfg:
         metrics = _system_metrics()

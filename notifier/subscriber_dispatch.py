@@ -329,7 +329,7 @@ def _fmt_pulse_message(pulse: dict, config: dict | None = None) -> str:
         status = cat.get("status", "")
         trend = cat.get("trend", "stable")
         arrow = trend_arrows.get(trend, "")
-        cat_lines.append(f"{emoji} {key.title()}  {status}  {arrow}")
+        cat_lines.append(f"{emoji} {key.title()}  {status}  {arrow} {trend}")
 
     title = pulse.get("title", "")
     header = title if title else "City Pulse"

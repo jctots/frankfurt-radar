@@ -353,6 +353,52 @@ def expire_processed_alerts() -> None:
             log.info("Expired %d pulse_daily_summary entries", daily_cur.rowcount)
 
 
+# ── cost_debug ────────────────────────────────────────────────────────────────
+
+_COST_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "cost_debug"
+_COST_DEBUG_RETENTION_DAYS = 30
+
+
+def write_cost_debug(config: dict) -> None:
+    """Append an hourly cost snapshot to the daily JSONL file. Skips if current hour already logged."""
+    now = datetime.now(timezone.utc)
+    hour = now.strftime("%Y-%m-%dT%H")
+    today = now.strftime("%Y-%m-%d")
+    month = now.strftime("%Y-%m")
+
+    try:
+        _COST_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        path = _COST_DEBUG_DIR / f"{today}.jsonl"
+
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            if f'"hour": "{hour}"' in content:
+                return
+
+        hourly = get_hourly_usage(hour)
+        daily = get_daily_usage(today)
+        total_eur, monthly = get_monthly_cost(month, config)
+
+        entry = {
+            "hour": hour,
+            "hourly": hourly,
+            "daily_cumulative": daily,
+            "monthly_cumulative": {
+                "total_eur": round(total_eur, 4),
+                "services": {s: {"calls": d["calls"], "cost_eur": round(d["cost"], 4)} for s, d in monthly.items()},
+            },
+        }
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+        cutoff = (now - timedelta(days=_COST_DEBUG_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        for old in _COST_DEBUG_DIR.glob("*.jsonl"):
+            if old.stem < cutoff:
+                old.unlink(missing_ok=True)
+    except OSError as e:
+        log.warning("Cost debug log write failed: %s", e)
+
+
 # ── alert_cache (replaces status.json) ───────────────────────────────────────
 
 _TRANSLATE_DEBUG_DIR = Path(os.getenv("DATA_DIR", ".")) / "translate_debug"
@@ -382,15 +428,17 @@ def _store_variant(conn, alert_id: str, th: str, title_en: str, body_en: str) ->
 def _write_translate_debug(debug_data: dict) -> None:
     try:
         _TRANSLATE_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%S")
-        path = _TRANSLATE_DEBUG_DIR / f"{ts}.json"
-        path.write_text(json.dumps(debug_data, ensure_ascii=False, indent=2))
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        path = _TRANSLATE_DEBUG_DIR / f"{today}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(debug_data, ensure_ascii=False) + "\n")
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_TRANSLATE_DEBUG_RETENTION_DAYS)
-        cutoff_str = cutoff.strftime("%Y-%m-%dT%H")
-        for old in _TRANSLATE_DEBUG_DIR.glob("*.json"):
-            if old.stem < cutoff_str:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_TRANSLATE_DEBUG_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        for old in _TRANSLATE_DEBUG_DIR.glob("*.jsonl"):
+            if old.stem < cutoff:
                 old.unlink(missing_ok=True)
+        for old in _TRANSLATE_DEBUG_DIR.glob("*.json"):
+            old.unlink(missing_ok=True)
     except OSError as e:
         log.warning("Translate debug log write failed: %s", e)
 

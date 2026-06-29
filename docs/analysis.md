@@ -76,15 +76,14 @@ When building the LLM prompt context, hourly snapshot rows are aggregated to eac
 
 The LLM receives the active alerts, category time-series data, and recent history as context. It judges both the narrative summary and the per-category status and trend.
 
-**Status judgment** — The LLM assigns each category a domain-specific status label:
+**Status judgment** — The LLM assigns each category a universal status label:
 
-| Category | Level 0 | Level 1 | Level 2 | Level 3 |
-|----------|---------|---------|---------|---------|
-| Transport | clear | delays | disrupted | paralyzed |
-| Weather | clear | watch | warning | extreme |
-| Roadworks | clear | works | closures | gridlock |
-| Incidents | clear | low | elevated | major |
-| Events | clear | crowds | busy | peak |
+| Level | Label | Meaning |
+|-------|-------|---------|
+| 0 | clear | No ongoing alerts |
+| 1 | minor | Score within typical baseline range |
+| 2 | moderate | Score significantly above baseline, or high-impact content |
+| 3 | severe | Score far above baseline and widespread impact confirmed |
 
 **Trend judgment** — The LLM assigns trend (`improving`, `stable`, `worsening`) from two computed signals that feed a single consolidated label:
 
@@ -104,9 +103,9 @@ The LLM's value is in tasks that require interpretation:
 - Assessing that three separate S-Bahn delays converge on the same corridor
 - Recommending tram 17 as an alternative when the U4 is suspended
 - Recognizing that a construction alert has been running for weeks and is not newsworthy
-- Judging that 8 transport alerts with low individual severity collectively constitute "disrupted" status
+- Judging that 8 transport alerts with low individual severity collectively constitute "moderate" status
 
-Thinking is enabled (`thinkingBudget: 4096`) for spatial reasoning.
+Thinking is enabled (`thinkingBudget: 1024`) for spatial reasoning.
 
 ### 3. Temporal compression
 
@@ -120,7 +119,7 @@ The pipeline operates at three time scales:
 
 ## Debug log
 
-Each hourly pulse writes a structured JSON debug file to `data/pulse_debug/` (e.g., `2026-06-22T23.json`). Files are retained for 30 days.
+Each hourly pulse appends a structured JSON line to a daily JSONL file in `data/pulse_debug/` (e.g., `2026-06-22.jsonl`). Files are retained for 30 days.
 
 The log structure mirrors the analysis layers:
 
@@ -161,8 +160,8 @@ The log structure mirrors the analysis layers:
       "recommendation": "...",
       "references": ["id1", "id2"],
       "categories": {
-        "transport": {"status": "delays", "trend": "worsening"},
-        "weather": {"status": "watch", "trend": "stable"}
+        "transport": {"status": "minor", "trend": "worsening"},
+        "weather": {"status": "moderate", "trend": "stable"}
       }
     }
   },
@@ -170,7 +169,7 @@ The log structure mirrors the analysis layers:
     "generated_at": "...",
     "title": "...",
     "summary": "...",
-    "categories": {"transport": {"status": "delays", "trend": "worsening"}},
+    "categories": {"transport": {"status": "minor", "trend": "worsening"}},
     "recommendation": "...",
     "alert_count": 42,
     "references": ["id1", "id2"]

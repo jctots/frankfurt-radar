@@ -218,26 +218,22 @@ _PULSE_DEBUG_RETENTION_DAYS = 30
 def _write_debug_log(debug_data: dict) -> None:
     try:
         _PULSE_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        ts = debug_data.get("generated_at", "")[:13].replace(":", "")
-        path = _PULSE_DEBUG_DIR / f"{ts}.json"
-        path.write_text(json.dumps(debug_data, ensure_ascii=False, indent=2))
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        path = _PULSE_DEBUG_DIR / f"{today}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(debug_data, ensure_ascii=False) + "\n")
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_PULSE_DEBUG_RETENTION_DAYS)
-        cutoff_str = cutoff.strftime("%Y-%m-%dT%H")
-        for old in _PULSE_DEBUG_DIR.glob("*.json"):
-            if old.stem < cutoff_str:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_PULSE_DEBUG_RETENTION_DAYS)).strftime("%Y-%m-%d")
+        for old in _PULSE_DEBUG_DIR.glob("*.jsonl"):
+            if old.stem < cutoff:
                 old.unlink(missing_ok=True)
+        for old in _PULSE_DEBUG_DIR.glob("*.json"):
+            old.unlink(missing_ok=True)
     except OSError as e:
         log.warning("Pulse debug log write failed: %s", e)
 
 
-_LEVEL_2_PLUS = {
-    "transport": {"disrupted", "paralyzed"},
-    "weather": {"warning", "extreme"},
-    "roadworks": {"closures", "gridlock"},
-    "incidents": {"elevated", "major"},
-    "events": {"busy", "peak"},
-}
+_LEVEL_2_PLUS = {"moderate", "severe"}
 
 
 def _should_skip_pulse(now: datetime) -> bool:
@@ -248,8 +244,8 @@ def _should_skip_pulse(now: datetime) -> bool:
 
     last_cats = last.get("categories", {})
     elevated = any(
-        last_cats.get(cat, {}).get("status") in statuses
-        for cat, statuses in _LEVEL_2_PLUS.items()
+        cat.get("status") in _LEVEL_2_PLUS
+        for cat in last_cats.values()
     )
     if elevated:
         return False

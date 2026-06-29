@@ -37,23 +37,16 @@ The following shows severity-weighted scores per category over each category's n
 
 ## Category status vocabulary
 
-Judge each category's status using ONLY these labels:
+Judge each category's status using these universal labels (same for all categories):
 
-| Category   | Level 0 (nothing) | Level 1 (minor) | Level 2 (significant) | Level 3 (severe) |
-|------------|-------------------|------------------|-----------------------|-------------------|
-| Transport  | clear             | delays           | disrupted             | paralyzed         |
-| Weather    | clear             | watch            | warning               | extreme           |
-| Roadworks  | clear             | works            | closures              | gridlock          |
-| Incidents  | clear             | low              | elevated              | major             |
-| Events     | clear             | crowds           | busy                  | peak              |
+| Level | Label | Meaning |
+|-------|-------|---------|
+| 0 | clear | No ongoing alerts in this category |
+| 1 | minor | Score within typical baseline range in history |
+| 2 | moderate | Score significantly above baseline, OR baseline score but alert content indicates high-impact disruption (e.g. severe weather warning, major line suspension) |
+| 3 | severe | Score far above baseline AND alert content confirms widespread or extreme impact — both numbers and content must agree |
 
 Trend (all categories): `improving` / `stable` / `worsening`
-
-How to judge status — use the history to calibrate what's "normal" for each category:
-- **Level 0**: Score is 0 — no ongoing alerts in this category.
-- **Level 1**: Score is within the typical range shown in history. This is the baseline state — normal for this category at this time.
-- **Level 2**: Score is significantly above the baseline range seen in history, OR score is within baseline but alert content indicates a high-impact disruption (e.g., a single severe weather warning, a major line suspension). Content-based escalation is valid when the alert body reveals outsized impact not reflected in the score.
-- **Level 3**: Score is far above the baseline range AND alert content confirms widespread or extreme impact. Both the numbers and the content must agree — do not assign Level 3 based on dramatic-sounding text alone.
 
 How to judge trend — two signals, one label:
 
@@ -82,11 +75,11 @@ Produce a JSON object with EXACTLY these fields:
   "recommendation": "One short actionable sentence. MUST be under 100 characters. If nothing notable: 'No special action needed.'",
   "references": ["alert_id_1", "alert_id_2", "alert_id_3"],
   "categories": {{
-    "transport": {{"status": "clear", "trend": "stable"}},
-    "weather": {{"status": "clear", "trend": "stable"}},
-    "roadworks": {{"status": "clear", "trend": "stable"}},
-    "incidents": {{"status": "clear", "trend": "stable"}},
-    "events": {{"status": "clear", "trend": "stable"}}
+    "transport": {{"status": "clear|minor|moderate|severe", "trend": "stable"}},
+    "weather": {{"status": "clear|minor|moderate|severe", "trend": "stable"}},
+    "roadworks": {{"status": "clear|minor|moderate|severe", "trend": "stable"}},
+    "incidents": {{"status": "clear|minor|moderate|severe", "trend": "stable"}},
+    "events": {{"status": "clear|minor|moderate|severe", "trend": "stable"}}
   }}
 }}
 
