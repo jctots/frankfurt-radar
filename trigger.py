@@ -149,7 +149,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         pulse_py = MAIN_PY.parent / "pulse.py"
         try:
             proc = subprocess.Popen(
-                [sys.executable, str(pulse_py)],
+                [sys.executable, str(pulse_py), "--force"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

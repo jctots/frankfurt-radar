@@ -279,7 +279,7 @@ _ALL_CLEAR_PULSE = {
 }
 
 
-def generate_pulse(config: dict) -> dict | None:
+def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     if not config.get("pulse", {}).get("enabled", False):
         log.debug("Pulse disabled in config")
         return None
@@ -292,7 +292,7 @@ def generate_pulse(config: dict) -> dict | None:
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
     db.store_category_snapshots(snapshot_ts, snapshot)
 
-    if _should_skip_pulse(now):
+    if not force and _should_skip_pulse(now):
         return None
 
     if not alerts:
@@ -424,11 +424,12 @@ if __name__ == "__main__":
     cfg = yaml.safe_load((data_dir / "config.yaml").read_text()) or {}
     db.init_db()
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--daily":
-        date = sys.argv[2] if len(sys.argv) > 2 else None
+    args = sys.argv[1:]
+    if "--daily" in args:
+        date = args[args.index("--daily") + 1] if len(args) > args.index("--daily") + 1 else None
         result = generate_daily_summary(cfg, date)
     else:
-        result = generate_pulse(cfg)
+        result = generate_pulse(cfg, force="--force" in args)
 
     if result:
         print(json.dumps(result, indent=2))
