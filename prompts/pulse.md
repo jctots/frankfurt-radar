@@ -47,8 +47,8 @@ The following shows severity-weighted scores per category over each category's n
 **How to judge trend** — two signals, one label:
 
 **Default: next-interval projection + history (Signal 1)**
-- Compare current ongoing scores against the history (rising = worsening, falling = improving, flat = stable).
-- Then compare ongoing vs projected — if projected is significantly lower, the situation is improving; if significantly higher, it's worsening.
+- Use `baseline.mean` and `baseline.p75` as reference points for the history shape. A score consistently above p75 = elevated conditions. A score that has recently dropped from above p75 toward mean = improving. A score rising from near mean toward p75 or above = worsening.
+- Compare ongoing vs projected — if projected is significantly lower, the situation is improving; if significantly higher, it's worsening.
 - Consider the full history window, not just the last data point.
 
 **Override: horizon momentum (Signal 2) — sharp + near test**

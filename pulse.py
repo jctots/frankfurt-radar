@@ -235,6 +235,9 @@ def _write_debug_log(debug_data: dict) -> None:
 
 
 _LEVEL_2_PLUS = {"moderate", "severe"}
+# Only fast-changing categories trigger the 1h override — daily-interval categories
+# (roadworks, events, incidents) don't change meaningfully within an hour.
+_FAST_CATEGORIES = frozenset(("transport", "weather"))
 
 
 def _should_skip_pulse(now: datetime) -> dict | None:
@@ -246,7 +249,8 @@ def _should_skip_pulse(now: datetime) -> dict | None:
     last_cats = last.get("categories", {})
     elevated = any(
         cat.get("status") in _LEVEL_2_PLUS
-        for cat in last_cats.values()
+        for key, cat in last_cats.items()
+        if key in _FAST_CATEGORIES
     )
     if elevated:
         return None
