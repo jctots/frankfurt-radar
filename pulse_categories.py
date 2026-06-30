@@ -192,6 +192,8 @@ def compute_snapshot(
             "alert_id": alert.get("alert_id"),
             "source": alert.get("source"),
             "weight": weight,
+            "title": (alert.get("title_en") or "")[:80],
+            "body": (alert.get("body_en") or "")[:100],
         }
 
     for alert in alerts:

@@ -715,7 +715,15 @@ function selectCell(idx, cat) {
     : `${freshAlerts} fresh alerts`;
   $('#pulse-detail-title').textContent = `${time}${titleCat} · ${titleCount}`;
 
-  let body = '';
+  // Narrative at the top — always visible
+  const l2top = e.layer_2_llm || {};
+  const resptop = l2top.response || {};
+  if (resptop.summary || resptop.recommendation) {
+    body += `<div style="padding-bottom:12px;border-bottom:1px solid var(--clr-border);margin-bottom:4px;">`;
+    if (resptop.summary) body += `<div style="font-size:13px;margin-bottom:6px;">${resptop.summary}</div>`;
+    if (resptop.recommendation) body += `<div style="font-size:12px;color:var(--clr-muted);font-style:italic;">${resptop.recommendation}</div>`;
+    body += `</div>`;
+  }
 
   for (const c of displayCats) {
     const ts = timeseries[c] || {};
@@ -729,9 +737,12 @@ function selectCell(idx, cat) {
     const trend = (l3cats[c] || {}).trend || 'stable';
 
     body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
-    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)}</div>`;
+    const trendColor = trend === 'worsening' ? '#f85149' : trend === 'improving' ? '#3fb950' : '#7d8590';
+    const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trend}</span>`;
+    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)} ${trendPill}</div>`;
 
     // Score cards: ongoing / projected / horizon
+    body += `<div style="margin-bottom:8px;">${statusPill(status)} ${trendPill}</div>`;
     body += `<div class="score-grid">
       <div class="score-item">
         <div class="score-label">Ongoing</div>
@@ -741,7 +752,7 @@ function selectCell(idx, cat) {
       <div class="score-item">
         <div class="score-label">Next interval</div>
         <div class="score-val">${projected.score ?? '—'}</div>
-        <div style="font-size:10px;color:var(--clr-muted)">${projected.count ?? 0} alert${projected.count !== 1 ? 's' : ''} projected</div>
+        <div style="font-size:10px;color:var(--clr-muted)">${projected.count ?? 0} projected</div>
       </div>`;
     if (horizon) {
       body += `<div class="score-item">
@@ -750,11 +761,14 @@ function selectCell(idx, cat) {
         <div style="font-size:10px;color:var(--clr-muted)">near: ${horizon.near_score ?? 0}</div>
       </div>`;
     }
-    body += `<div class="score-item">
-      <div class="score-label">Trend</div>
-      <div class="score-val" style="font-size:13px;padding-top:4px;">${trend}</div>
-    </div>
-    </div>`;
+    if (bMean > 0) {
+      body += `<div class="score-item">
+        <div class="score-label">Baseline</div>
+        <div class="score-val" style="font-size:14px;">μ ${bMean}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">p75: ${bP75}</div>
+      </div>`;
+    }
+    body += `</div>`;
 
     // History bar chart
     if (history.length) {
@@ -851,12 +865,13 @@ function selectCell(idx, cat) {
         body += `<div style="margin-bottom:8px;">
           <div style="font-size:11px;color:var(--clr-muted);margin-bottom:4px;">${label}</div>
           <table class="cat-detail-table">
-            <tr><th>Source</th><th>Weight</th><th>Alert</th></tr>`;
+            <tr><th>Source</th><th>Weight</th><th>Title</th><th>Content</th></tr>`;
         for (const item of items) {
           body += `<tr>
             <td>${item.source || '—'}</td>
             <td>${item.weight ?? '—'}</td>
-            <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.title || item.alert_id || '—'}</td>
+            <td style="font-size:11px;white-space:nowrap;">${item.title || item.alert_id || '—'}</td>
+            <td style="font-size:11px;color:var(--clr-muted);">${item.body || '—'}</td>
           </tr>`;
         }
         body += `</table></div>`;
@@ -871,22 +886,6 @@ function selectCell(idx, cat) {
   const l2 = e.layer_2_llm || {};
   const resp = l2.response || {};
   const hasTrend = displayCats.some(c => resp.categories?.[c]?.trend);
-  if (hasTrend || resp.summary) {
-    body += `<details style="margin-top:4px; border-top:1px solid var(--clr-border); padding-top:12px;">
-      <summary style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);cursor:pointer;user-select:none;">LLM Reasoning (trend + narrative)</summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">`;
-    if (hasTrend) {
-      body += `<table class="cat-detail-table"><tr><th>Category</th><th>LLM Trend</th></tr>`;
-      for (const c of displayCats) {
-        const trend = resp.categories?.[c]?.trend || '—';
-        body += `<tr><td>${c}</td><td style="color:var(--clr-muted);font-size:12px;">${trend}</td></tr>`;
-      }
-      body += `</table>`;
-    }
-    if (resp.summary) body += `<div style="font-size:12px;color:var(--clr-muted);">${resp.summary}</div>`;
-    if (resp.recommendation) body += `<div style="font-size:12px;color:var(--clr-muted);font-style:italic;">${resp.recommendation}</div>`;
-    body += `</div></details>`;
-  }
 
   $('#pulse-detail-body').innerHTML = body;
   $('#pulse-detail').style.display = 'block';
