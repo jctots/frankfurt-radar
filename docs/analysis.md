@@ -191,6 +191,41 @@ Use the debug log to review why a pulse produced a particular output:
 
 Provide a debug log file together with this document as context when asking an LLM to suggest improvements.
 
+## Self-improving calibration loop
+
+The system is designed to improve its status accuracy over time through a feedback loop:
+
+### 1. Deterministic status (Layer 1)
+Status is computed from Layer 1 scores alone — no LLM judgment. The formula:
+- `ongoing_score == 0` → **clear**
+- `score ≤ baseline.mean` → **minor**
+- `score ≤ baseline.p75` → **moderate**
+- `score > baseline.p75` → **severe**
+
+The LLM receives the computed status as context but does not override it. Its role is limited to **trend** and **narrative**.
+
+### 2. Admin override with reasoning
+When a computed status is wrong, the admin can record a correction in the admin dashboard:
+- Select the correct status
+- Provide a reason: "baustellen partial closures are routine — weight 1.0 too high"
+
+Overrides are stored in `status_overrides` with the pulse timestamp, category, computed status, override status, and reason. They do not change live output — they are a retrospective learning signal.
+
+### 3. Weight review
+Admin-triggered via the dashboard. Sends recent overrides + score breakdowns + the current weight table to Gemini, which returns:
+- A summary of patterns observed in the overrides
+- Suggested weight adjustments with rationale
+- A list of well-calibrated weight classes
+
+The admin reviews and applies adjustments manually to `pulse_categories.py`.
+
+### The loop
+```
+Deterministic status → Admin sees wrong status → Records override + reason
+→ Weight review analyzes pattern → Suggests weight adjustment
+→ Admin applies adjustment → Deterministic status improves → Fewer overrides
+```
+
 ## Current limitations
 
 - **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.

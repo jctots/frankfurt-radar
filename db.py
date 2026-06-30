@@ -289,6 +289,18 @@ def init_db() -> None:
                 conn.execute(f"ALTER TABLE {tbl} ADD COLUMN tokens_thinking INTEGER NOT NULL DEFAULT 0")
             except Exception:
                 pass
+        try:
+            conn.execute("""CREATE TABLE IF NOT EXISTS status_overrides (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                pulse_ts         TEXT NOT NULL,
+                category         TEXT NOT NULL,
+                computed_status  TEXT NOT NULL,
+                override_status  TEXT NOT NULL,
+                reason           TEXT NOT NULL,
+                created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            )""")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -351,6 +363,33 @@ def expire_processed_alerts() -> None:
         )
         if daily_cur.rowcount:
             log.info("Expired %d pulse_daily_summary entries", daily_cur.rowcount)
+
+
+# ── status_overrides ─────────────────────────────────────────────────────────
+
+def add_status_override(pulse_ts: str, category: str, computed_status: str, override_status: str, reason: str) -> dict:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO status_overrides (pulse_ts, category, computed_status, override_status, reason)
+               VALUES (?, ?, ?, ?, ?)""",
+            (pulse_ts, category, computed_status, override_status, reason),
+        )
+    return get_status_overrides()
+
+
+def get_status_overrides(limit: int = 50) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, pulse_ts, category, computed_status, override_status, reason, created_at
+               FROM status_overrides ORDER BY created_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_status_override(override_id: int) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM status_overrides WHERE id = ?", (override_id,))
 
 
 # ── cost_debug ────────────────────────────────────────────────────────────────

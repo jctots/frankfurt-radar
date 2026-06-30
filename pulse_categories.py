@@ -51,6 +51,21 @@ WEIGHT_DEFAULT = 1.0
 _NO_TEMPORAL_SOURCES = frozenset(("polizei", "strike"))
 
 
+def compute_status(ongoing_score: float, baseline: dict | None) -> str:
+    """Return deterministic status label from score and historical baseline."""
+    if ongoing_score <= 0:
+        return "clear"
+    if baseline is None:
+        return "minor"
+    mean = baseline.get("mean", 0)
+    p75 = baseline.get("p75", 0)
+    if ongoing_score <= mean:
+        return "minor"
+    if ongoing_score <= p75:
+        return "moderate"
+    return "severe"
+
+
 def _compute_weight(alert: dict) -> float:
     source = alert.get("source", "")
     if source == "dwd":
@@ -316,6 +331,8 @@ def build_category_timeseries(
             }
         else:
             baseline = None
+
+        current["status"] = compute_status(snap.get("ongoing_score", 0.0), baseline)
 
         timeseries[cat] = {
             "current": current,

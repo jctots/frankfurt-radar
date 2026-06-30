@@ -354,6 +354,25 @@
     </div>
   </div>
 
+  <!-- Override History -->
+  <div class="card">
+    <h2>✏️ Status Override History</h2>
+    <div id="override-list" class="log-scroll" style="overflow-x:auto;">
+      <table class="log-table">
+        <thead>
+          <tr><th>Time</th><th>Category</th><th>Computed</th><th>Override</th><th>Reason</th><th></th></tr>
+        </thead>
+        <tbody id="override-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--clr-border);padding-top:12px;">
+      <button class="btn btn-primary btn-sm" onclick="runWeightReview()">Run Weight Review</button>
+      <span style="font-size:12px;color:var(--clr-muted);">Sends overrides to Gemini for weight calibration suggestions.</span>
+      <span id="weight-review-result"></span>
+    </div>
+    <div id="weight-review-body" style="margin-top:12px;"></div>
+  </div>
+
   <!-- Ban List -->
   <div class="card">
     <h2>🚫 Ban List</h2>
@@ -788,7 +807,83 @@ function selectCell(idx, cat) {
       body += `<div style="font-size:12px;color:var(--clr-muted);margin-top:8px;">No history for this period</div>`;
     }
 
+    // Override button
+    const pulseTs = e.generated_at;
+    const catStatus = cur.status || 'clear';
+    body += `<div style="margin-top:8px;">
+      <details>
+        <summary style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);cursor:pointer;user-select:none;">Override Status</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:12px;color:var(--clr-muted);">Computed: ${statusPill(catStatus)} — override if this is wrong and record your reasoning</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="ov-status-${c}" style="padding:5px 8px;border:1px solid var(--clr-border);border-radius:6px;background:var(--clr-surface2);color:var(--clr-text);font-size:12px;">
+              <option value="clear">clear</option>
+              <option value="minor">minor</option>
+              <option value="moderate">moderate</option>
+              <option value="severe">severe</option>
+            </select>
+            <input id="ov-reason-${c}" type="text" placeholder="Reason (required)" style="flex:1;min-width:180px;padding:5px 8px;border:1px solid var(--clr-border);border-radius:6px;background:var(--clr-surface2);color:var(--clr-text);font-size:12px;">
+            <button class="btn btn-sm btn-primary" onclick="submitOverride('${pulseTs}','${c}','${catStatus}')">Save override</button>
+          </div>
+          <div id="ov-result-${c}" style="font-size:12px;"></div>
+        </div>
+      </details>
+    </div>`;
+
+    // Score breakdown: which alerts contributed to this category's score
+    const bd = (e.layer_1_deterministic?.score_breakdown || {})[c] || {};
+    const buckets = [
+      { key: 'ongoing', label: 'Ongoing' },
+      { key: 'expiring_near', label: 'Expiring next interval' },
+      { key: 'starting_near', label: 'Starting next interval' },
+      { key: 'starting_full', label: 'Starting in lookahead' },
+    ];
+    const hasBreakdown = buckets.some(b => (bd[b.key] || []).length > 0);
+    if (hasBreakdown) {
+      body += `<details style="margin-top:4px;">
+        <summary style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);cursor:pointer;user-select:none;">Score Breakdown</summary>
+        <div style="margin-top:8px;">`;
+      for (const { key, label } of buckets) {
+        const items = bd[key] || [];
+        if (!items.length) continue;
+        body += `<div style="margin-bottom:8px;">
+          <div style="font-size:11px;color:var(--clr-muted);margin-bottom:4px;">${label}</div>
+          <table class="cat-detail-table">
+            <tr><th>Source</th><th>Weight</th><th>Alert</th></tr>`;
+        for (const item of items) {
+          body += `<tr>
+            <td>${item.source || '—'}</td>
+            <td>${item.weight ?? '—'}</td>
+            <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.title || item.alert_id || '—'}</td>
+          </tr>`;
+        }
+        body += `</table></div>`;
+      }
+      body += `</div></details>`;
+    }
+
     body += `</div>`;
+  }
+
+  // LLM reasoning section (trend + narrative from layer_2_llm.response)
+  const l2 = e.layer_2_llm || {};
+  const resp = l2.response || {};
+  const hasTrend = displayCats.some(c => resp.categories?.[c]?.trend);
+  if (hasTrend || resp.summary) {
+    body += `<details style="margin-top:4px; border-top:1px solid var(--clr-border); padding-top:12px;">
+      <summary style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);cursor:pointer;user-select:none;">LLM Reasoning (trend + narrative)</summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">`;
+    if (hasTrend) {
+      body += `<table class="cat-detail-table"><tr><th>Category</th><th>LLM Trend</th></tr>`;
+      for (const c of displayCats) {
+        const trend = resp.categories?.[c]?.trend || '—';
+        body += `<tr><td>${c}</td><td style="color:var(--clr-muted);font-size:12px;">${trend}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+    if (resp.summary) body += `<div style="font-size:12px;color:var(--clr-muted);">${resp.summary}</div>`;
+    if (resp.recommendation) body += `<div style="font-size:12px;color:var(--clr-muted);font-style:italic;">${resp.recommendation}</div>`;
+    body += `</div></details>`;
   }
 
   $('#pulse-detail-body').innerHTML = body;
@@ -959,11 +1054,122 @@ async function unbanUser(chatId) {
   } catch {}
 }
 
+// ── Overrides ────────────────────────────────────────────────────────────────
+
+async function loadOverrides() {
+  try {
+    const res = await fetch('/api/admin/overrides');
+    if (!res.ok) return;
+    const data = await res.json();
+    renderOverrides(data.overrides || []);
+  } catch {}
+}
+
+function renderOverrides(overrides) {
+  const el = $('#override-tbody');
+  if (!overrides.length) {
+    el.innerHTML = '<tr><td colspan="6" class="empty">No overrides yet.</td></tr>';
+    return;
+  }
+  el.innerHTML = overrides.map(o => `<tr>
+    <td style="white-space:nowrap;font-size:12px;">${utcToBerlin(o.pulse_ts)} ${o.pulse_ts.slice(0,10)}</td>
+    <td>${o.category}</td>
+    <td>${statusPill(o.computed_status)}</td>
+    <td>${statusPill(o.override_status)}</td>
+    <td class="note">${o.reason}</td>
+    <td><button class="btn btn-sm btn-danger" onclick="deleteOverride(${o.id})">✕</button></td>
+  </tr>`).join('');
+}
+
+async function submitOverride(pulseTs, category, computedStatus) {
+  const overrideStatus = document.getElementById(`ov-status-${category}`)?.value;
+  const reason = document.getElementById(`ov-reason-${category}`)?.value?.trim();
+  const resultEl = document.getElementById(`ov-result-${category}`);
+  if (!reason) {
+    if (resultEl) { resultEl.className = 'action-result err'; resultEl.textContent = 'Reason is required'; }
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pulse_ts: pulseTs, category, computed_status: computedStatus, override_status: overrideStatus, reason }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (resultEl) { resultEl.className = 'action-result ok'; resultEl.textContent = '✓ Saved'; }
+      renderOverrides(data.overrides || []);
+    } else {
+      if (resultEl) { resultEl.className = 'action-result err'; resultEl.textContent = data.error || 'Failed'; }
+    }
+  } catch (ex) {
+    if (resultEl) { resultEl.className = 'action-result err'; resultEl.textContent = ex.message; }
+  }
+}
+
+async function deleteOverride(id) {
+  try {
+    const res = await fetch(`/api/admin/overrides/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) renderOverrides(data.overrides || []);
+  } catch {}
+}
+
+// ── Weight review ────────────────────────────────────────────────────────────
+
+async function runWeightReview() {
+  const resultEl = $('#weight-review-result');
+  const bodyEl = $('#weight-review-body');
+  resultEl.className = 'action-result';
+  resultEl.textContent = 'Analyzing...';
+  bodyEl.innerHTML = '';
+  try {
+    const res = await fetch('/api/admin/weight-review', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.className = 'action-result err';
+      resultEl.textContent = '✗ ' + (data.error || 'Failed');
+      return;
+    }
+    resultEl.className = 'action-result ok';
+    resultEl.textContent = `✓ Analyzed ${data.overrides_analyzed} overrides`;
+
+    const r = data.result || {};
+    let html = '';
+    if (r.analysis) {
+      html += `<div style="font-size:13px;margin-bottom:12px;">${r.analysis}</div>`;
+    }
+    if ((r.suggestions || []).length) {
+      html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);margin-bottom:8px;">Suggested Adjustments</div>`;
+      html += `<table class="log-table"><thead><tr><th>Target</th><th>Current</th><th>Suggested</th><th>Rationale</th></tr></thead><tbody>`;
+      for (const s of r.suggestions) {
+        html += `<tr>
+          <td>${s.target}</td>
+          <td>${s.current_weight}</td>
+          <td style="font-weight:700;">${s.suggested_weight}</td>
+          <td class="note">${s.rationale}</td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+    } else {
+      html += `<div style="font-size:12px;color:var(--clr-muted);">No weight changes suggested.</div>`;
+    }
+    if ((r.no_change || []).length) {
+      html += `<div style="font-size:12px;color:var(--clr-muted);margin-top:8px;">Well-calibrated: ${r.no_change.join(', ')}</div>`;
+    }
+    bodyEl.innerHTML = html;
+  } catch (e) {
+    resultEl.className = 'action-result err';
+    resultEl.textContent = '✗ ' + e.message;
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 loadData();
 loadServerStatus();
 loadBans();
+loadOverrides();
 </script>
 
 </body>
