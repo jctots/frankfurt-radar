@@ -24,134 +24,141 @@ Each poller runs on a cron schedule (typically every 5 minutes). Alerts are cach
 
 ## Analysis pipeline
 
-City Pulse processes data through three layers:
+City Pulse processes data through three layers on each hourly run.
 
-### 1. Deterministic layer (script)
+### Layer 1 — Deterministic scoring
 
 **Module:** `pulse_categories.py`
 
-This layer computes severity-weighted scores and stores hourly snapshots. It handles everything that can be computed precisely without interpretation.
+Computes severity-weighted scores, stores hourly snapshots, and derives the status label for each category. Everything here is deterministic — no LLM involved.
 
-**Ongoing/upcoming filtering** — Alerts are classified into two groups:
+**Alert classification** — Alerts are placed into buckets:
 
-- **Ongoing**: `valid_from <= now` AND (`valid_until >= now` OR absent) → active disruption
-- **Upcoming**: `valid_from > now` AND within the category's lookahead window → imminent disruption
-- **Excluded**: `valid_until < now` (expired) or `valid_from` beyond lookahead (too far out)
-- Sources without temporal data (polizei, strike — RSS feeds) → always counted as ongoing
+- **Ongoing**: `valid_from ≤ now` AND (`valid_until ≥ now` OR absent) → active disruption
+- **Upcoming**: `valid_from > now` AND within the category's lookahead window → imminent
+- **Excluded**: expired alerts or alerts beyond the lookahead window
+- **No-temporal sources** (polizei, strike — RSS feeds): always counted as ongoing
 
-**Severity weighting** — Each alert contributes a weight rather than a raw count of 1. Weights are deterministic, derived from existing alert fields:
+**Severity weighting** — Each alert contributes a weight derived from its fields:
 
 | Source | Field | Weight mapping |
 |--------|-------|----------------|
-| DWD (weather) | `severity` (1–4) | minor=0.5, moderate=1.0, severe=1.5, extreme=2.0 |
-| RMV (transport) | `service` | S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=1.0 |
+| DWD | `severity` (1–4) | minor=0.5, moderate=1.0, severe=1.5, extreme=2.0 |
+| RMV | `service` | S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=1.0 |
 | Autobahn | `title_en` keyword | "closure"=1.5, else 1.0 |
-| Baustellen | `service` | "City (Full)"=1.5, "City (Partial)"=1.0 |
-| Events/Messe/Sports | — | Fixed 2.0 (one-off, high-impact) |
-| Polizei/Strike | — | Default 1.0 (no structured severity data) |
+| Baustellen | `service` | "City (Full)"=1.5, else 1.0 |
+| Events/Messe/Sports | — | Fixed 2.0 |
+| Polizei/Strike | — | Default 1.0 |
 
-**Hourly snapshots** — Every hour, the pipeline stores a snapshot for each category containing:
-- `ongoing_count` / `ongoing_score`: number and severity-weighted score of active alerts
-- `projected_count` / `projected_score`: estimated ongoing score at the end of the **next sample interval** (1h for Transport, 6h for Weather, 24h for Roadworks/Events), computed as: `ongoing_score - expiring_near + starting_near`, where `expiring_near` and `starting_near` only count alerts within one sample interval, not the full lookahead window. This makes `projected_score` directly comparable to `ongoing_score` and to each history data point — they all cover the same time scale.
-- `upcoming_count` / `upcoming_score`: number and severity-weighted score of all alerts starting within the category's full lookahead window. Used to compute the rate-of-growth signal (horizon momentum) by comparing across consecutive snapshots.
-- `upcoming_near_score`: the portion of `upcoming_score` that falls within the next sample interval. Gives the LLM a proximity signal — a high ratio of `upcoming_near_score / upcoming_score` means the upcoming activity is imminent.
+**Hourly snapshots** — Stored in `category_snapshots` (one row per category per hour):
 
-Snapshots are stored in the `category_snapshots` table (one row per category per hour).
+- `ongoing_score`: severity-weighted sum of active alerts
+- `projected_score`: estimated score at the end of the next sample interval — `ongoing_score − expiring_near + starting_near`. Directly comparable to `ongoing_score`.
+- `upcoming_score`: severity-weighted sum of all alerts starting within the full lookahead window
+- `upcoming_near_score`: portion of `upcoming_score` falling within the next sample interval
 
-**Per-category time windows** — Each category operates on its own natural timescale:
+**Per-category time windows:**
 
-| Category | Sample interval | History depth | Upcoming lookahead |
-|----------|----------------|---------------|--------------------|
-| Transport | Hourly | 24h (24 points) | 6 hours |
-| Weather | 6-hourly | 3 days (12 points) | 48 hours |
+| Category | Sample interval | History depth | Lookahead |
+|----------|----------------|---------------|-----------|
+| Transport | 1h | 24h (24 points) | 6h |
+| Weather | 6h | 3 days (12 points) | 48h |
 | Roadworks | Daily | 4 weeks (28 points) | 1 week |
 | Events | Daily | 1 week (7 points) | 1 week |
-| Incidents | Daily | 1 week (7 points) | None (retrospective) |
+| Incidents | Daily | 1 week (7 points) | None |
 
-When building the LLM prompt context, hourly snapshot rows are aggregated to each category's sample interval (e.g. roadworks hourly rows → daily buckets using max count and score per bucket). Each history entry carries `count`, `score` (ongoing), and `horizon_score` (full-lookahead total at that point in time). The `horizon_score` series across history entries gives the LLM the rate-of-growth signal for horizon momentum — a rising sequence means new alerts are being published faster than old ones are dropping off.
+**Statistical baseline** — Computed from the history window when ≥3 data points exist:
+- `baseline.mean`: average ongoing score — the "typical" level for this category
+- `baseline.p75`: 75th percentile — above this is genuinely elevated
 
-### 2. LLM layer (Gemini Flash)
+**Deterministic status** — Derived from `ongoing_score` and `baseline`:
+
+| Status | Condition |
+|--------|-----------|
+| clear | `ongoing_score == 0` |
+| minor | `score ≤ baseline.mean` (or no baseline yet) |
+| moderate | `baseline.mean < score ≤ baseline.p75` |
+| severe | `score > baseline.p75` |
+
+Status is **not assigned by the LLM**. The LLM receives the computed status as context.
+
+### Layer 2 — LLM synthesis
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-The LLM receives the active alerts, category time-series data, and recent history as context. It judges both the narrative summary and the per-category status and trend.
+Gemini Flash receives: the active alerts (with bodies), the timeseries data (including computed status and baseline), and recent pulse/summary history. Its role is **trend and narrative only** — it does not assign or override status.
 
-**Status judgment** — The LLM synthesizes three inputs to assign each category a universal status label:
+**Trend judgment** — Per category: `improving` / `stable` / `worsening`. Two signals:
 
-1. **History + projection (Signal 1)** — The shape of the time series and the relationship between `ongoing_score` and `projected_score` reveal direction.
-2. **Statistical baseline (Signal 2)** — `baseline.mean` (typical level) and `baseline.p75` (75th percentile) are computed from the history window and injected into the prompt alongside the raw history. These give the LLM a concrete numeric anchor: at/below mean = routine; between mean and p75 = elevated; above p75 = genuinely above normal.
-3. **Alert content (Signal 3)** — The LLM reads alert bodies for acute, non-routine impact (e.g. DWD extreme warning, complete transit suspension). Chronic long-running alerts and routine scheduled maintenance are baseline — they should not inflate status.
+- **Signal 1 (next-interval projection)**: compares `ongoing_score` vs `projected_score` combined with history shape. This is the default basis.
+- **Signal 2 (horizon momentum)**: overrides Signal 1 only when both conditions hold — the `horizon_score` series shows sharp acceleration (not just drift) AND the activity is near (`near_score` is a high fraction of `total_score`). When triggered, the LLM uses bridging language in the narrative.
 
-The three signals will not always agree. The LLM is guided to synthesize them: a high score with purely routine content → moderate at most; a low score with an extreme weather warning → let content lead. A DWD extreme warning (level 4) or complete major line suspension may justify `severe` from content alone.
+**Narrative output:**
+- **Title** (≤40 chars) — glanceable headline
+- **Summary** (≤300 chars) — cross-source synthesis, spatial awareness of Frankfurt districts, no enumeration of specifics users already see
+- **Recommendation** (≤100 chars) — one actionable sentence, practical and calm
+- **References** — up to 3 alert IDs most relevant to the summary
 
-| Level | Label | Guidance |
-|-------|-------|---------|
-| 0 | clear | No ongoing alerts |
-| 1 | minor | Score at or below mean; routine or chronic conditions; no high-impact content |
-| 2 | moderate | Score above mean, or non-routine content — signals should broadly agree |
-| 3 | severe | Score well above p75 AND content confirms broad or acute impact (or acute safety event alone) |
-
-**Trend judgment** — The LLM assigns trend (`improving`, `stable`, `worsening`) from two computed signals that feed a single consolidated label:
-
-- **Signal 1 (next-interval projection)**: compares `ongoing_score` against `projected_score`, which covers only the next sample interval (1h/6h/24h). Combined with the history shape, this is the default basis for trend.
-- **Signal 2 (horizon momentum)**: tracks how the full-lookahead `upcoming_score` changes across recent snapshots (`horizon.samples`). This may **override** the Signal 1 trend, but only when both conditions are met: (a) the rate of growth is **sharp** (clear acceleration, not noise), and (b) the newly-detected activity is **near** (high `horizon.near_score` relative to `horizon.total_score`). When both conditions hold, the LLM escalates trend and uses bridging language in the narrative to connect the near-term signal with the longer-horizon one. When only one condition holds, the horizon signal may appear in the narrative but does not change the trend label.
-
-The LLM uses the time-series data (scores over time) combined with alert content to make these judgments. This approach gives the LLM the full context to judge severity — a single extreme-severity weather warning can warrant "warning" status even with a low alert count, and chronic low-level roadworks can be correctly identified as "works" rather than escalating due to count alone.
-
-The LLM also produces:
-
-- **Summary** (≤300 chars) — Cross-source correlation, impact synthesis using a synthesis hierarchy (aggregate patterns, don't enumerate specifics), spatial awareness of Frankfurt districts
-- **Recommendation** (≤100 chars) — One actionable sentence: practical and calm, no alarmist language
-
-The LLM's value is in tasks that require interpretation:
-
-- Connecting a police incident to a transit disruption at the same location
-- Assessing that three separate S-Bahn delays converge on the same corridor
-- Recommending tram 17 as an alternative when the U4 is suspended
-- Recognizing that a construction alert has been running for weeks and is not newsworthy
-- Judging that 8 transport alerts with low individual severity collectively constitute "moderate" status
+The LLM's value is interpretation: connecting a police incident to a transit disruption at the same location, recognizing that 6 S-Bahn delays converge on the same corridor, or noting that roadworks have been running for three weeks and are not newsworthy.
 
 Thinking is enabled (`thinkingBudget: 1024`) for spatial reasoning.
 
-### 3. Temporal compression
+### Layer 3 — Output assembly
 
-The pipeline operates at three time scales:
-
-**Hourly pulse** — Generated every hour from current active alerts. Stored in `pulse_history` with LLM-judged categories.
-
-**Daily summary** — Generated at 23:00 by compressing 24 hourly pulses into a one-paragraph digest. Stored in `pulse_daily_summary`.
-
-**History context** — Each hourly pulse receives the last 3 hourly pulses and last 3 daily summaries as context, enabling the LLM to write summaries that reference multi-day patterns ("roadworks on A5 entering their second week") without needing a full alert archive.
-
-## Debug log
-
-Each hourly pulse appends a structured JSON line to a daily JSONL file in `data/pulse_debug/` (e.g., `2026-06-22.jsonl`). Files are retained for 30 days.
-
-The log structure mirrors the analysis layers:
+`pulse.py` combines Layer 1 status with Layer 2 trend to produce the final pulse:
 
 ```json
 {
-  "generated_at": "2026-06-22T23:00:00Z",
-  "current_hour_utc": 21,
+  "generated_at": "...",
+  "title": "...",
+  "summary": "...",
+  "recommendation": "...",
+  "categories": {
+    "transport": {"status": "minor", "trend": "worsening"}
+  },
+  "alert_count": 42,
+  "references": ["id1", "id2"]
+}
+```
+
+**Temporal compression** — The system operates at three timescales:
+- **Hourly pulse**: generated every hour, stored in `pulse_history`
+- **Daily summary**: generated at 23:00 from the day's pulses, stored in `pulse_daily_summary`
+- **History context**: each pulse receives the last 3 hourly pulses + last 3 daily summaries, enabling multi-day narrative references
+
+## Debug log
+
+Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (retained 30 days). Structure:
+
+```json
+{
+  "generated_at": "2026-06-30T10:00:00Z",
+  "service": "gemini_pulse",
+  "usage": {"tokens_in": 4200, "tokens_out": 310, "tokens_thinking": 0},
   "layer_1_deterministic": {
     "timeseries": {
       "transport": {
         "current": {
-          "ongoing": {"count": 8, "score": 12.5},
-          "projected": {"count": 6, "score": 10.0},
-          "horizon": {"total_score": 4.5, "near_score": 2.0}
+          "status": "minor",
+          "ongoing": {"count": 8, "score": 6.5},
+          "projected": {"count": 6, "score": 5.0},
+          "horizon": {"total_score": 3.0, "near_score": 1.5}
         },
-        "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0, "horizon_score": 3.5}],
-        "baseline": {"mean": 8.2, "p75": 11.5, "n": 24},
+        "history": [
+          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "horizon_score": 2.5}
+        ],
+        "baseline": {"mean": 5.8, "p75": 8.2, "n": 24},
         "window": "24h hourly"
       }
     },
     "score_breakdown": {
       "transport": {
-        "ongoing": [{"alert_id": "HIM_123", "source": "rmv", "weight": 1.5}],
-        "expiring_near": [{"alert_id": "HIM_123", "source": "rmv", "weight": 1.5}],
+        "ongoing": [
+          {"alert_id": "HIM_123", "source": "rmv", "weight": 1.5, "title": "S1 delays", "body": "Signal failure near Frankfurt Hbf..."}
+        ],
+        "expiring_near": [],
         "starting_near": [],
-        "starting_full": [{"alert_id": "HIM_789", "source": "rmv", "weight": 1.0}]
+        "starting_full": []
       }
     },
     "total_alerts": 42,
@@ -160,79 +167,69 @@ The log structure mirrors the analysis layers:
   },
   "layer_2_llm": {
     "model": "gemini-2.5-flash",
-    "prompt": "full prompt text sent to the LLM",
+    "prompt": "full prompt text sent to Gemini",
     "response": {
-      "title": "...",
-      "summary": "...",
-      "recommendation": "...",
-      "references": ["id1", "id2"],
+      "title": "S1 delays + A661 works",
+      "summary": "S1 experiencing signal-related delays around Hbf...",
+      "recommendation": "Allow extra time on S1; consider U-Bahn alternatives.",
+      "references": ["HIM_123"],
       "categories": {
-        "transport": {"status": "minor", "trend": "worsening"},
-        "weather": {"status": "moderate", "trend": "stable"}
+        "transport": {"trend": "stable"},
+        "weather":   {"trend": "stable"},
+        "roadworks": {"trend": "stable"},
+        "incidents": {"trend": "stable"},
+        "events":    {"trend": "stable"}
       }
     }
   },
   "layer_3_output": {
     "generated_at": "...",
-    "title": "...",
+    "title": "S1 delays + A661 works",
     "summary": "...",
-    "categories": {"transport": {"status": "minor", "trend": "worsening"}},
+    "categories": {"transport": {"status": "minor", "trend": "stable"}},
     "recommendation": "...",
     "alert_count": 42,
-    "references": ["id1", "id2"]
+    "references": ["HIM_123"]
   }
 }
 ```
 
-Use the debug log to review why a pulse produced a particular output:
-- **Layer 1**: Were the weighted scores correct? Check `score_breakdown` to see which alerts landed in each bucket and with what weight. Is the projected score (next-interval) reflecting near-term direction? Is `horizon_score` in the history showing a rate-of-growth trend?
-- **Layer 2**: What exact prompt did the LLM receive? Did it follow the tone and spatial awareness rules? Did it assign appropriate status labels given the data?
-- **Layer 3**: Does the final output include valid category judgments?
+**Reading the debug log:**
+- **Layer 1**: Were scores correct? Check `score_breakdown` — which alerts contributed, with what weight, and into which bucket. Is `status` correct given `baseline`?
+- **Layer 2**: What did Gemini receive? Did it assign plausible trends? Note the LLM does not output `status` — only `trend` per category.
+- **Layer 3**: Final output merges Layer 1 status + Layer 2 trend.
 
-Provide a debug log file together with this document as context when asking an LLM to suggest improvements.
+The admin dashboard (`/admin`) reads these files directly and visualizes all three layers with per-category score charts, breakdown tables, and history.
 
 ## Self-improving calibration loop
 
-The system is designed to improve its status accuracy over time through a feedback loop:
+Status accuracy improves over time through a structured feedback loop.
 
-### 1. Deterministic status (Layer 1)
-Status is computed from Layer 1 scores alone — no LLM judgment. The formula:
-- `ongoing_score == 0` → **clear**
-- `score ≤ baseline.mean` → **minor**
-- `score ≤ baseline.p75` → **moderate**
-- `score > baseline.p75` → **severe**
+**Step 1 — Admin override with reasoning**
+When the computed status is wrong, the admin records a correction in the dashboard:
+- Selects the correct status
+- Provides a reason: e.g. "baustellen partial closures are routine — weight 1.0 too high"
 
-The LLM receives the computed status as context but does not override it. Its role is limited to **trend** and **narrative**.
+Stored in `status_overrides` (pulse timestamp, category, computed status, override status, reason). Does not change live output — retrospective learning signal only.
 
-### 2. Admin override with reasoning
-When a computed status is wrong, the admin can record a correction in the admin dashboard:
-- Select the correct status
-- Provide a reason: "baustellen partial closures are routine — weight 1.0 too high"
+**Step 2 — Weight review**
+Admin-triggered from the dashboard. Sends recent overrides + score breakdowns + the current weight table to Gemini, which returns suggested weight adjustments with rationale. The admin reviews and applies manually to `pulse_categories.py`.
 
-Overrides are stored in `status_overrides` with the pulse timestamp, category, computed status, override status, and reason. They do not change live output — they are a retrospective learning signal.
-
-### 3. Weight review
-Admin-triggered via the dashboard. Sends recent overrides + score breakdowns + the current weight table to Gemini, which returns:
-- A summary of patterns observed in the overrides
-- Suggested weight adjustments with rationale
-- A list of well-calibrated weight classes
-
-The admin reviews and applies adjustments manually to `pulse_categories.py`.
-
-### The loop
+**The loop:**
 ```
-Deterministic status → Admin sees wrong status → Records override + reason
-→ Weight review analyzes pattern → Suggests weight adjustment
-→ Admin applies adjustment → Deterministic status improves → Fewer overrides
+Deterministic status → Wrong? Record override + reason
+→ Weight review → Suggested adjustment → Apply to weights
+→ Better scores → Better status → Fewer overrides
 ```
 
 ## Current limitations
 
-- **No alert archive** — Only active alerts are retained in `alert_cache`; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
-- **Single geographic scope** — All of Frankfurt is treated as one zone. A disruption in Sachsenhausen affects the same category as one in Bockenheim.
+- **No alert archive** — Only active alerts are retained; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
+- **Single geographic scope** — All of Frankfurt is treated as one zone.
+- **Baseline requires history** — `baseline` is absent for new categories or after DB resets; status defaults to `minor` for any non-zero score.
 
 ## Future improvements
 
-- **Alert archive** — Persist every alert lifecycle (appeared, updated, removed) for historical pattern detection and recurrence analysis
-- **Geographic clustering** — Detect when multiple alerts converge on the same area and flag spatial hotspots
-- **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences (e.g., only transit categories for a commuter)
+- **Alert archive** — Persist alert lifecycle for historical pattern detection and recurrence analysis
+- **Geographic clustering** — Detect when multiple alerts converge on the same area
+- **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences
