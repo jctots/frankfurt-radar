@@ -96,12 +96,12 @@ class TestCallGemini:
         mocker.patch("pulse.os.getenv", return_value="fake-key")
         reset_pulse_health()
 
-        result = _call_gemini({"model": "gemini-2.5-flash"}, "test prompt")
+        result, usage = _call_gemini({"model": "gemini-2.5-flash"}, "test prompt")
         assert result == result_json
 
     def test_no_api_key(self, mocker):
         mocker.patch("pulse.os.getenv", return_value="")
-        result = _call_gemini({}, "test")
+        result, usage = _call_gemini({}, "test")
         assert result == {}
 
     def test_network_error(self, mocker):
@@ -109,7 +109,7 @@ class TestCallGemini:
         mocker.patch("pulse.os.getenv", return_value="fake-key")
         reset_pulse_health()
 
-        result = _call_gemini({"model": "gemini-2.5-flash"}, "test")
+        result, usage = _call_gemini({"model": "gemini-2.5-flash"}, "test")
         assert result == {}
         assert pulse_ok() is False
 
@@ -124,7 +124,7 @@ class TestCallGemini:
         mocker.patch("pulse.os.getenv", return_value="fake-key")
         reset_pulse_health()
 
-        result = _call_gemini({"model": "gemini-2.5-flash"}, "test")
+        result, usage = _call_gemini({"model": "gemini-2.5-flash"}, "test")
         assert result == {}
         assert pulse_ok() is False
 
@@ -137,7 +137,7 @@ class TestCallGemini:
         mocker.patch("pulse.os.getenv", return_value="fake-key")
         reset_pulse_health()
 
-        result = _call_gemini({"model": "gemini-2.5-flash"}, "test")
+        result, usage = _call_gemini({"model": "gemini-2.5-flash"}, "test")
         assert result == {}
         assert pulse_ok() is False
 
@@ -193,7 +193,7 @@ class TestGeneratePulse:
             {"model": "gemini-2.5-flash", "temperature": 0.3},
             "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {timeseries_json}"
         ))
-        mocker.patch("pulse._call_gemini", return_value=gemini_response)
+        mocker.patch("pulse._call_gemini", return_value=(gemini_response, {}))
 
         result = generate_pulse({"pulse": {"enabled": True}})
         assert result is not None
@@ -235,7 +235,7 @@ class TestGenerateDailySummary:
             {"model": "gemini-2.5-flash"},
             "Summarize: {date} {pulse_count} {pulses_json} {previous_summaries}"
         ))
-        mocker.patch("pulse._call_gemini", return_value=gemini_response)
+        mocker.patch("pulse._call_gemini", return_value=(gemini_response, {}))
 
         result = generate_daily_summary({"pulse": {"enabled": True}}, "2026-06-22")
         assert result is not None
