@@ -9,16 +9,17 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --clr-bg:      #f0f2f5;
-      --clr-surface: #ffffff;
-      --clr-border:  #e2e8f0;
-      --clr-text:    #1e293b;
-      --clr-muted:   #64748b;
-      --clr-header:  #0f172a;
-      --clr-ok:      #22c55e;
-      --clr-warn:    #eab308;
-      --clr-danger:  #ef4444;
-      --clr-accent:  #1a73e8;
+      --clr-bg:      #0d1117;
+      --clr-surface: #161b22;
+      --clr-surface2: #1c2128;
+      --clr-border:  #30363d;
+      --clr-text:    #e6edf3;
+      --clr-muted:   #7d8590;
+      --clr-header:  #010409;
+      --clr-ok:      #3fb950;
+      --clr-warn:    #d29922;
+      --clr-danger:  #f85149;
+      --clr-accent:  #58a6ff;
     }
 
     body {
@@ -40,20 +41,24 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      border-bottom: 1px solid var(--clr-border);
     }
     .brand { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; }
-    .brand a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; font-weight: 400; }
-    .brand a:hover { color: rgba(255,255,255,0.8); }
+    .brand a { color: rgba(255,255,255,0.4); text-decoration: none; font-size: 13px; font-weight: 400; }
+    .brand a:hover { color: rgba(255,255,255,0.7); }
     .header-right { display: flex; align-items: center; gap: 12px; }
-    .header-meta { font-size: 12px; color: rgba(255,255,255,0.5); }
-    .logout-btn { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 12px; }
-    .logout-btn:hover { color: rgba(255,255,255,0.8); }
+    .header-meta { font-size: 12px; color: rgba(255,255,255,0.4); }
+    .logout-btn { color: rgba(255,255,255,0.4); text-decoration: none; font-size: 12px; }
+    .logout-btn:hover { color: rgba(255,255,255,0.7); }
 
     main { max-width: 1100px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 
     .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .controls label { font-weight: 600; font-size: 13px; }
-    .controls input[type="date"] { padding: 6px 10px; border: 1px solid var(--clr-border); border-radius: 6px; font-size: 13px; }
+    .controls input[type="date"] {
+      padding: 6px 10px; border: 1px solid var(--clr-border); border-radius: 6px;
+      font-size: 13px; background: var(--clr-surface); color: var(--clr-text);
+    }
 
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
     .kpi { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 16px; }
@@ -89,100 +94,103 @@
     .log-table .note { font-size: 12px; color: var(--clr-muted); }
 
     .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .pill.clear     { background: #dcfce7; color: #166534; }
-    .pill.minor     { background: #fef9c3; color: #854d0e; }
-    .pill.moderate  { background: #fed7aa; color: #9a3412; }
-    .pill.severe    { background: #fecaca; color: #991b1b; }
-    .pill.skipped   { background: #e2e8f0; color: #475569; }
-    .pill.pulse     { background: #dbeafe; color: #1e40af; }
-    .pill.extraction { background: #e0e7ff; color: #3730a3; }
-    .pill.daily     { background: #fef3c7; color: #92400e; }
+    .pill.clear     { background: #0f2d17; color: #3fb950; }
+    .pill.minor     { background: #2d1f05; color: #d29922; }
+    .pill.moderate  { background: #2d1005; color: #f0883e; }
+    .pill.severe    { background: #2d0a0a; color: #f85149; }
+    .pill.skipped   { background: #21262d; color: #7d8590; }
+    .pill.pulse     { background: #0c2044; color: #58a6ff; }
+    .pill.extraction { background: #1a1044; color: #a78bfa; }
+    .pill.daily     { background: #2d1f05; color: #d29922; }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
     .empty { text-align: center; padding: 32px; color: var(--clr-muted); }
 
     .btn {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      padding: 8px 16px; border: 1px solid var(--clr-border); border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--clr-surface2); color: var(--clr-text);
     }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: var(--clr-header); color: white; }
-    .btn-primary:hover:not(:disabled) { background: #1e293b; }
-    .btn-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-    .btn-danger:hover:not(:disabled) { background: #fee2e2; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #1f6feb; border-color: #388bfd; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #388bfd; }
+    .btn-danger { background: #2d0a0a; color: #f85149; border-color: #6e1a1a; }
+    .btn-danger:hover:not(:disabled) { background: #6e1a1a; }
     .btn-sm { padding: 4px 10px; font-size: 12px; }
 
-    .action-result {
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 6px;
-      display: inline-block;
-    }
-    .action-result.ok { background: #dcfce7; color: #166534; }
-    .action-result.err { background: #fef2f2; color: #991b1b; }
+    .action-result { font-size: 12px; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+    .action-result.ok { background: #0f2d17; color: #3fb950; }
+    .action-result.err { background: #2d0a0a; color: #f85149; }
 
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 8px;
-    }
-    .status-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: #f8fafc;
-      border-radius: 8px;
-      font-size: 13px;
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .status-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--clr-surface2); border-radius: 8px; font-size: 13px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .status-dot.up { background: var(--clr-ok); }
     .status-dot.down { background: var(--clr-danger); }
-    .status-meta {
-      margin-top: 12px;
-      font-size: 12px;
-      color: var(--clr-muted);
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
+    .status-meta { margin-top: 12px; font-size: 12px; color: var(--clr-muted); display: flex; gap: 20px; flex-wrap: wrap; }
 
-    .ban-input-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
+    .ban-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
     .ban-input-row input {
-      padding: 6px 10px;
-      border: 1px solid var(--clr-border);
-      border-radius: 6px;
-      font-size: 13px;
-      width: 160px;
+      padding: 6px 10px; border: 1px solid var(--clr-border); border-radius: 6px;
+      font-size: 13px; width: 160px; background: var(--clr-surface2); color: var(--clr-text);
     }
     .ban-list { display: flex; flex-direction: column; gap: 6px; }
-    .ban-item {
+    .ban-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--clr-surface2); border-radius: 8px; font-size: 13px; font-family: monospace; }
+
+    /* ── Category grid ──────────────────────────────── */
+    .cat-grid-wrap { overflow-x: auto; }
+    .cat-grid { border-collapse: collapse; min-width: 100%; font-size: 13px; }
+    .cat-grid th { text-align: center; font-size: 11px; color: var(--clr-muted); padding: 4px 6px; border-bottom: 1px solid var(--clr-border); white-space: nowrap; }
+    .cat-grid th.cat-label { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; min-width: 90px; }
+    .cat-grid td { padding: 4px 6px; border-bottom: 1px solid var(--clr-border); text-align: center; }
+    .cat-grid td.cat-label { text-align: left; color: var(--clr-muted); font-size: 12px; white-space: nowrap; }
+    .cat-grid tr:last-child td { border-bottom: none; }
+    .cell-btn {
+      background: none; border: none; cursor: pointer; padding: 2px 4px;
+      border-radius: 6px; transition: background 0.15s;
+    }
+    .cell-btn:hover { background: rgba(255,255,255,0.06); }
+    .cell-btn.active { outline: 2px solid var(--clr-accent); outline-offset: 1px; }
+    .pulse-time-btn {
+      background: none; border: none; cursor: pointer; color: var(--clr-muted);
+      font-size: 11px; padding: 2px 4px; border-radius: 4px; white-space: nowrap;
+    }
+    .pulse-time-btn:hover { color: var(--clr-text); background: rgba(255,255,255,0.06); }
+    .pulse-time-btn.active { color: var(--clr-accent); }
+
+    /* ── Pulse detail panel ─────────────────────────── */
+    .pulse-detail {
+      margin-top: 12px;
+      border: 1px solid var(--clr-border);
+      border-radius: 8px;
+      background: var(--clr-surface2);
+      overflow: hidden;
+    }
+    .pulse-detail-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
-      background: #f8fafc;
-      border-radius: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--clr-border);
       font-size: 13px;
-      font-family: monospace;
+      font-weight: 600;
     }
+    .pulse-detail-close {
+      background: none; border: none; color: var(--clr-muted); cursor: pointer;
+      font-size: 18px; line-height: 1;
+    }
+    .pulse-detail-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .pulse-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-muted); margin-bottom: 6px; }
+    .pulse-summary { font-size: 13px; color: var(--clr-text); }
+    .cat-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .cat-detail-table th { text-align: left; color: var(--clr-muted); padding: 3px 6px; font-weight: 400; font-size: 11px; text-transform: uppercase; }
+    .cat-detail-table td { padding: 4px 6px; border-top: 1px solid var(--clr-border); }
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+    .score-item { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 6px; padding: 6px 10px; }
+    .score-label { font-size: 10px; color: var(--clr-muted); }
+    .score-val { font-size: 16px; font-weight: 700; }
 
     @media (max-width: 700px) {
       main { padding: 10px; gap: 12px; }
@@ -200,12 +208,12 @@
       .ban-input-row { flex-direction: column; }
       .ban-input-row input { width: 100%; }
       .btn { padding: 10px 16px; }
+      .score-grid { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 400px) {
       .kpi-row { grid-template-columns: 1fr; }
       header { padding: 0 10px; height: 46px; }
       .brand { font-size: 18px; }
-      .status-grid { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -276,7 +284,7 @@
       <div class="log-scroll" style="overflow-x:auto;">
         <table class="log-table">
           <thead>
-            <tr><th>Time</th><th>New</th><th>Retrans.</th><th class="r">Chars</th><th>Notes</th><th class="r">Est. Cost</th></tr>
+            <tr><th>Time</th><th>New</th><th>Retrans.</th><th class="r">Chars</th><th>Notes</th><th class="r">Est. Cost</th><th class="r">Running</th></tr>
           </thead>
           <tbody id="translate-log"></tbody>
         </table>
@@ -287,7 +295,7 @@
       <div class="log-scroll" style="overflow-x:auto;">
         <table class="log-table">
           <thead>
-            <tr><th>Time</th><th>Service</th><th>Tokens In</th><th>Tokens Out</th><th>Notes</th><th class="r">Est. Cost</th></tr>
+            <tr><th>Time</th><th>Service</th><th>Tokens In</th><th>Tokens Out</th><th>Notes</th><th class="r">Est. Cost</th><th class="r">Running</th></tr>
           </thead>
           <tbody id="gemini-log"></tbody>
         </table>
@@ -295,16 +303,18 @@
     </div>
   </div>
 
-  <!-- Category status history -->
+  <!-- Category status grid -->
   <div class="card">
-    <h2>📈 Category Status History</h2>
-    <div class="log-scroll" style="overflow-x:auto;">
-      <table class="log-table">
-        <thead>
-          <tr><th>Time</th><th>Weather</th><th>Transport</th><th>Roadworks</th><th>Incidents</th><th>Events</th></tr>
-        </thead>
-        <tbody id="category-history"></tbody>
-      </table>
+    <h2>📈 Category Status</h2>
+    <div class="cat-grid-wrap">
+      <table class="cat-grid" id="cat-grid"></table>
+    </div>
+    <div class="pulse-detail" id="pulse-detail" style="display:none;">
+      <div class="pulse-detail-header">
+        <span id="pulse-detail-title">Pulse Detail</span>
+        <button class="pulse-detail-close" onclick="closePulseDetail()">✕</button>
+      </div>
+      <div class="pulse-detail-body" id="pulse-detail-body"></div>
     </div>
   </div>
 
@@ -383,7 +393,7 @@ async function loadData() {
   renderChart(hist);
   renderTranslateLog(data.translate_debug);
   renderGeminiLog(data.pulse_debug);
-  renderCategoryHistory(data.pulse_debug);
+  renderCategoryGrid(data.pulse_debug);
   updateTodayCost(data);
 }
 
@@ -411,9 +421,7 @@ function renderKPIs(data) {
   $('#kpi-proj-sub').textContent = `Avg ${eur(avgPerDay)}/day · Budget: ${eur(budget)}/mo`;
 
   const tEntries = data.translate_debug;
-  const translateCalls = tEntries.reduce((s, e) => {
-    return s + (e.entries || []).filter(x => x.action === 'new' || x.action === 'retranslate').length;
-  }, 0);
+  const translateCalls = tEntries.reduce((s, e) => s + (e.entries || []).filter(x => x.action === 'new' || x.action === 'retranslate').length, 0);
   const variantHits = tEntries.reduce((s, e) => s + (e.variant_hits || 0), 0);
   const totalAlerts = tEntries.reduce((s, e) => s + (e.total_alerts || 0), 0);
   $('#kpi-translate-calls').textContent = translateCalls;
@@ -483,37 +491,44 @@ function renderTranslateLog(entries) {
     return;
   }
 
-  let html = '';
-  let sumCost = 0;
-  for (const e of entries.slice().reverse()) {
+  // Build rows in chronological order (oldest first), compute running totals, then reverse for display
+  const rows = [];
+  let running = 0;
+  for (const e of entries) {
     const time = utcToBerlin(e.timestamp);
     const newCount = (e.entries || []).filter(x => x.action === 'new').length;
     const retrans = (e.entries || []).filter(x => x.action === 'retranslate').length;
     const varHits = e.variant_hits || 0;
     const cached = e.cached || 0;
-    const total = e.total_alerts || 0;
     const chars = e.characters || 0;
 
-    let notes = `${total} alerts`;
-    if (varHits) notes += ` · ${varHits} var. hits`;
-    notes += ` · ${cached} cached`;
-
+    const translated = (e.entries || []).filter(x => x.action === 'new' || x.action === 'retranslate');
+    const srcCounts = {};
+    for (const t of translated) srcCounts[t.source] = (srcCounts[t.source] || 0) + 1;
+    const srcLabel = Object.entries(srcCounts).map(([s, n]) => n > 1 ? `${s} ×${n}` : s).join(', ');
+    const notes = [srcLabel || null, varHits ? `${varHits} var. hits` : null, `${cached} cached`].filter(Boolean).join(' · ');
     const costVal = translateCostEur(chars);
-    sumCost += costVal;
-    const costCls = chars === 0 ? ' style="color:var(--clr-muted)"' : '';
+    running += costVal;
+    rows.push({ time, newCount, retrans, chars, notes, costVal, running });
+  }
 
+  const total = running;
+  let html = '';
+  for (const r of rows.reverse()) {
+    const costCls = r.chars === 0 ? ' style="color:var(--clr-muted)"' : '';
     html += `<tr>
-      <td>${time}</td>
-      <td>${newCount}</td>
-      <td>${retrans}</td>
-      <td class="r">${chars > 0 ? num(chars) : '—'}</td>
-      <td class="note">${notes}</td>
-      <td class="r"${costCls}>${eur(costVal, 3)}</td>
+      <td>${r.time}</td>
+      <td>${r.newCount}</td>
+      <td>${r.retrans}</td>
+      <td class="r">${r.chars > 0 ? num(r.chars) : '—'}</td>
+      <td class="note">${r.notes}</td>
+      <td class="r"${costCls}>${eur(r.costVal, 3)}</td>
+      <td class="r" style="color:var(--clr-muted)">${eur(r.running, 3)}</td>
     </tr>`;
   }
   el.innerHTML = html;
-  _translateDayCost = sumCost;
-  totalEl.textContent = `Total: ${eur(sumCost, 3)}`;
+  _translateDayCost = total;
+  totalEl.textContent = `Total: ${eur(total, 3)}`;
 }
 
 let _geminiDayCost = 0;
@@ -528,6 +543,8 @@ function renderGeminiLog(entries) {
     return;
   }
 
+  const EXTRACTION_LABELS = { polizei: 'polizei location', strike: 'strike details', strike_dedup: 'strike dedup' };
+
   const rows = [];
   for (const e of entries) {
     const time = utcToBerlin(e.generated_at);
@@ -535,8 +552,7 @@ function renderGeminiLog(entries) {
 
     if (e.skipped) {
       const reason = e.reason || 'adaptive frequency';
-      rows.push({ time, service: svc, skipped: true, tokensIn: 0, tokensOut: 0,
-        notes: `skipped · ${reason}`, cost: 0 });
+      rows.push({ time, service: svc, skipped: true, tokensIn: 0, tokensOut: 0, notes: `skipped · ${reason}`, cost: 0 });
     } else if (e.usage) {
       const u = e.usage;
       const tokensIn = u.tokens_in || 0;
@@ -549,19 +565,22 @@ function renderGeminiLog(entries) {
         const alertCount = e.layer_1_deterministic?.total_alerts || 0;
         notes = `${alertCount} alerts`;
       } else if (svc === 'daily') {
-        notes = `summary for ${e.date_summarized || '?'}`;
+        notes = e.date_summarized || '?';
       } else if (svc === 'extraction') {
-        notes = e.model || '';
+        const etype = e.extraction_type || '';
+        notes = EXTRACTION_LABELS[etype] || etype || 'extraction';
       }
 
       rows.push({ time, service: svc, skipped: false, tokensIn, tokensOut, notes, cost });
     }
   }
 
+  // Compute running totals in chronological order, then reverse for display
+  let running = 0;
+  for (const r of rows) { running += r.cost; r.running = running; }
+
   let html = '';
-  let sumCost = 0;
   for (const r of rows.reverse()) {
-    sumCost += r.cost;
     const svcClass = r.skipped ? 'skipped' : r.service;
     const costCls = r.cost === 0 ? ' style="color:var(--clr-muted)"' : '';
     html += `<tr>
@@ -571,31 +590,142 @@ function renderGeminiLog(entries) {
       <td>${r.skipped ? '—' : num(r.tokensOut)}</td>
       <td class="note">${r.notes}</td>
       <td class="r"${costCls}>${eur(r.cost, 3)}</td>
+      <td class="r" style="color:var(--clr-muted)">${eur(r.running, 3)}</td>
     </tr>`;
   }
   el.innerHTML = html;
-  _geminiDayCost = sumCost;
-  totalEl.textContent = `Total: ${eur(sumCost, 3)}`;
+  _geminiDayCost = running;
+  totalEl.textContent = `Total: ${eur(running, 3)}`;
 }
 
-function renderCategoryHistory(entries) {
-  const el = $('#category-history');
-  const generated = entries.filter(e => !e.skipped && e.layer_3_output);
-  if (!generated.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No pulse data for this date</td></tr>'; return; }
+// ── Category grid ────────────────────────────────────────────────────────────
 
-  let html = '';
-  for (const e of generated.slice().reverse()) {
-    const time = utcToBerlin(e.generated_at);
-    const cats = e.layer_3_output.categories || {};
-    const catOrder = ['weather', 'transport', 'roadworks', 'incidents', 'events'];
-    html += `<tr><td>${time}</td>`;
-    for (const c of catOrder) {
-      const status = (cats[c] || {}).status || 'clear';
-      html += `<td>${statusPill(status)}</td>`;
-    }
-    html += '</tr>';
+const CAT_ORDER = ['weather', 'transport', 'roadworks', 'incidents', 'events'];
+let _pulseEntries = [];
+let _activePulseIdx = null;
+
+function renderCategoryGrid(entries) {
+  _pulseEntries = entries.filter(e => !e.skipped && e.layer_3_output).reverse();
+  _activePulseIdx = null;
+  closePulseDetail();
+
+  const table = $('#cat-grid');
+  if (!_pulseEntries.length) {
+    table.innerHTML = '<tr><td class="empty" colspan="2">No pulse data for this date</td></tr>';
+    return;
   }
-  el.innerHTML = html;
+
+  // Header row: time buttons
+  let thead = '<thead><tr><th class="cat-label"></th>';
+  _pulseEntries.forEach((e, i) => {
+    const t = utcToBerlin(e.generated_at);
+    thead += `<th><button class="pulse-time-btn" onclick="selectPulse(${i})">${t}</button></th>`;
+  });
+  thead += '</tr></thead>';
+
+  // Body rows: one per category
+  let tbody = '<tbody>';
+  for (const cat of CAT_ORDER) {
+    tbody += `<tr><td class="cat-label">${cat}</td>`;
+    _pulseEntries.forEach((e, i) => {
+      const cats = e.layer_3_output.categories || {};
+      const status = (cats[cat] || {}).status || 'clear';
+      const trend = (cats[cat] || {}).trend || 'stable';
+      const trendIcon = trend === 'improving' ? '↓' : trend === 'worsening' ? '↑' : '';
+      tbody += `<td><button class="cell-btn" onclick="selectPulse(${i})" title="${cat}: ${status} (${trend})">
+        <span class="pill ${status}">${status}${trendIcon ? ' ' + trendIcon : ''}</span>
+      </button></td>`;
+    });
+    tbody += '</tr>';
+  }
+  tbody += '</tbody>';
+
+  table.innerHTML = thead + tbody;
+}
+
+function selectPulse(idx) {
+  _activePulseIdx = idx;
+  const e = _pulseEntries[idx];
+
+  // Update active state on buttons
+  document.querySelectorAll('.pulse-time-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.cell-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`#cat-grid tbody tr`).forEach(row => {
+    const cells = row.querySelectorAll('.cell-btn');
+    if (cells[idx]) cells[idx].classList.add('active');
+  });
+
+  const time = utcToBerlin(e.generated_at);
+  const l3 = e.layer_3_output || {};
+  const l1 = e.layer_1_deterministic || {};
+  const cats = l3.categories || {};
+  const scores = l1.score_breakdown || {};
+
+  // Title
+  $('#pulse-detail-title').textContent = `${time} — ${l3.title || 'Pulse Detail'}`;
+
+  let body = '';
+
+  // Summary + recommendation
+  if (l3.summary) {
+    body += `<div>
+      <div class="pulse-section-title">Summary</div>
+      <div class="pulse-summary">${l3.summary}</div>
+    </div>`;
+  }
+  if (l3.recommendation) {
+    body += `<div>
+      <div class="pulse-section-title">Recommendation</div>
+      <div class="pulse-summary">${l3.recommendation}</div>
+    </div>`;
+  }
+
+  // Category detail table
+  body += `<div>
+    <div class="pulse-section-title">Categories</div>
+    <table class="cat-detail-table">
+      <tr><th>Category</th><th>Status</th><th>Trend</th></tr>`;
+  for (const cat of CAT_ORDER) {
+    const c = cats[cat] || {};
+    const status = c.status || 'clear';
+    const trend = c.trend || 'stable';
+    body += `<tr>
+      <td>${cat}</td>
+      <td>${statusPill(status)}</td>
+      <td style="color:var(--clr-muted);font-size:12px;">${trend}</td>
+    </tr>`;
+  }
+  body += `</table></div>`;
+
+  // Score breakdown
+  if (Object.keys(scores).length) {
+    body += `<div>
+      <div class="pulse-section-title">Score Breakdown (Layer 1)</div>
+      <div class="score-grid">`;
+    for (const [k, v] of Object.entries(scores)) {
+      const scoreVal = typeof v === 'number' ? v.toFixed(1) : JSON.stringify(v);
+      body += `<div class="score-item">
+        <div class="score-label">${k}</div>
+        <div class="score-val">${scoreVal}</div>
+      </div>`;
+    }
+    body += `</div></div>`;
+  }
+
+  // Alert counts
+  const totalAlerts = l1.total_alerts || l3.alert_count || 0;
+  const freshAlerts = l1.fresh_alerts ?? totalAlerts;
+  body += `<div style="font-size:12px;color:var(--clr-muted);">${totalAlerts} alerts (${freshAlerts} fresh, ${totalAlerts - freshAlerts} stale)</div>`;
+
+  $('#pulse-detail-body').innerHTML = body;
+  $('#pulse-detail').style.display = 'block';
+  document.getElementById('pulse-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closePulseDetail() {
+  $('#pulse-detail').style.display = 'none';
+  _activePulseIdx = null;
+  document.querySelectorAll('.pulse-time-btn, .cell-btn').forEach(b => b.classList.remove('active'));
 }
 
 function updateTodayCost(data) {
@@ -609,7 +739,7 @@ function updateTodayCost(data) {
   $('#kpi-today-sub').textContent = `Avg ${eur(avgPerHour, 3)}/hr · Budget: ${eur(dailyBudget)}/day`;
 }
 
-// ── Server status ───────────────────────────────────────────────────────────
+// ── Server status ────────────────────────────────────────────────────────────
 
 async function loadServerStatus() {
   try {
@@ -632,14 +762,12 @@ async function loadServerStatus() {
       const age = Math.round((Date.now() - new Date(data.last_polled).getTime()) / 60000);
       parts.push(`Last poll: ${age} min ago`);
     }
-    if (data.subscribers) {
-      parts.push(`Subscribers: ${data.subscribers.active}/${data.subscribers.total} active`);
-    }
+    if (data.subscribers) parts.push(`Subscribers: ${data.subscribers.active}/${data.subscribers.total} active`);
     meta.textContent = parts.join(' · ');
   } catch {}
 }
 
-// ── Actions ─────────────────────────────────────────────────────────────────
+// ── Actions ──────────────────────────────────────────────────────────────────
 
 async function forcePoll() {
   const btn = $('#btn-poll');
@@ -653,8 +781,7 @@ async function forcePoll() {
     if (res.ok) {
       result.className = 'action-result ok';
       result.textContent = '✓ Poll complete';
-      loadData();
-      loadServerStatus();
+      loadData(); loadServerStatus();
     } else {
       result.className = 'action-result err';
       result.textContent = '✗ ' + (data.error || 'Failed');
@@ -690,7 +817,7 @@ async function forcePulse() {
   btn.disabled = false;
 }
 
-// ── Ban list ────────────────────────────────────────────────────────────────
+// ── Ban list ─────────────────────────────────────────────────────────────────
 
 async function loadBans() {
   try {
@@ -710,7 +837,7 @@ function renderBanList(banned) {
   el.innerHTML = banned.map(id =>
     `<div class="ban-item">
       <span>${id}</span>
-      <button class="btn btn-sm" style="background:#e2e8f0;color:#475569;" onclick="unbanUser(${id})">Unban</button>
+      <button class="btn btn-sm" onclick="unbanUser(${id})">Unban</button>
     </div>`
   ).join('');
 }
@@ -754,13 +881,11 @@ async function unbanUser(chatId) {
       body: JSON.stringify({ chat_id: chatId }),
     });
     const data = await res.json();
-    if (res.ok) {
-      renderBanList(data.banned || []);
-    }
+    if (res.ok) renderBanList(data.banned || []);
   } catch {}
 }
 
-// ── Init ────────────────────────────────────────────────────────────────────
+// ── Init ─────────────────────────────────────────────────────────────────────
 
 loadData();
 loadServerStatus();

@@ -287,7 +287,7 @@ class PolizeiPoller(BasePoller):
                 lon = cached.get("lon")
                 location_label = cached.get("location_label")
             else:
-                loc = extract_alert_details(f"{title}\n\n{body}", prompt_template, prompt_config)
+                loc = extract_alert_details(f"{title}\n\n{body}", prompt_template, prompt_config, extraction_type="polizei")
                 location_label = loc.get("location")
                 lat = loc.get("lat")
                 lon = loc.get("lon")
@@ -893,7 +893,7 @@ def _is_duplicate_strike(new_alert: Alert, existing: dict) -> bool:
         new_until=new_alert.valid_until or "",
         new_service=new_alert.service or "",
     )
-    result = extract_alert_details("", dedup_template, dedup_config)
+    result = extract_alert_details("", dedup_template, dedup_config, extraction_type="strike_dedup")
     return result.get("same_event", False)
 
 
@@ -1002,6 +1002,7 @@ class StrikePoller(BasePoller):
                     page_body or searchable,
                     strike_template,
                     strike_config,
+                    extraction_type="strike",
                 )
 
                 if details.get("not_a_strike"):

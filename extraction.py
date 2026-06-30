@@ -34,7 +34,7 @@ def reset_extraction_health() -> None:
     _health["ok"] = True
 
 
-def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = None) -> dict:
+def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = None, extraction_type: str = "") -> dict:
     """Send *text* to Gemini Flash with *prompt* and return parsed JSON.
 
     The prompt must instruct the model to respond with a JSON object.
@@ -97,7 +97,7 @@ def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = N
                 return {}
             raw = candidates[0]["content"]["parts"][0]["text"]
             result = json.loads(raw)
-            _write_extraction_debug(usage, prompt_config)
+            _write_extraction_debug(usage, prompt_config, extraction_type)
             return result
         except requests.RequestException as e:
             log.error("Gemini API request failed: %s", _mask_key(str(e)))
@@ -113,7 +113,7 @@ def extract_alert_details(text: str, prompt: str, prompt_config: dict | None = N
     return {}
 
 
-def _write_extraction_debug(usage: dict, prompt_config: dict) -> None:
+def _write_extraction_debug(usage: dict, prompt_config: dict, extraction_type: str = "") -> None:
     try:
         _GEMINI_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -121,6 +121,7 @@ def _write_extraction_debug(usage: dict, prompt_config: dict) -> None:
         entry = {
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "service": "gemini_extraction",
+            "extraction_type": extraction_type,
             "usage": usage,
             "model": prompt_config.get("model", "gemini-2.5-flash"),
         }
