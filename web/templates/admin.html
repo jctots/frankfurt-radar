@@ -757,7 +757,7 @@ function selectCell(idx, cat) {
     if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)} ${trendPill}</div>`;
 
     // Score cards: ongoing / projected / horizon
-    body += `<div style="margin-bottom:8px;">${statusPill(status)} ${trendPill}</div>`;
+    if (cat) body += `<div style="margin-bottom:8px;">${statusPill(status)} ${trendPill}</div>`;
     body += `<div class="score-grid">
       <div class="score-item">
         <div class="score-label">Ongoing</div>
