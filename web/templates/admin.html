@@ -715,6 +715,8 @@ function selectCell(idx, cat) {
     : `${freshAlerts} fresh alerts`;
   $('#pulse-detail-title').textContent = `${time}${titleCat} · ${titleCount}`;
 
+  let body = '';
+
   // Narrative at the top — always visible
   const l2top = e.layer_2_llm || {};
   const resptop = l2top.response || {};
