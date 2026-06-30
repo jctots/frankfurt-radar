@@ -736,6 +736,19 @@ function selectCell(idx, cat) {
     const status = (l3cats[c] || {}).status || 'clear';
     const trend = (l3cats[c] || {}).trend || 'stable';
 
+    // Compute baseline stats here so they're available for both score cards and chart
+    let bMean = 0, bP75 = 0;
+    if (ts.baseline) {
+      bMean = ts.baseline.mean || 0;
+      bP75  = ts.baseline.p75  || 0;
+    } else {
+      const hScores = history.map(h => h.score || 0).filter(s => s > 0).sort((a, b) => a - b);
+      if (hScores.length >= 3) {
+        bMean = Math.round((hScores.reduce((s, v) => s + v, 0) / hScores.length) * 100) / 100;
+        bP75  = hScores[Math.min(Math.floor(hScores.length * 0.75), hScores.length - 1)];
+      }
+    }
+
     body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
     const trendColor = trend === 'worsening' ? '#f85149' : trend === 'improving' ? '#3fb950' : '#7d8590';
     const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trend}</span>`;
@@ -773,20 +786,6 @@ function selectCell(idx, cat) {
     // History bar chart
     if (history.length) {
       const projScore = projected.score || 0;
-
-      // Use backend baseline if present, otherwise compute client-side from history
-      let bMean = 0, bP75 = 0;
-      if (ts.baseline) {
-        bMean = ts.baseline.mean || 0;
-        bP75  = ts.baseline.p75  || 0;
-      } else {
-        const hScores = history.map(h => h.score || 0).filter(s => s > 0).sort((a, b) => a - b);
-        if (hScores.length >= 3) {
-          bMean = Math.round((hScores.reduce((s, v) => s + v, 0) / hScores.length) * 100) / 100;
-          bP75  = hScores[Math.min(Math.floor(hScores.length * 0.75), hScores.length - 1)];
-        }
-      }
-
       const maxScore = Math.max(...history.map(h => h.score || 0), projScore, bP75, 0.1);
       const chartH = 64;
       let bars = '', labels = '';
