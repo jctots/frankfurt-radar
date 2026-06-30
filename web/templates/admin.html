@@ -192,6 +192,14 @@
     .score-label { font-size: 10px; color: var(--clr-muted); }
     .score-val { font-size: 16px; font-weight: 700; }
 
+    /* ── Mini history bar chart ─────────────────────── */
+    .mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 8px; }
+    .mini-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+    .mini-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 1px; }
+    .mini-bar.ongoing  { background: #58a6ff; }
+    .mini-bar.horizon  { background: #8b5cf6; opacity: 0.7; }
+    .mini-label { font-size: 9px; color: var(--clr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+
     @media (max-width: 700px) {
       main { padding: 10px; gap: 12px; }
       .kpi-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -491,10 +499,13 @@ function renderTranslateLog(entries) {
     return;
   }
 
-  // Build rows in chronological order (oldest first), compute running totals, then reverse for display
+  // Build rows in chronological order (oldest first), skip no-cost entries, then reverse for display
   const rows = [];
   let running = 0;
   for (const e of entries) {
+    const _newCount = (e.entries || []).filter(x => x.action === 'new').length;
+    const _retrans = (e.entries || []).filter(x => x.action === 'retranslate').length;
+    if (_newCount === 0 && _retrans === 0) continue;
     const time = utcToBerlin(e.timestamp);
     const newCount = (e.entries || []).filter(x => x.action === 'new').length;
     const retrans = (e.entries || []).filter(x => x.action === 'retranslate').length;
@@ -619,7 +630,7 @@ function renderCategoryGrid(entries) {
   let thead = '<thead><tr><th class="cat-label"></th>';
   _pulseEntries.forEach((e, i) => {
     const t = utcToBerlin(e.generated_at);
-    thead += `<th><button class="pulse-time-btn" onclick="selectPulse(${i})">${t}</button></th>`;
+    thead += `<th><button class="pulse-time-btn" onclick="selectCell(${i}, null)">${t}</button></th>`;
   });
   thead += '</tr></thead>';
 
@@ -632,7 +643,7 @@ function renderCategoryGrid(entries) {
       const status = (cats[cat] || {}).status || 'clear';
       const trend = (cats[cat] || {}).trend || 'stable';
       const trendIcon = trend === 'improving' ? '↓' : trend === 'worsening' ? '↑' : '';
-      tbody += `<td><button class="cell-btn" onclick="selectPulse(${i})" title="${cat}: ${status} (${trend})">
+      tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trend})">
         <span class="pill ${status}">${status}${trendIcon ? ' ' + trendIcon : ''}</span>
       </button></td>`;
     });
@@ -643,79 +654,109 @@ function renderCategoryGrid(entries) {
   table.innerHTML = thead + tbody;
 }
 
-function selectPulse(idx) {
+function selectCell(idx, cat) {
   _activePulseIdx = idx;
   const e = _pulseEntries[idx];
 
-  // Update active state on buttons
+  // Update active state
   document.querySelectorAll('.pulse-time-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   document.querySelectorAll('.cell-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll(`#cat-grid tbody tr`).forEach(row => {
-    const cells = row.querySelectorAll('.cell-btn');
-    if (cells[idx]) cells[idx].classList.add('active');
-  });
+  if (cat) {
+    const catIdx = CAT_ORDER.indexOf(cat);
+    if (catIdx >= 0) {
+      const rows = document.querySelectorAll('#cat-grid tbody tr');
+      if (rows[catIdx]) {
+        const cells = rows[catIdx].querySelectorAll('.cell-btn');
+        if (cells[idx]) cells[idx].classList.add('active');
+      }
+    }
+  } else {
+    document.querySelectorAll('#cat-grid tbody tr').forEach(row => {
+      const cells = row.querySelectorAll('.cell-btn');
+      if (cells[idx]) cells[idx].classList.add('active');
+    });
+  }
 
   const time = utcToBerlin(e.generated_at);
-  const l3 = e.layer_3_output || {};
   const l1 = e.layer_1_deterministic || {};
-  const cats = l3.categories || {};
-  const scores = l1.score_breakdown || {};
+  const l3 = e.layer_3_output || {};
+  const timeseries = l1.timeseries || {};
+  const totalAlerts = l1.total_alerts || l3.alert_count || 0;
+  const freshAlerts = l1.fresh_alerts ?? totalAlerts;
 
-  // Title
-  $('#pulse-detail-title').textContent = `${time} — ${l3.title || 'Pulse Detail'}`;
+  const displayCats = cat ? [cat] : CAT_ORDER;
+  const titleCat = cat ? ` — ${cat}` : '';
+  $('#pulse-detail-title').textContent = `${time}${titleCat} · ${freshAlerts} fresh alerts`;
 
   let body = '';
 
-  // Summary + recommendation
-  if (l3.summary) {
-    body += `<div>
-      <div class="pulse-section-title">Summary</div>
-      <div class="pulse-summary">${l3.summary}</div>
-    </div>`;
-  }
-  if (l3.recommendation) {
-    body += `<div>
-      <div class="pulse-section-title">Recommendation</div>
-      <div class="pulse-summary">${l3.recommendation}</div>
-    </div>`;
-  }
+  for (const c of displayCats) {
+    const ts = timeseries[c] || {};
+    const cur = ts.current || {};
+    const ongoing = cur.ongoing || {};
+    const projected = cur.projected || {};
+    const horizon = cur.horizon || null;
+    const history = ts.history || [];
+    const l3cats = l3.categories || {};
+    const status = (l3cats[c] || {}).status || 'clear';
+    const trend = (l3cats[c] || {}).trend || 'stable';
 
-  // Category detail table
-  body += `<div>
-    <div class="pulse-section-title">Categories</div>
-    <table class="cat-detail-table">
-      <tr><th>Category</th><th>Status</th><th>Trend</th></tr>`;
-  for (const cat of CAT_ORDER) {
-    const c = cats[cat] || {};
-    const status = c.status || 'clear';
-    const trend = c.trend || 'stable';
-    body += `<tr>
-      <td>${cat}</td>
-      <td>${statusPill(status)}</td>
-      <td style="color:var(--clr-muted);font-size:12px;">${trend}</td>
-    </tr>`;
-  }
-  body += `</table></div>`;
+    body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
+    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)}</div>`;
 
-  // Score breakdown
-  if (Object.keys(scores).length) {
-    body += `<div>
-      <div class="pulse-section-title">Score Breakdown (Layer 1)</div>
-      <div class="score-grid">`;
-    for (const [k, v] of Object.entries(scores)) {
-      const scoreVal = typeof v === 'number' ? v.toFixed(1) : JSON.stringify(v);
+    // Score cards: ongoing / projected / horizon
+    body += `<div class="score-grid">
+      <div class="score-item">
+        <div class="score-label">Ongoing</div>
+        <div class="score-val">${ongoing.score ?? '—'}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">${ongoing.count ?? 0} alert${ongoing.count !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Next interval</div>
+        <div class="score-val">${projected.score ?? '—'}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">${projected.count ?? 0} alert${projected.count !== 1 ? 's' : ''} projected</div>
+      </div>`;
+    if (horizon) {
       body += `<div class="score-item">
-        <div class="score-label">${k}</div>
-        <div class="score-val">${scoreVal}</div>
+        <div class="score-label">Horizon</div>
+        <div class="score-val">${horizon.total_score ?? '—'}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">near: ${horizon.near_score ?? 0}</div>
       </div>`;
     }
-    body += `</div></div>`;
-  }
+    body += `<div class="score-item">
+      <div class="score-label">Trend</div>
+      <div class="score-val" style="font-size:13px;padding-top:4px;">${trend}</div>
+    </div>
+    </div>`;
 
-  // Alert counts
-  const totalAlerts = l1.total_alerts || l3.alert_count || 0;
-  const freshAlerts = l1.fresh_alerts ?? totalAlerts;
-  body += `<div style="font-size:12px;color:var(--clr-muted);">${totalAlerts} alerts (${freshAlerts} fresh, ${totalAlerts - freshAlerts} stale)</div>`;
+    // History bar chart
+    if (history.length) {
+      const maxScore = Math.max(...history.map(h => Math.max(h.score || 0, h.horizon_score || 0)), 0.1);
+      const chartH = 60;
+      body += `<div class="mini-chart">`;
+      for (const h of history) {
+        const oH = Math.max(1, ((h.score || 0) / maxScore) * chartH);
+        const hH = Math.max(1, ((h.horizon_score || 0) / maxScore) * chartH);
+        const label = h.period || h.hour || h.date || '';
+        const shortLabel = label.length > 5 ? label.slice(-5) : label;
+        body += `<div class="mini-bar-group">
+          <div class="mini-bar horizon" style="height:${hH}px" title="horizon: ${h.horizon_score}"></div>
+          <div class="mini-bar ongoing" style="height:${oH}px" title="ongoing: ${h.score} (${h.count})"></div>
+          <div class="mini-label">${shortLabel}</div>
+        </div>`;
+      }
+      body += `</div>
+      <div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--clr-muted);">
+        <span><span style="display:inline-block;width:8px;height:8px;background:#58a6ff;border-radius:1px;margin-right:3px;vertical-align:middle;"></span>Ongoing</span>
+        ${horizon ? '<span><span style="display:inline-block;width:8px;height:8px;background:#8b5cf6;opacity:0.7;border-radius:1px;margin-right:3px;vertical-align:middle;"></span>Horizon</span>' : ''}
+        <span style="margin-left:auto">${ts.window || ''}</span>
+      </div>`;
+    } else {
+      body += `<div style="font-size:12px;color:var(--clr-muted);margin-top:8px;">No history for this period</div>`;
+    }
+
+    body += `</div>`;
+  }
 
   $('#pulse-detail-body').innerHTML = body;
   $('#pulse-detail').style.display = 'block';
