@@ -405,8 +405,10 @@ let P = { usd_to_eur: 0.92, gemini_input_per_m: 0.15, gemini_output_per_m: 0.60,
 const geminiCostEur = (tIn, tOut, tThink) => (tIn / 1e6 * P.gemini_input_per_m + tOut / 1e6 * P.gemini_output_per_m + tThink / 1e6 * P.gemini_thinking_per_m) * P.usd_to_eur;
 const translateCostEur = chars => chars / 1e6 * P.translate_chars_per_m * P.usd_to_eur;
 
+const berlinDate = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'Europe/Berlin'});
+
 const datePicker = $('#date-picker');
-datePicker.value = new Date().toISOString().slice(0, 10);
+datePicker.value = berlinDate();
 datePicker.addEventListener('change', () => loadData());
 
 async function loadData() {
@@ -638,7 +640,7 @@ let _pulseEntries = [];
 let _activePulseIdx = null;
 
 function renderCategoryGrid(entries) {
-  _pulseEntries = entries.filter(e => !e.skipped && e.layer_3_output).reverse();
+  _pulseEntries = entries.filter(e => !e.skipped && e.layer_3_output);
   _activePulseIdx = null;
   closePulseDetail();
 
@@ -1072,7 +1074,7 @@ function renderOverrides(overrides) {
     return;
   }
   el.innerHTML = overrides.map(o => `<tr>
-    <td style="white-space:nowrap;font-size:12px;">${utcToBerlin(o.pulse_ts)} ${o.pulse_ts.slice(0,10)}</td>
+    <td style="white-space:nowrap;font-size:12px;">${new Date(o.pulse_ts).toLocaleDateString('sv-SE', {timeZone:'Europe/Berlin'})} ${utcToBerlin(o.pulse_ts)}</td>
     <td>${o.category}</td>
     <td>${statusPill(o.computed_status)}</td>
     <td>${statusPill(o.override_status)}</td>
