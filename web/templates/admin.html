@@ -193,12 +193,15 @@
     .score-val { font-size: 16px; font-weight: 700; }
 
     /* ── Mini history bar chart ─────────────────────── */
-    .mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 60px; margin-top: 8px; }
-    .mini-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+    .mini-chart { margin-top: 8px; }
+    .mini-bars { display: flex; align-items: flex-end; gap: 3px; height: 64px; }
+    .mini-bar-group { flex: 1; min-width: 0; }
     .mini-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 1px; }
-    .mini-bar.ongoing  { background: #58a6ff; }
-    .mini-bar.horizon  { background: #8b5cf6; opacity: 0.7; }
-    .mini-label { font-size: 9px; color: var(--clr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+    .mini-bar.ongoing   { background: #58a6ff; }
+    .mini-bar.projected { background: #f0883e; }
+    .mini-bar-group.projected-group { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
+    .mini-labels { display: flex; gap: 3px; margin-top: 3px; }
+    .mini-label { flex: 1; font-size: 9px; color: var(--clr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 
     @media (max-width: 700px) {
       main { padding: 10px; gap: 12px; }
@@ -292,7 +295,7 @@
       <div class="log-scroll" style="overflow-x:auto;">
         <table class="log-table">
           <thead>
-            <tr><th>Time</th><th>New</th><th>Retrans.</th><th class="r">Chars</th><th>Notes</th><th class="r">Est. Cost</th><th class="r">Running</th></tr>
+            <tr><th>Time</th><th>New</th><th>Re-tr.</th><th class="r">Chars</th><th>Notes</th><th class="r">Est. Cost</th><th class="r">Running</th></tr>
           </thead>
           <tbody id="translate-log"></tbody>
         </table>
@@ -517,7 +520,7 @@ function renderTranslateLog(entries) {
     const srcCounts = {};
     for (const t of translated) srcCounts[t.source] = (srcCounts[t.source] || 0) + 1;
     const srcLabel = Object.entries(srcCounts).map(([s, n]) => n > 1 ? `${s} ×${n}` : s).join(', ');
-    const notes = [srcLabel || null, varHits ? `${varHits} var. hits` : null, `${cached} cached`].filter(Boolean).join(' · ');
+    const notes = srcLabel || '—';
     const costVal = translateCostEur(chars);
     running += costVal;
     rows.push({ time, newCount, retrans, chars, notes, costVal, running });
@@ -686,7 +689,10 @@ function selectCell(idx, cat) {
 
   const displayCats = cat ? [cat] : CAT_ORDER;
   const titleCat = cat ? ` — ${cat}` : '';
-  $('#pulse-detail-title').textContent = `${time}${titleCat} · ${freshAlerts} fresh alerts`;
+  const titleCount = cat
+    ? (() => { const ts = timeseries[cat] || {}; const c = (ts.current || {}).ongoing || {}; return `${c.count ?? 0} ongoing`; })()
+    : `${freshAlerts} fresh alerts`;
+  $('#pulse-detail-title').textContent = `${time}${titleCat} · ${titleCount}`;
 
   let body = '';
 
@@ -731,25 +737,52 @@ function selectCell(idx, cat) {
 
     // History bar chart
     if (history.length) {
-      const maxScore = Math.max(...history.map(h => Math.max(h.score || 0, h.horizon_score || 0)), 0.1);
-      const chartH = 60;
-      body += `<div class="mini-chart">`;
+      const projScore = projected.score || 0;
+
+      // Use backend baseline if present, otherwise compute client-side from history
+      let bMean = 0, bP75 = 0;
+      if (ts.baseline) {
+        bMean = ts.baseline.mean || 0;
+        bP75  = ts.baseline.p75  || 0;
+      } else {
+        const hScores = history.map(h => h.score || 0).filter(s => s > 0).sort((a, b) => a - b);
+        if (hScores.length >= 3) {
+          bMean = Math.round((hScores.reduce((s, v) => s + v, 0) / hScores.length) * 100) / 100;
+          bP75  = hScores[Math.min(Math.floor(hScores.length * 0.75), hScores.length - 1)];
+        }
+      }
+
+      const maxScore = Math.max(...history.map(h => h.score || 0), projScore, bP75, 0.1);
+      const chartH = 64;
+      let bars = '', labels = '';
       for (const h of history) {
         const oH = Math.max(1, ((h.score || 0) / maxScore) * chartH);
-        const hH = Math.max(1, ((h.horizon_score || 0) / maxScore) * chartH);
         const label = h.period || h.hour || h.date || '';
         const shortLabel = label.length > 5 ? label.slice(-5) : label;
-        body += `<div class="mini-bar-group">
-          <div class="mini-bar horizon" style="height:${hH}px" title="horizon: ${h.horizon_score}"></div>
-          <div class="mini-bar ongoing" style="height:${oH}px" title="ongoing: ${h.score} (${h.count})"></div>
-          <div class="mini-label">${shortLabel}</div>
-        </div>`;
+        bars   += `<div class="mini-bar-group"><div class="mini-bar ongoing" style="height:${oH}px" title="score: ${h.score} (${h.count} alerts)"></div></div>`;
+        labels += `<div class="mini-label">${shortLabel}</div>`;
       }
-      body += `</div>
-      <div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--clr-muted);">
+      const projH = Math.max(1, (projScore / maxScore) * chartH);
+      bars   += `<div class="mini-bar-group projected-group"><div class="mini-bar projected" style="height:${projH}px" title="projected: ${projScore} (${projected.count ?? 0} alerts)"></div></div>`;
+      labels += `<div class="mini-label" style="color:#f0883e">next</div>`;
+
+      // Reference lines for mean and p75
+      const meanPct  = bMean > 0 ? (bMean  / maxScore) * 100 : 0;
+      const p75Pct   = bP75  > 0 ? (bP75   / maxScore) * 100 : 0;
+      const refLines = (bMean > 0 ? `<div style="position:absolute;left:0;right:0;bottom:${meanPct}%;border-top:1px dashed #58a6ff;opacity:0.5;" title="mean: ${bMean}"></div>` : '')
+                     + (bP75  > 0 ? `<div style="position:absolute;left:0;right:0;bottom:${p75Pct}%;border-top:1px dashed #f0883e;opacity:0.7;" title="p75: ${bP75}"></div>` : '');
+
+      body += `<div class="mini-chart">
+        <div class="mini-bars" style="position:relative;">${refLines}${bars}</div>
+        <div class="mini-labels">${labels}</div>
+      </div>`;
+
+      const baselineLabel = bMean > 0 ? `mean ${bMean} · p75 ${bP75}` : '';
+      body += `<div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--clr-muted);flex-wrap:wrap;">
         <span><span style="display:inline-block;width:8px;height:8px;background:#58a6ff;border-radius:1px;margin-right:3px;vertical-align:middle;"></span>Ongoing</span>
-        ${horizon ? '<span><span style="display:inline-block;width:8px;height:8px;background:#8b5cf6;opacity:0.7;border-radius:1px;margin-right:3px;vertical-align:middle;"></span>Horizon</span>' : ''}
-        <span style="margin-left:auto">${ts.window || ''}</span>
+        <span><span style="display:inline-block;width:8px;height:8px;background:#f0883e;border-radius:1px;margin-right:3px;vertical-align:middle;"></span>Projected (next)</span>
+        ${baselineLabel ? `<span style="margin-left:auto">${baselineLabel}</span>` : ''}
+        <span${baselineLabel ? '' : ' style="margin-left:auto"'}>${ts.window || ''}</span>
       </div>`;
     } else {
       body += `<div style="font-size:12px;color:var(--clr-muted);margin-top:8px;">No history for this period</div>`;

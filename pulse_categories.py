@@ -14,6 +14,7 @@ Source-to-category mapping:
 
 from __future__ import annotations
 
+import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
@@ -304,9 +305,22 @@ def build_category_timeseries(
                 "near_score": snap.get("upcoming_near_score", 0.0),
             }
 
+        scores = [h["score"] for h in history if h.get("score", 0) > 0]
+        if len(scores) >= 3:
+            sorted_scores = sorted(scores)
+            n = len(sorted_scores)
+            baseline = {
+                "mean": round(statistics.mean(scores), 2),
+                "p75": round(sorted_scores[min(int(n * 0.75), n - 1)], 2),
+                "n": n,
+            }
+        else:
+            baseline = None
+
         timeseries[cat] = {
             "current": current,
             "history": history,
+            "baseline": baseline,
             "window": f"{interval_label} {freq}",
         }
 

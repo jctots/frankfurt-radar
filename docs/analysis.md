@@ -76,14 +76,20 @@ When building the LLM prompt context, hourly snapshot rows are aggregated to eac
 
 The LLM receives the active alerts, category time-series data, and recent history as context. It judges both the narrative summary and the per-category status and trend.
 
-**Status judgment** — The LLM assigns each category a universal status label:
+**Status judgment** — The LLM synthesizes three inputs to assign each category a universal status label:
 
-| Level | Label | Meaning |
+1. **History + projection (Signal 1)** — The shape of the time series and the relationship between `ongoing_score` and `projected_score` reveal direction.
+2. **Statistical baseline (Signal 2)** — `baseline.mean` (typical level) and `baseline.p75` (75th percentile) are computed from the history window and injected into the prompt alongside the raw history. These give the LLM a concrete numeric anchor: at/below mean = routine; between mean and p75 = elevated; above p75 = genuinely above normal.
+3. **Alert content (Signal 3)** — The LLM reads alert bodies for acute, non-routine impact (e.g. DWD extreme warning, complete transit suspension). Chronic long-running alerts and routine scheduled maintenance are baseline — they should not inflate status.
+
+The three signals will not always agree. The LLM is guided to synthesize them: a high score with purely routine content → moderate at most; a low score with an extreme weather warning → let content lead. A DWD extreme warning (level 4) or complete major line suspension may justify `severe` from content alone.
+
+| Level | Label | Guidance |
 |-------|-------|---------|
 | 0 | clear | No ongoing alerts |
-| 1 | minor | Score within typical baseline range |
-| 2 | moderate | Score significantly above baseline, or high-impact content |
-| 3 | severe | Score far above baseline and widespread impact confirmed |
+| 1 | minor | Score at or below mean; routine or chronic conditions; no high-impact content |
+| 2 | moderate | Score above mean, or non-routine content — signals should broadly agree |
+| 3 | severe | Score well above p75 AND content confirms broad or acute impact (or acute safety event alone) |
 
 **Trend judgment** — The LLM assigns trend (`improving`, `stable`, `worsening`) from two computed signals that feed a single consolidated label:
 
@@ -136,6 +142,7 @@ The log structure mirrors the analysis layers:
           "horizon": {"total_score": 4.5, "near_score": 2.0}
         },
         "history": [{"hour": "2026-06-22T22:00:00Z", "count": 6, "score": 10.0, "horizon_score": 3.5}],
+        "baseline": {"mean": 8.2, "p75": 11.5, "n": 24},
         "window": "24h hourly"
       }
     },

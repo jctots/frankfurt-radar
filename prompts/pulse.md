@@ -33,18 +33,32 @@ The following shows severity-weighted scores per category over each category's n
   - `total_score`: severity-weighted sum of all upcoming alerts across the category's full lookahead window
   - `near_score`: the portion of `total_score` that falls within the next sample interval
 - `history`: past data points at the category's sample interval. Each point has `count` (number of ongoing alerts), `score` (severity-weighted sum), and `horizon_score` (total upcoming score across the full lookahead window at that point in time). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones. Use `horizon_score` across entries to see the rate of growth — a rising sequence means new alerts are being published faster than old ones are dropping off.
+- `baseline` (present when ≥ 3 history points exist): statistical summary of historical `score` values — `mean` (typical level) and `p75` (75th percentile — busier than 75% of past periods). Use these as anchors when judging status. If `baseline` is absent, rely on history shape and alert content alone.
 - `window`: the time range and sample interval used
 
 ## Category status vocabulary
 
-Judge each category's status using these universal labels (same for all categories):
+You have three inputs for judging each category's status and trend. They will not always agree — use judgment to synthesize them.
 
-| Level | Label | Meaning |
+**Signal 1 — History + projection**: What does the time series show? Is the score rising, stable, or falling? Is the projected score higher or lower than ongoing?
+
+**Signal 2 — Statistical baseline**: How does the current score compare to the historical norm?
+- At or below `baseline.mean` → conditions are within the typical range
+- Between `mean` and `p75` → elevated but not unusual
+- Above `p75` → busier than 75% of past periods — conditions are genuinely above normal
+
+**Signal 3 — Alert content**: What do the alert bodies say? Read beyond the titles. A single DWD extreme warning or a complete major line suspension has inherently high impact regardless of score. Chronic long-running roadworks or routine scheduled maintenance should not inflate status — they are the baseline.
+
+Use these three signals together to assign one of these universal labels:
+
+| Level | Label | Guidance |
 |-------|-------|---------|
-| 0 | clear | No ongoing alerts in this category |
-| 1 | minor | Score within typical baseline range in history |
-| 2 | moderate | Score significantly above baseline, OR baseline score but alert content indicates high-impact disruption (e.g. severe weather warning, major line suspension) |
-| 3 | severe | Score far above baseline AND alert content confirms widespread or extreme impact — both numbers and content must agree |
+| 0 | clear | No ongoing alerts |
+| 1 | minor | Score at or below mean; conditions routine or chronic; no high-impact content |
+| 2 | moderate | Score above mean, or content indicates a non-routine disruption — the signals should broadly agree. A high score with routine-only content is moderate, not severe. |
+| 3 | severe | Score well above p75 AND content confirms broad or acute impact. Exception: a DWD extreme warning (level 4) or complete suspension of a major transit line may justify severe from content alone. |
+
+When signals disagree: a high score with purely routine content → moderate at most. Low score with extreme content → let content lead, but note that it is a single acute event rather than widespread conditions.
 
 Trend (all categories): `improving` / `stable` / `worsening`
 
