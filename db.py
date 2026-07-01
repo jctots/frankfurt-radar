@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -448,6 +449,16 @@ def _text_hash(title: str, body: str) -> str:
     return hashlib.md5((title + "\0" + body).encode()).hexdigest()
 
 
+_STAND_RE = re.compile(r'\(Stand[:\s]+[\d.,:\s]+Uhr\)', re.IGNORECASE)
+
+
+def _meaningful_text_changed(new_title: str, new_body: str, cached_title: str, cached_body: str) -> bool:
+    """Return True only if substantive content changed, ignoring RMV Stand: timestamp in title."""
+    title_changed = _STAND_RE.sub('', new_title).strip() != _STAND_RE.sub('', cached_title).strip()
+    body_changed = new_body != cached_body
+    return title_changed or body_changed
+
+
 def _get_cached_variant(conn, alert_id: str, th: str) -> Optional[tuple[str, str]]:
     row = conn.execute(
         "SELECT title_en, body_en FROM translation_variants WHERE alert_id = ? AND text_hash = ?",
@@ -543,8 +554,10 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             })
         else:
             c = cached[alert.id]
-            text_changed = ((alert.title or "") != (c["title_de"] or "")
-                            or (alert.body or "") != (c["body_de"] or ""))
+            text_changed = _meaningful_text_changed(
+                alert.title or "", alert.body or "",
+                c["title_de"] or "", c["body_de"] or "",
+            )
             meta_changed = (c["valid_until"] != alert.valid_until
                             or c["valid_from"] != alert.valid_from
                             or (alert.published_at is not None
