@@ -524,7 +524,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
         cached = {r["alert_id"]: dict(r) for r in conn.execute(
-            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at, title_de, body_de FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at, title_de, body_de, lat, lon, location_label FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
@@ -561,7 +561,10 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             meta_changed = (c["valid_until"] != alert.valid_until
                             or c["valid_from"] != alert.valid_from
                             or (alert.published_at is not None
-                                and c["published_at"] != alert.published_at))
+                                and c["published_at"] != alert.published_at)
+                            or c["lat"] != alert.lat
+                            or c["lon"] != alert.lon
+                            or c["location_label"] != alert.location_label)
 
             if text_changed:
                 th = _text_hash(alert.title or "", alert.body or "")
@@ -592,14 +595,16 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
                 to_update_content.append((
                     en_title, en_body, alert.title or "", alert.body or "",
                     alert.url, alert.valid_until, alert.valid_from,
-                    effective_published, alert.image, stale_int, alert.icon,
+                    effective_published, alert.lat, alert.lon, alert.location_label,
+                    alert.image, stale_int, alert.icon,
                     alert.id,
                 ))
             elif meta_changed:
                 effective_published = alert.published_at if alert.published_at is not None else c["published_at"]
                 to_update_meta.append((
                     alert.url, alert.valid_until, alert.valid_from,
-                    effective_published, alert.image, stale_int, alert.icon,
+                    effective_published, alert.lat, alert.lon, alert.location_label,
+                    alert.image, stale_int, alert.icon,
                     alert.id,
                 ))
                 log.info("alert_cache: updated %s (metadata changed, no re-translation)", alert.id)
@@ -636,6 +641,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             conn.executemany(
                 """UPDATE alert_cache SET title_en = ?, body_en = ?, title_de = ?, body_de = ?,
                    url = ?, valid_until = ?, valid_from = ?, published_at = ?,
+                   lat = ?, lon = ?, location_label = ?,
                    image = ?, stale = ?, icon = ?,
                    cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                    WHERE alert_id = ?""",
@@ -650,7 +656,8 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
         if to_update_meta:
             conn.executemany(
                 """UPDATE alert_cache SET url = ?, valid_until = ?, valid_from = ?,
-                   published_at = ?, image = ?, stale = ?, icon = ?,
+                   published_at = ?, lat = ?, lon = ?, location_label = ?,
+                   image = ?, stale = ?, icon = ?,
                    cached_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                    WHERE alert_id = ?""",
                 to_update_meta,
