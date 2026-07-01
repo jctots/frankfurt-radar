@@ -179,6 +179,7 @@ def compute_snapshot(
             full_ends[cat] = full.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     expiring_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    expiring_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
     starting_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
     starting_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
 
@@ -212,6 +213,9 @@ def compute_snapshot(
                 expiring_near[cat]["count"] += 1
                 expiring_near[cat]["score"] += weight
                 breakdown[cat]["expiring_near"].append(entry)
+            if cat in full_ends and _is_expiring(alert, now_iso, full_ends[cat]):
+                expiring_full[cat]["count"] += 1
+                expiring_full[cat]["score"] += weight
         elif cat in full_ends and _is_upcoming(alert, now_iso, full_ends[cat]):
             starting_full[cat]["count"] += 1
             starting_full[cat]["score"] += weight
@@ -227,8 +231,10 @@ def compute_snapshot(
         projected_score = snapshot[cat]["ongoing_score"] - expiring_near[cat]["score"] + starting_near[cat]["score"]
         snapshot[cat]["projected_count"] = max(0, projected_count)
         snapshot[cat]["projected_score"] = round(max(0.0, projected_score), 2)
-        snapshot[cat]["upcoming_count"] = starting_full[cat]["count"]
-        snapshot[cat]["upcoming_score"] = round(starting_full[cat]["score"], 2)
+        horizon_count = snapshot[cat]["ongoing_count"] - expiring_full[cat]["count"] + starting_full[cat]["count"]
+        horizon_score = snapshot[cat]["ongoing_score"] - expiring_full[cat]["score"] + starting_full[cat]["score"]
+        snapshot[cat]["upcoming_count"] = max(0, horizon_count)
+        snapshot[cat]["upcoming_score"] = round(max(0.0, horizon_score), 2)
         snapshot[cat]["upcoming_near_score"] = round(starting_near[cat]["score"], 2)
 
     return snapshot, breakdown

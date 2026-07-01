@@ -54,8 +54,8 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 
 - `ongoing_score`: severity-weighted sum of active alerts
 - `projected_score`: estimated score at the end of the next sample interval — `ongoing_score − expiring_near + starting_near`. Directly comparable to `ongoing_score`.
-- `upcoming_score`: severity-weighted sum of all alerts starting within the full lookahead window
-- `upcoming_near_score`: portion of `upcoming_score` falling within the next sample interval
+- `upcoming_score`: estimated score at the end of the full lookahead window — `ongoing_score − expiring_full + starting_full`. Symmetric to `projected_score` but over the longer horizon. Together, `ongoing → projected → horizon` gives a directional trend signal.
+- `upcoming_near_score`: score of alerts starting within the next sample interval (the near portion of upcoming alerts)
 
 **Per-category time windows:**
 
