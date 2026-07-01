@@ -274,6 +274,8 @@ class TestOnboardingFlow:
         handle_update(_cb_update(7005, "qh:no"), bot_config)
         # Pulse time: default
         handle_update(_cb_update(7005, "pt:12:00"), bot_config)
+        # Keywords: skip
+        handle_update(_cb_update(7005, "kw:skip"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7005)
         assert sub["conversation_state"] is None
@@ -295,6 +297,7 @@ class TestOnboardingFlow:
 
         handle_update(_cb_update(7006, "qh:yes"), bot_config)
         handle_update(_cb_update(7006, "pt:12:00"), bot_config)
+        handle_update(_cb_update(7006, "kw:skip"), bot_config)
 
         sub = db.get_subscriber_by_chat_id(7006)
         assert sub["conversation_state"] is None
@@ -313,6 +316,7 @@ class TestOnboardingFlow:
         handle_update(_cb_update(7007, "s:done"), bot_config)
         handle_update(_cb_update(7007, "qh:no"), bot_config)
         handle_update(_cb_update(7007, "pt:12:00"), bot_config)
+        handle_update(_cb_update(7007, "kw:skip"), bot_config)
 
         last_text = mock_send.call_args.args[1]
         assert "all set" in last_text.lower()
@@ -446,4 +450,4 @@ class TestExpiredSession:
 
 
 def _all_sources():
-    return ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports"]
+    return ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "sports", "strike", "feuerwehr"]

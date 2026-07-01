@@ -131,7 +131,7 @@ def pulse_methodology():
 def api_pulse_methodology_data():
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entries = _read_jsonl(DATA_DIR / "pulse_debug" / f"{today}.jsonl")
-    real_entries = [e for e in entries if not e.get("skipped")]
+    real_entries = [e for e in entries if not e.get("skipped") and e.get("layer_1_deterministic")]
     if not real_entries:
         return jsonify({"error": "no data available for today"}), 404
     entry = real_entries[-1]

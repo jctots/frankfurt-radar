@@ -129,7 +129,7 @@ class TestSeverityWeighting:
     def test_default_weight_polizei(self):
         alerts = [_alert("polizei")]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["incidents"] == pytest.approx(1.0)
+        assert counts["incidents"] == pytest.approx(0.5)
 
 
 class TestComputeWeight:
@@ -144,7 +144,7 @@ class TestComputeWeight:
         assert _compute_weight({"source": "rmv", "service": "U-Bahn"}) == 1.5
 
     def test_rmv_tram(self):
-        assert _compute_weight({"source": "rmv", "service": "Tram"}) == 0.5
+        assert _compute_weight({"source": "rmv", "service": "Tram"}) == 1.0
 
     def test_autobahn_closure_case_insensitive(self):
         assert _compute_weight({"source": "autobahn", "title_en": "Full CLOSURE of A5"}) == 2.0

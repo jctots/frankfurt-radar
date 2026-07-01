@@ -53,7 +53,8 @@
       --clr-roads:     #d97706;
       --clr-events:    #059669;
       --clr-sports:    #059669;
-      --clr-strike:    #ea580c;
+      --clr-strike:    #dc2626;
+      --clr-fire:      #dc2626;
       --clr-bg:        #f0f2f5;
       --clr-surface:   #ffffff;
       --clr-border:    #e2e8f0;
@@ -457,6 +458,7 @@
     .card.src-messe      { border-left-color: var(--clr-events); }
     .card.src-sports     { border-left-color: var(--clr-sports); }
     .card.src-strike     { border-left-color: var(--clr-strike); }
+    .card.src-feuerwehr  { border-left-color: var(--clr-fire); }
     .card.card-pinned.src-events { background: #ecfdf5; }
     .card.card-pinned.src-messe  { background: #ecfdf5; }
     .card.card-pinned.src-sports { background: #ecfdf5; }
@@ -473,6 +475,7 @@
     .card.src-events:hover   { background: #d1fae5; }
     .card.src-sports:hover   { background: #ffedd5; }
     .card.src-strike:hover   { background: #fef2f2; }
+    .card.src-feuerwehr:hover { background: #fef2f2; }
     .card.sel.src-rmv        { background: #bfdbfe; border-left-color: var(--clr-transport); }
     .card.sel.src-dwd        { background: #ddd6fe; border-left-color: var(--clr-weather); }
     .card.sel.src-polizei    { background: #fecaca; border-left-color: var(--clr-police); }
@@ -481,7 +484,8 @@
     .card.sel.src-events     { background: #a7f3d0; border-left-color: var(--clr-events); }
     .card.sel.src-messe      { background: #a7f3d0; border-left-color: var(--clr-events); }
     .card.sel.src-sports     { background: #a7f3d0; border-left-color: var(--clr-sports); }
-    .card.sel.src-strike     { background: #fed7aa; border-left-color: var(--clr-strike); }
+    .card.sel.src-strike     { background: #fecaca; border-left-color: var(--clr-strike); }
+    .card.sel.src-feuerwehr  { background: #fecaca; border-left-color: var(--clr-fire); }
     .card.card-removed { background: var(--clr-surface) !important; border-left-color: var(--clr-border) !important; }
     .card.card-removed:hover { background: #f8fafc !important; }
 
@@ -490,7 +494,8 @@
     @keyframes blink-pol { 0%,100% { background: #fff; } 15%,45% { background: #fee2e2; } 30%,60% { background: #fff; } }
     @keyframes blink-ab  { 0%,100% { background: #fff; } 15%,45% { background: #fef3c7; } 30%,60% { background: #fff; } }
     @keyframes blink-ev  { 0%,100% { background: #fff; } 15%,45% { background: #d1fae5; } 30%,60% { background: #fff; } }
-    @keyframes blink-st  { 0%,100% { background: #fff; } 15%,45% { background: #ffedd5; } 30%,60% { background: #fff; } }
+    @keyframes blink-st   { 0%,100% { background: #fff; } 15%,45% { background: #fee2e2; } 30%,60% { background: #fff; } }
+    @keyframes blink-fire { 0%,100% { background: #fff; } 15%,45% { background: #fee2e2; } 30%,60% { background: #fff; } }
     .card.src-rmv.alert-blink      { animation: blink-rmv 1.4s ease-in-out forwards; }
     .card.src-dwd.alert-blink      { animation: blink-dwd 1.4s ease-in-out forwards; }
     .card.src-polizei.alert-blink  { animation: blink-pol 1.4s ease-in-out forwards; }
@@ -499,7 +504,8 @@
     .card.src-events.alert-blink   { animation: blink-ev 1.4s ease-in-out forwards; }
     .card.src-messe.alert-blink    { animation: blink-ev 1.4s ease-in-out forwards; }
     .card.src-sports.alert-blink   { animation: blink-ev 1.4s ease-in-out forwards; }
-    .card.src-strike.alert-blink   { animation: blink-st 1.4s ease-in-out forwards; }
+    .card.src-strike.alert-blink    { animation: blink-st   1.4s ease-in-out forwards; }
+    .card.src-feuerwehr.alert-blink { animation: blink-fire 1.4s ease-in-out forwards; }
     @keyframes blink-pulse { 0%,100% { background: #f5f3ff; } 15%,45% { background: #ede9fe; } 30%,60% { background: #f5f3ff; } }
     .card.card-pulse.alert-blink   { animation: blink-pulse 1.4s ease-in-out forwards; }
 
@@ -1115,6 +1121,7 @@
       --clr-events:    #8892a4;
       --clr-sports:    #8892a4;
       --clr-strike:    #8892a4;
+      --clr-fire:      #8892a4;
       --clr-bg:      #131921;
       --clr-surface: #1c2433;
       --clr-border:  #2a3344;
@@ -1444,13 +1451,14 @@ const SEV_LABEL        = ['', 'Minor', 'Moderate', 'Severe', 'Extreme'];
 const SOURCE = {
   rmv:      { label: 'Transport', emoji: '🚇', color: 'var(--clr-transport)', hex: '#1a73e8', officialUrl: 'https://www.rmv.de/c/de/start/frankfurt/aktuell/verkehrsmeldungen' },
   dwd:      { label: 'Weather',   emoji: '⛈️',  color: 'var(--clr-weather)',   hex: '#7c3aed', officialUrl: 'https://www.dwd.de/DE/wetter/warnungen/warnWetter_node.html?ort=Frankfurt-S%C3%BCd' },
-  polizei:  { label: 'Police',    emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
+  polizei:  { label: 'Incidents', emoji: '🚨', color: 'var(--clr-police)',    hex: '#dc2626', officialUrl: 'https://www.presseportal.de/blaulicht/nr/4970' },
   autobahn:   { label: 'Roadworks',  emoji: '⚠️', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://www.autobahn.de/' },
   baustellen: { label: 'Roadworks',  emoji: '🛑', color: 'var(--clr-roads)',     hex: '#d97706', officialUrl: 'https://mainziel.de/en/here-for-you/construction-site-overview' },
   events:   { label: 'Events',     emoji: '🎉', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.visitfrankfurt.travel/erleben/veranstaltungskalender' },
   messe:    { label: 'Events',     emoji: '🎪', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.messefrankfurt.com' },
   sports:   { label: 'Events',     emoji: '⚽', color: 'var(--clr-events)',    hex: '#059669', officialUrl: 'https://www.eintracht.de/tickets/' },
-  strike:   { label: 'Strikes',   emoji: '🪧', color: 'var(--clr-strike)',   hex: '#ea580c', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
+  strike:    { label: 'Incidents', emoji: '🪧', color: 'var(--clr-strike)', hex: '#dc2626', officialUrl: 'https://hessen.verdi.de/presse/pressemitteilungen/' },
+  feuerwehr: { label: 'Incidents', emoji: '🔥', color: 'var(--clr-fire)',   hex: '#dc2626', officialUrl: 'https://bsky.app/profile/feuerwehrffm.bsky.social' },
 };
 
 const SVC_ICON = {
@@ -1575,12 +1583,14 @@ if (!filters.sources.hasOwnProperty('messe'))      filters.sources.messe      = 
 if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
+if (!filters.sources.hasOwnProperty('feuerwehr'))  filters.sources.feuerwehr  = _srcOn('feuerwehr');
 if (!filters.sources.hasOwnProperty('incidents'))  filters.sources.incidents  = _srcOn('polizei');
 if (!filters.roads) filters.roads = {};
 if (!filters.eventTypes) filters.eventTypes = {};
 if (!filters.incidentTypes) filters.incidentTypes = {};
-if (!filters.incidentTypes.hasOwnProperty('police'))  filters.incidentTypes.police  = filters.sources.polizei !== false;
-if (!filters.incidentTypes.hasOwnProperty('strikes')) filters.incidentTypes.strikes = filters.sources.strike  !== false;
+if (!filters.incidentTypes.hasOwnProperty('police'))  filters.incidentTypes.police  = filters.sources.polizei   !== false;
+if (!filters.incidentTypes.hasOwnProperty('strikes')) filters.incidentTypes.strikes = filters.sources.strike    !== false;
+if (!filters.incidentTypes.hasOwnProperty('fire'))    filters.incidentTypes.fire    = filters.sources.feuerwehr !== false;
 if (!filters.eventTypes.hasOwnProperty('festivals'))   filters.eventTypes.festivals   = true;
 if (!filters.eventTypes.hasOwnProperty('trade_fairs')) filters.eventTypes.trade_fairs  = true;
 if (!filters.eventTypes.hasOwnProperty('sports'))      filters.eventTypes.sports       = true;
@@ -2087,8 +2097,10 @@ function passesFilters(a) {
   if (a.source === 'baustellen' && a.service === 'City (Full)'    && filters.roads.city_full    === false) return false;
   if (a.source === 'polizei' && filters.sources.incidents       === false) return false;
   if (a.source === 'polizei' && filters.incidentTypes.police    === false) return false;
-  if (a.source === 'strike'  && filters.sources.incidents       === false) return false;
-  if (a.source === 'strike'  && filters.incidentTypes.strikes   === false) return false;
+  if (a.source === 'strike'    && filters.sources.incidents         === false) return false;
+  if (a.source === 'strike'    && filters.incidentTypes.strikes     === false) return false;
+  if (a.source === 'feuerwehr' && filters.sources.incidents         === false) return false;
+  if (a.source === 'feuerwehr' && filters.incidentTypes.fire        === false) return false;
   if (a.source === 'events'  && filters.eventTypes.festivals   === false) return false;
   if (a.source === 'messe'   && filters.sources.events         === false) return false;
   if (a.source === 'messe'   && filters.eventTypes.trade_fairs  === false) return false;
@@ -2287,10 +2299,13 @@ function fmtOngoing(iso) {
 }
 
 function _renderSvc(a) {
-  if (a.source === 'autobahn') return ' · Autobahn';
-  if (a.source === 'events')   return ' · Festivals';
-  if (a.source === 'messe')    return ' · Trade Fairs';
-  if (a.source === 'sports')   return ' · Sports';
+  if (a.source === 'polizei')   return ' · Police';
+  if (a.source === 'strike')    return ' · Strikes';
+  if (a.source === 'feuerwehr') return ' · Fire';
+  if (a.source === 'autobahn')  return ' · Autobahn';
+  if (a.source === 'events')    return ' · Festivals';
+  if (a.source === 'messe')     return ' · Trade Fairs';
+  if (a.source === 'sports')    return ' · Sports';
   if (a.service) return ` · ${esc(ROAD_SERVICE_LABEL[a.service] || a.service.replace(/_/g, ' '))}`;
   return '';
 }
@@ -2875,7 +2890,7 @@ function buildFilterBar() {
 
   const sectionAlerts = feedVisible();
   const counts = {};
-  ['polizei','dwd','autobahn','events','sports','rmv','strike','messe'].forEach(src => {
+  ['polizei','dwd','autobahn','events','sports','rmv','strike','messe','feuerwehr'].forEach(src => {
     counts[src] = sectionAlerts.filter(a => a.source === src).length;
   });
   counts.autobahn += sectionAlerts.filter(a => a.source === 'baustellen').length;
@@ -2921,13 +2936,13 @@ function buildFilterBar() {
   // Incidents (grouped: police + strikes)
   html += '<div class="filter-sep"></div>';
   const incOn = filters.sources.incidents !== false;
-  const incCount = counts.polizei + counts.strike;
+  const incCount = counts.polizei + counts.strike + counts.feuerwehr;
   html += `<button class="chip src-incidents${incOn ? ' on' : ''}" onclick="toggleSrc('incidents')">🚨 Incidents${badge(incCount)}</button>`;
   if (incOn) {
-    const incAlerts = sectionAlerts.filter(a => ['polizei','strike'].includes(a.source));
+    const incAlerts = sectionAlerts.filter(a => ['polizei','strike','feuerwehr'].includes(a.source));
     if (incAlerts.length) {
-      const enabledIncTypes = ['police','strikes'].filter(k => filters.incidentTypes[k] !== false).length;
-      const incPartial = enabledIncTypes < 2;
+      const enabledIncTypes = ['police','strikes','fire'].filter(k => filters.incidentTypes[k] !== false).length;
+      const incPartial = enabledIncTypes < 3;
       html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
     }
   }
@@ -3199,6 +3214,7 @@ function setAllEventTypes(val) {
 const INCIDENT_TYPES = [
   { key: 'police',  label: 'Police' },
   { key: 'strikes', label: 'Strikes' },
+  { key: 'fire',    label: 'Fire' },
 ];
 
 function openIncidentsPopup(btn) {

@@ -878,3 +878,161 @@ class TestStrikePoller:
 
         alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
         assert len(alerts) == 0
+
+
+# ── FeuerwehrPoller ───────────────────────────────────────────────────────────
+
+class TestFeuerwehrPoller:
+    def _feed(self, posts: list[dict]) -> dict:
+        return {"feed": [{"post": {"uri": p["uri"], "record": {"text": p["text"], "createdAt": p["created_at"]}}} for p in posts]}
+
+    def _recent(self, minutes_ago: int = 30) -> str:
+        from datetime import datetime, timedelta, timezone
+        t = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+        return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _old(self, hours_ago: int = 6) -> str:
+        from datetime import datetime, timedelta, timezone
+        t = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+        return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def test_active_post_with_district_hashtag_returned(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+            "text": "#Gallus: Es brennt in einer Wohnung.",
+            "created_at": self._recent(30),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert len(alerts) == 1
+        assert alerts[0].source == "feuerwehr"
+        assert alerts[0].location_label == "Gallus"
+        assert "Gallus" in alerts[0].title
+
+    def test_display_name_from_districts_py(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+            "text": "#Rödelheim: Kleines Feuer.",
+            "created_at": self._recent(10),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert len(alerts) == 1
+        assert alerts[0].location_label == "Rödelheim"
+
+    def test_post_outside_ttl_filtered(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/old",
+            "text": "#Gallus: Alter Einsatz.",
+            "created_at": self._old(hours_ago=6),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller(ttl_hours=4).fetch()
+
+        assert len(alerts) == 0
+
+    def test_post_without_district_hashtag_filtered(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/nodist",
+            "text": "Wir sind im Einsatz. Mehr Infos folgen.",
+            "created_at": self._recent(10),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert len(alerts) == 0
+
+    def test_valid_until_set_to_published_plus_ttl(self, mocker):
+        from datetime import datetime, timezone
+        from pollers import FeuerwehrPoller
+        created_at = self._recent(10)
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+            "text": "#Bockenheim: Brand gemeldet.",
+            "created_at": created_at,
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller(ttl_hours=4).fetch()
+
+        assert len(alerts) == 1
+        pub = datetime.fromisoformat(alerts[0].published_at.replace("Z", "+00:00"))
+        until = datetime.fromisoformat(alerts[0].valid_until.replace("Z", "+00:00"))
+        delta_hours = (until - pub).total_seconds() / 3600
+        assert delta_hours == pytest.approx(4.0)
+
+    def test_custom_ttl_hours(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/post1",
+            "text": "#Sachsenhausen: Einsatz läuft.",
+            "created_at": self._recent(30),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller(ttl_hours=2).fetch()
+        assert len(alerts) == 1
+
+        feed_old = self._feed([{
+            "uri": "at://did:plc:abc/app.bsky.feed.post/post2",
+            "text": "#Sachsenhausen: Alter Einsatz.",
+            "created_at": self._old(hours_ago=3),
+        }])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed_old))
+
+        alerts_old = FeuerwehrPoller(ttl_hours=2).fetch()
+        assert len(alerts_old) == 0
+
+    def test_multiple_posts_all_active_returned(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = self._feed([
+            {"uri": "at://did:plc:abc/app.bsky.feed.post/p1", "text": "#Gallus: Brand.", "created_at": self._recent(15)},
+            {"uri": "at://did:plc:abc/app.bsky.feed.post/p2", "text": "#Westend: Einsatz.", "created_at": self._recent(45)},
+        ])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert len(alerts) == 2
+        locations = {a.location_label for a in alerts}
+        assert locations == {"Gallus", "Westend"}
+
+    def test_post_url_points_to_bluesky(self, mocker):
+        from pollers import FeuerwehrPoller
+        uri = "at://did:plc:abc123/app.bsky.feed.post/3kxyz"
+        feed = self._feed([{"uri": uri, "text": "#Nordend: Feuer.", "created_at": self._recent(5)}])
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert alerts[0].url == "https://bsky.app/profile/feuerwehrffm.bsky.social/post/3kxyz"
+
+    def test_request_failure_returns_empty_and_sets_not_ok(self, mocker):
+        import requests as req_lib
+        from pollers import FeuerwehrPoller
+        mocker.patch("pollers.requests.get", side_effect=req_lib.RequestException("timeout"))
+
+        poller = FeuerwehrPoller()
+        alerts = poller.fetch()
+
+        assert alerts == []
+        assert poller.ok is False
+
+    def test_post_with_missing_fields_skipped(self, mocker):
+        from pollers import FeuerwehrPoller
+        feed = {"feed": [{"post": {"uri": "", "record": {"text": "", "createdAt": ""}}}]}
+        mocker.patch("pollers.requests.get", return_value=_mock_response(feed))
+
+        alerts = FeuerwehrPoller().fetch()
+
+        assert len(alerts) == 0

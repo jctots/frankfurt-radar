@@ -366,6 +366,8 @@ class FeuerwehrPoller(BasePoller):
             published_at = post_time.strftime("%Y-%m-%dT%H:%M:%SZ")
             valid_until = (post_time + timedelta(hours=self.ttl_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
             post_id = uri.split("/")[-1]
+            coords = DISTRICTS.get(location_label)
+            lat, lon = (coords[0], coords[1]) if coords else (None, None)
 
             alerts.append(Alert(
                 id=uri,
@@ -378,6 +380,8 @@ class FeuerwehrPoller(BasePoller):
                 service=None,
                 published_at=published_at,
                 location_label=location_label,
+                lat=lat,
+                lon=lon,
             ))
 
         log.info("FeuerwehrPoller: %d active posts", len(alerts))
