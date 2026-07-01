@@ -140,7 +140,8 @@
     .ban-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--clr-surface2); border-radius: 8px; font-size: 13px; font-family: monospace; }
 
     /* ── Category grid ──────────────────────────────── */
-    .cat-grid-wrap { overflow-x: auto; }
+    .cat-grid-wrap { overflow-x: auto; overflow-y: auto; max-height: 320px; }
+    .cat-grid thead th { position: sticky; top: 0; background: var(--clr-bg); z-index: 1; }
     .cat-grid { border-collapse: collapse; min-width: 100%; font-size: 13px; }
     .cat-grid th { text-align: center; font-size: 11px; color: var(--clr-muted); padding: 4px 6px; border-bottom: 1px solid var(--clr-border); white-space: nowrap; }
     .cat-grid th.cat-label { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; min-width: 90px; }
@@ -316,7 +317,7 @@
 
   <!-- Category status grid -->
   <div class="card">
-    <h2>📈 Category Status</h2>
+    <h2>📈 Status and Trend Log</h2>
     <div class="cat-grid-wrap">
       <table class="cat-grid" id="cat-grid"></table>
     </div>
@@ -650,29 +651,31 @@ function renderCategoryGrid(entries) {
     return;
   }
 
-  // Header row: time buttons
-  let thead = '<thead><tr><th class="cat-label"></th>';
-  _pulseEntries.forEach((e, i) => {
-    const t = utcToBerlin(e.generated_at);
-    thead += `<th><button class="pulse-time-btn" onclick="selectCell(${i}, null)">${t}</button></th>`;
-  });
+  // Header row: categories
+  let thead = '<thead><tr><th class="cat-label">Time</th>';
+  for (const cat of CAT_ORDER) {
+    thead += `<th class="cat-label">${cat}</th>`;
+  }
   thead += '</tr></thead>';
 
-  // Body rows: one per category
+  // Body rows: one per time slot, latest first
   let tbody = '<tbody>';
-  for (const cat of CAT_ORDER) {
-    tbody += `<tr><td class="cat-label">${cat}</td>`;
-    _pulseEntries.forEach((e, i) => {
-      const cats = e.layer_3_output.categories || {};
+  const reversed = [..._pulseEntries].reverse();
+  reversed.forEach((e, ri) => {
+    const i = _pulseEntries.length - 1 - ri;
+    const t = utcToBerlin(e.generated_at);
+    tbody += `<tr><td><button class="pulse-time-btn" onclick="selectCell(${i}, null)">${t}</button></td>`;
+    for (const cat of CAT_ORDER) {
+      const cats = e.layer_3_output?.categories || {};
       const status = (cats[cat] || {}).status || 'clear';
       const trend = (cats[cat] || {}).trend || 'stable';
       const trendIcon = trend === 'improving' ? '↓' : trend === 'worsening' ? '↑' : '';
       tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trend})">
         <span class="pill ${status}">${status}${trendIcon ? ' ' + trendIcon : ''}</span>
       </button></td>`;
-    });
+    }
     tbody += '</tr>';
-  }
+  });
   tbody += '</tbody>';
 
   table.innerHTML = thead + tbody;
@@ -682,23 +685,21 @@ function selectCell(idx, cat) {
   _activePulseIdx = idx;
   const e = _pulseEntries[idx];
 
-  // Update active state
-  document.querySelectorAll('.pulse-time-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  // Update active state — rows=time slots (reversed), cells=categories
   document.querySelectorAll('.cell-btn').forEach(b => b.classList.remove('active'));
+  const rows = document.querySelectorAll('#cat-grid tbody tr');
+  const rowIdx = _pulseEntries.length - 1 - idx;
+  document.querySelectorAll('.pulse-time-btn').forEach((b, i) => b.classList.toggle('active', i === rowIdx));
   if (cat) {
     const catIdx = CAT_ORDER.indexOf(cat);
-    if (catIdx >= 0) {
-      const rows = document.querySelectorAll('#cat-grid tbody tr');
-      if (rows[catIdx]) {
-        const cells = rows[catIdx].querySelectorAll('.cell-btn');
-        if (cells[idx]) cells[idx].classList.add('active');
-      }
+    if (catIdx >= 0 && rows[rowIdx]) {
+      const cells = rows[rowIdx].querySelectorAll('.cell-btn');
+      if (cells[catIdx]) cells[catIdx].classList.add('active');
     }
   } else {
-    document.querySelectorAll('#cat-grid tbody tr').forEach(row => {
-      const cells = row.querySelectorAll('.cell-btn');
-      if (cells[idx]) cells[idx].classList.add('active');
-    });
+    if (rows[rowIdx]) {
+      rows[rowIdx].querySelectorAll('.cell-btn').forEach(b => b.classList.add('active'));
+    }
   }
 
   const time = utcToBerlin(e.generated_at);
