@@ -351,11 +351,14 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     references = [r for r in references if r in valid_ids][:3]
 
     # Status is deterministic from Layer 1; LLM provides trend only
+    _VALID_TRENDS = {"stable", "improving", "worsening"}
     llm_categories = result.get("categories", {})
     categories = {}
     for cat in ("weather", "transport", "roadworks", "incidents", "events"):
         computed_status = timeseries.get(cat, {}).get("current", {}).get("status", "clear")
         llm_trend = (llm_categories.get(cat) or {}).get("trend", "stable")
+        if llm_trend not in _VALID_TRENDS:
+            llm_trend = "stable"
         categories[cat] = {"status": computed_status, "trend": llm_trend}
 
     pulse = {

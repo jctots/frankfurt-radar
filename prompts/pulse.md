@@ -42,7 +42,7 @@ Field reference:
 
 **You do not assign or override `status`.** Your job is:
 
-1. **Trend** per category: `improving` / `stable` / `worsening`
+1. **Trend** per category: `improving` / `stable` / `worsening` — **only these three values are valid; never use any other label (e.g. "clear")**
 2. **Title, summary, recommendation**: synthesize across categories
 
 ## How to judge trend

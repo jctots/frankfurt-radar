@@ -435,10 +435,13 @@ function renderFromData(data) {
   document.getElementById('snapshot-meta').innerHTML =
     `Pulse generated <strong>${fmtPulseTime(data.generated_at)}</strong> · ${data.alert_count} active alerts · <span class="snap-note">scores below are for this snapshot only</span>`;
 
-  const cats = ['transport', 'weather', 'roadworks', 'events', 'incidents'].map(id => {
+  const _VALID_TRENDS = new Set(['stable', 'improving', 'worsening']);
+  const cats = ['weather', 'transport', 'roadworks', 'incidents', 'events'].map(id => {
     const c = data.categories[id] || {};
     const m = CAT_META[id];
-    return Object.assign({ id }, m, c);
+    const merged = Object.assign({ id }, m, c);
+    if (!_VALID_TRENDS.has(merged.trend)) merged.trend = 'stable';
+    return merged;
   });
   document.getElementById('cat-cards').innerHTML = cats.map(renderCard).join('');
 }
