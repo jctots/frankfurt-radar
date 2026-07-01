@@ -335,9 +335,9 @@ def api_admin_weight_review():
 
     weight_table = textwrap.dedent("""
         DWD severity: minor=0.5, moderate=1.0, severe=1.5, extreme=2.0
-        RMV: S-Bahn/U-Bahn/Regional=1.5, other=1.0
-        Autobahn: closure keyword=1.5, else=1.0
-        Baustellen: City (Full)=1.5, else=1.0
+        RMV: S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=0.5, other=1.0
+        Autobahn: closure keyword=2.0, else=1.0
+        Baustellen: City (Full)=1.5, City (Partial)=0.5, else=1.0
         Events/Messe/Sports: 2.0 (fixed)
         Polizei/Strike: 1.0 (default)
     """).strip()

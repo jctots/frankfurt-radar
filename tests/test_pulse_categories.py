@@ -111,7 +111,7 @@ class TestSeverityWeighting:
             _alert("rmv", valid_from=_PAST, service="Bus"),
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["transport"] == pytest.approx(2.5)
+        assert counts["transport"] == pytest.approx(2.0)  # S-Bahn 1.5 + Bus 0.5
 
     def test_autobahn_closure_weight(self):
         alerts = [
@@ -119,7 +119,7 @@ class TestSeverityWeighting:
             _alert("autobahn", valid_from=_PAST, title="A3 Warning: roadworks"),
         ]
         counts = count_alerts_by_category(alerts, now=_NOW)
-        assert counts["roadworks"] == pytest.approx(2.5)
+        assert counts["roadworks"] == pytest.approx(3.0)  # closure 2.0 + no-closure 1.0
 
     def test_events_weight(self):
         alerts = [_alert("events", valid_from=_PAST)]
@@ -144,10 +144,10 @@ class TestComputeWeight:
         assert _compute_weight({"source": "rmv", "service": "U-Bahn"}) == 1.5
 
     def test_rmv_tram(self):
-        assert _compute_weight({"source": "rmv", "service": "Tram"}) == 1.0
+        assert _compute_weight({"source": "rmv", "service": "Tram"}) == 0.5
 
     def test_autobahn_closure_case_insensitive(self):
-        assert _compute_weight({"source": "autobahn", "title_en": "Full CLOSURE of A5"}) == 1.5
+        assert _compute_weight({"source": "autobahn", "title_en": "Full CLOSURE of A5"}) == 2.0
 
     def test_messe(self):
         assert _compute_weight({"source": "messe"}) == 2.0

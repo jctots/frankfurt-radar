@@ -43,8 +43,8 @@ CATEGORY_WINDOWS: dict[str, dict] = {
 }
 
 SEVERITY_WEIGHTS_DWD: dict[int, float] = {1: 0.5, 2: 1.0, 3: 1.5, 4: 2.0}
-SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5}
-SERVICE_WEIGHTS_BAUSTELLEN: dict[str, float] = {"City (Full)": 1.5}
+SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5, "Tram": 0.5, "Bus": 0.5}
+SERVICE_WEIGHTS_BAUSTELLEN: dict[str, float] = {"City (Full)": 1.5, "City (Partial)": 0.5}
 WEIGHT_EVENTS = 2.0
 WEIGHT_DEFAULT = 1.0
 
@@ -74,7 +74,7 @@ def _compute_weight(alert: dict) -> float:
         return SERVICE_WEIGHTS_RMV.get(alert.get("service"), WEIGHT_DEFAULT)
     if source == "autobahn":
         title = (alert.get("title_en") or alert.get("title") or "").lower()
-        return 1.5 if "closure" in title else WEIGHT_DEFAULT
+        return 2.0 if "closure" in title else WEIGHT_DEFAULT
     if source == "baustellen":
         return SERVICE_WEIGHTS_BAUSTELLEN.get(alert.get("service"), WEIGHT_DEFAULT)
     if source in ("events", "sports", "messe"):
