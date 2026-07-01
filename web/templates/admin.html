@@ -150,7 +150,9 @@
     .cat-grid thead th { position: sticky; top: 0; background: var(--clr-bg); z-index: 1; }
     .cat-grid { border-collapse: collapse; min-width: 100%; font-size: 13px; }
     .cat-grid th { text-align: center; font-size: 11px; color: var(--clr-muted); padding: 4px 6px; border-bottom: 1px solid var(--clr-border); white-space: nowrap; }
-    .cat-grid th.cat-label { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; min-width: 90px; }
+    .cat-grid th.cat-label { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; min-width: 70px; white-space: nowrap; }
+    .cat-grid th.cat-label:first-child { min-width: 50px; }
+    .cat-grid td:first-child { white-space: nowrap; }
     .cat-grid td { padding: 4px 6px; border-bottom: 1px solid var(--clr-border); text-align: center; }
     .cat-grid td.cat-label { text-align: left; color: var(--clr-muted); font-size: 12px; white-space: nowrap; }
     .cat-grid tr:last-child td { border-bottom: none; }
@@ -270,6 +272,11 @@
       <div class="kpi-label">Month Projection</div>
       <div class="kpi-value" id="kpi-proj-cost">—</div>
       <div class="kpi-sub" id="kpi-proj-sub"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">vs Last Month</div>
+      <div class="kpi-value" id="kpi-proj-delta">—</div>
+      <div class="kpi-sub" id="kpi-proj-delta-sub"></div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Translate Calls</div>
@@ -458,6 +465,21 @@ function renderKPIs(data) {
   $('#kpi-proj-cost').textContent = eur(projected);
   $('#kpi-proj-cost').className = 'kpi-value ' + costClass(projected, budget);
   $('#kpi-proj-sub').textContent = `Avg ${eur(avgPerDay)}/day · Budget: ${eur(budget)}/mo`;
+
+  const prevTotal = (data.prev_monthly || {}).total_eur || 0;
+  const prevMonth = (data.prev_monthly || {}).month || '';
+  if (prevTotal > 0) {
+    const delta = projected - prevTotal;
+    const pct = Math.round(delta / prevTotal * 100);
+    const sign = delta >= 0 ? '+' : '';
+    $('#kpi-proj-delta').textContent = `${sign}${eur(delta)}`;
+    $('#kpi-proj-delta').className = 'kpi-value ' + (delta <= 0 ? 'ok' : 'warn');
+    $('#kpi-proj-delta-sub').textContent = `${sign}${pct}% vs ${prevMonth} (${eur(prevTotal)})`;
+  } else {
+    $('#kpi-proj-delta').textContent = 'N/A';
+    $('#kpi-proj-delta').className = 'kpi-value';
+    $('#kpi-proj-delta-sub').textContent = 'No data for last month';
+  }
 
   const tEntries = data.translate_debug;
   const translateCalls = tEntries.reduce((s, e) => s + (e.entries || []).filter(x => x.action === 'new' || x.action === 'retranslate').length, 0);
@@ -798,10 +820,20 @@ function selectCell(idx, cat) {
       const maxScore = Math.max(...history.map(h => h.score || 0), projScore, bP75, 0.1);
       const chartH = 64;
       let bars = '', labels = '';
+      const nowMs = Date.now();
       for (const h of history) {
         const oH = Math.max(1, ((h.score || 0) / maxScore) * chartH);
-        const label = h.period || h.hour || h.date || '';
-        const shortLabel = label.length > 5 ? label.slice(-5) : label;
+        const rawLabel = h.period || h.hour || h.date || '';
+        let shortLabel = rawLabel;
+        const bucketMs = rawLabel.length === 10
+          ? new Date(rawLabel + 'T00:00:00Z').getTime()
+          : new Date(rawLabel).getTime();
+        if (!isNaN(bucketMs)) {
+          const diffH = Math.round((nowMs - bucketMs) / 3600000);
+          if (diffH < 1) shortLabel = 'now';
+          else if (diffH < 24) shortLabel = `-${diffH}h`;
+          else shortLabel = `-${Math.round(diffH / 24)}d`;
+        }
         bars   += `<div class="mini-bar-group"><div class="mini-bar ongoing" style="height:${oH}px" title="score: ${h.score} (${h.count} alerts)"></div></div>`;
         labels += `<div class="mini-label">${shortLabel}</div>`;
       }

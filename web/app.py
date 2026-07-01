@@ -3,7 +3,7 @@ import os
 import secrets
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests as http_requests
@@ -223,6 +223,11 @@ def api_admin_data():
     total_eur, monthly = get_monthly_cost(month, config)
     days_active = get_days_with_usage(month)
 
+    first_of_month = datetime(int(month[:4]), int(month[5:7]), 1)
+    prev_month_end = first_of_month - timedelta(days=1)
+    prev_month = prev_month_end.strftime("%Y-%m")
+    prev_total_eur, _ = get_monthly_cost(prev_month, config)
+
     translate_debug = _read_jsonl(DATA_DIR / "translate_debug" / f"{date}.jsonl")
     pulse_debug = _read_jsonl(DATA_DIR / "pulse_debug" / f"{date}.jsonl")
     cost_debug = _read_jsonl(DATA_DIR / "cost_debug" / f"{date}.jsonl")
@@ -236,6 +241,10 @@ def api_admin_data():
             "total_eur": round(total_eur, 4),
             "days_active": days_active,
             "services": {s: {"calls": d["calls"], "cost_eur": round(d["cost"], 4)} for s, d in monthly.items()},
+        },
+        "prev_monthly": {
+            "month": prev_month,
+            "total_eur": round(prev_total_eur, 4),
         },
         "translate_debug": translate_debug,
         "pulse_debug": pulse_debug,
