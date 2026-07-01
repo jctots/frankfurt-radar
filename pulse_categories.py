@@ -71,7 +71,9 @@ def _compute_weight(alert: dict) -> float:
     if source == "dwd":
         return SEVERITY_WEIGHTS_DWD.get(alert.get("severity"), WEIGHT_DEFAULT)
     if source == "rmv":
-        return SERVICE_WEIGHTS_RMV.get(alert.get("service"), WEIGHT_DEFAULT)
+        base = SERVICE_WEIGHTS_RMV.get(alert.get("service"), WEIGHT_DEFAULT)
+        line_count = len(alert.get("lines") or [])
+        return base * max(1, min(line_count, 4))
     if source == "autobahn":
         title = (alert.get("title_en") or alert.get("title") or "").lower()
         return 2.0 if "closure" in title else WEIGHT_DEFAULT

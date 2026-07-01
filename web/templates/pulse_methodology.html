@@ -246,12 +246,12 @@
   <!-- Alert weights -->
   <div class="section">
     <div class="section-eyebrow">Alert severity weights</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Each active alert contributes a weight to its category score. Weights are fixed rules — not learned or adjusted by AI.</p>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Each active alert contributes a weight to its category score. Weights are fixed rules — not learned or adjusted by AI. RMV alerts are additionally multiplied by the number of affected lines, capped at 4 — so an alert covering 4 or more lines scores the same as 4 individual alerts of the same type.</p>
     <table class="tbl">
       <thead><tr><th>Category</th><th>Source</th><th>What drives the weight</th><th>Weight</th></tr></thead>
       <tbody>
         <tr>
-          <td rowspan="2">Transport</td>
+          <td rowspan="3">Transport</td>
           <td>RMV S-Bahn, U-Bahn, Regional</td>
           <td>High-ridership trunk lines</td>
           <td><strong>1.5×</strong></td>
