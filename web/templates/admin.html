@@ -464,7 +464,8 @@ function renderKPIs(data) {
   const variantHits = tEntries.reduce((s, e) => s + (e.variant_hits || 0), 0);
   const totalAlerts = tEntries.reduce((s, e) => s + (e.total_alerts || 0), 0);
   $('#kpi-translate-calls').textContent = translateCalls;
-  const savedPct = totalAlerts > 0 ? Math.round(variantHits / totalAlerts * 100) : 0;
+  const textChangedTotal = variantHits + tEntries.reduce((s, e) => s + (e.new_translated || 0) + (e.retranslated || 0), 0);
+  const savedPct = textChangedTotal > 0 ? Math.round(variantHits / textChangedTotal * 100) : 0;
   $('#kpi-translate-sub').textContent = totalAlerts > 0 ? `${variantHits} variant hits (${savedPct}% saved)` : 'No polls today';
 
   const gEntries = data.pulse_debug.filter(e => !e.skipped && e.usage);
