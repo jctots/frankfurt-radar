@@ -261,7 +261,9 @@ def _should_skip_pulse(now: datetime) -> dict | None:
     mode = "night" if night else "daytime"
 
     last_ts = datetime.fromisoformat(last["generated_at"].replace("Z", "+00:00"))
-    elapsed = (now - last_ts).total_seconds() / 3600
+    now_slot = now.replace(minute=0, second=0, microsecond=0)
+    last_slot = last_ts.replace(minute=0, second=0, microsecond=0)
+    elapsed = (now_slot - last_slot).total_seconds() / 3600
     remaining_min = (interval_hours - elapsed) * 60
     if elapsed < interval_hours:
         log.info("Pulse skipped: all calm, next pulse in %.0f min", remaining_min)
