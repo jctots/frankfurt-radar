@@ -27,6 +27,7 @@ def default_preferences() -> dict:
             "timezone": "Europe/Berlin",
         },
         "pulse_time": "12:00",
+        "keywords": [],
         "language": "en",
     }
 
@@ -45,6 +46,12 @@ def _normalize_service(s: str) -> str:
 
 
 def matches_preferences(alert: dict, prefs: dict) -> bool:
+    if _matches_sources(alert, prefs):
+        return True
+    return _match_keywords(alert, prefs.get("keywords", []))
+
+
+def _matches_sources(alert: dict, prefs: dict) -> bool:
     sources = prefs.get("sources", {})
     source = alert.get("source", "")
     source_cfg = sources.get(source)
@@ -64,6 +71,18 @@ def matches_preferences(alert: dict, prefs: dict) -> bool:
         return _match_baustellen(alert, source_cfg)
 
     return True
+
+
+def _match_keywords(alert: dict, keywords: list) -> bool:
+    if not keywords:
+        return False
+    text = " ".join([
+        alert.get("title") or "",
+        alert.get("title_en") or "",
+        alert.get("body_en") or "",
+        alert.get("location_label") or "",
+    ]).lower()
+    return any(kw.strip().lower() in text for kw in keywords if kw.strip())
 
 
 def _match_rmv(alert: dict, cfg: dict) -> bool:

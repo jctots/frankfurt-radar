@@ -346,6 +346,10 @@ def _cmd_mystatus(chat_id: int) -> None:
     if qh.get("enabled"):
         lines.append(f"\n🌙 Quiet hours: {qh['start']}–{qh['end']} ({qh.get('timezone', 'Europe/Berlin')})")
 
+    keywords = prefs.get("keywords", [])
+    if keywords:
+        lines.append(f"\n🔍 Keywords: {', '.join(keywords)}")
+
     pulse_time = prefs.get("pulse_time")
     if pulse_time:
         lines.append(f"🏙️ City Pulse: {pulse_time} (Frankfurt time)")
@@ -923,6 +927,8 @@ def _handle_callback(cq: dict, config: dict) -> None:
         _cb_quiet_hours(chat_id, message_id, cq_id, data, prefs, state)
     elif step == "pulse_time":
         _cb_pulse_time(chat_id, message_id, cq_id, data, prefs, state)
+    elif step == "keywords_input":
+        _cb_keywords(chat_id, message_id, cq_id, data, prefs, state)
     else:
         _answer_cb(cq_id)
 
@@ -953,23 +959,29 @@ def _handle_text_input(chat_id: int, text: str, config: dict) -> None:
         return
 
     state = sub["conversation_state"]
-    if state.get("step") != "rmv_lines_input":
-        return
-
     prefs = state.get("prefs", default_preferences())
-    lines = [l.strip() for l in text.replace(";", ",").split(",") if l.strip()]
-    if not lines:
-        _send(chat_id, _lines_input_prompt(prefs))
-        return
 
-    prefs["sources"]["rmv"]["lines"] = lines
-    state["prefs"] = prefs
-    state["step"] = "rmv_lines_confirm"
-    set_conversation_state(chat_id, state)
+    if state.get("step") == "rmv_lines_input":
+        lines = [l.strip() for l in text.replace(";", ",").split(",") if l.strip()]
+        if not lines:
+            _send(chat_id, _lines_input_prompt(prefs))
+            return
+        prefs["sources"]["rmv"]["lines"] = lines
+        state["prefs"] = prefs
+        state["step"] = "rmv_lines_confirm"
+        set_conversation_state(chat_id, state)
+        _send(chat_id,
+              f"Lines: <b>{', '.join(lines)}</b>",
+              _inline_kb([[("✅ Confirm", "rl:ok"), ("✏️ Re-enter", "rl:redo")]]))
 
-    _send(chat_id,
-          f"Lines: <b>{', '.join(lines)}</b>",
-          _inline_kb([[("✅ Confirm", "rl:ok"), ("✏️ Re-enter", "rl:redo")]]))
+    elif state.get("step") == "keywords_input":
+        keywords = [k.strip() for k in text.replace(";", ",").split(",") if k.strip()]
+        prefs["keywords"] = keywords
+        state["prefs"] = prefs
+        set_conversation_state(chat_id, state)
+        _send(chat_id,
+              f"Keywords: <b>{', '.join(keywords)}</b>",
+              _inline_kb([[("✅ Confirm", "kw:ok"), ("✏️ Re-enter", "kw:redo")]]))
 
 
 # ── Source toggle step ──────────────────────────────────────────────────────
@@ -1299,7 +1311,39 @@ def _cb_pulse_time(chat_id: int, msg_id: int, cq_id: str,
     else:
         prefs["pulse_time"] = choice
     state["prefs"] = prefs
-    _finish_onboarding(chat_id, prefs)
+    _goto_keywords(chat_id, prefs, state)
+
+
+# ── Keywords step ────────────────────────────────────────────────────────────
+
+def _goto_keywords(chat_id: int, prefs: dict, state: dict) -> None:
+    state["step"] = "keywords_input"
+    set_conversation_state(chat_id, state)
+    current = prefs.get("keywords", [])
+    prompt = (
+        "🔍 <b>Location keywords (optional)</b>\n\n"
+        "Enter keywords like <b>Gallus</b> or <b>Bockenheim</b> — any alert "
+        "mentioning them will be sent to you, regardless of which sources you selected.\n\n"
+        "Send keywords separated by commas, or tap Skip."
+    )
+    if current:
+        prompt += f"\n\nCurrent: <b>{', '.join(current)}</b>"
+    _send(chat_id, prompt, _inline_kb([[("Skip ▶", "kw:skip")]]))
+
+
+def _cb_keywords(chat_id: int, msg_id: int, cq_id: str,
+                 data: str, prefs: dict, state: dict) -> None:
+    _answer_cb(cq_id)
+    if data == "kw:skip":
+        _finish_onboarding(chat_id, prefs)
+    elif data == "kw:ok":
+        _finish_onboarding(chat_id, prefs)
+    elif data == "kw:redo":
+        state["step"] = "keywords_input"
+        set_conversation_state(chat_id, state)
+        _send(chat_id,
+              "Re-enter keywords separated by commas:",
+              _inline_kb([[("Skip ▶", "kw:skip")]]))
 
 
 # ── Finish ──────────────────────────────────────────────────────────────────
