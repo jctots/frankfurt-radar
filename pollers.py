@@ -12,8 +12,11 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
+from districts import DISTRICTS
 from extraction import extract_alert_details, strike_extraction_prompt, strike_dedup_prompt
 from models import Alert, CLS_LABEL, CLS_PRIORITY, SERVICE_CLS, dwd_alert_icon
+
+_DISTRICT_LOOKUP: dict[str, str] = {name.lower(): name for name in DISTRICTS}
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ _FRANKFURT_ROADS = ["A3", "A5", "A45", "A60", "A66", "A67", "A480", "A648", "A66
 
 _RMV_URL          = "https://www.rmv.de/hapi/himSearch"
 _POLIZEI_FEED_URL = "https://www.presseportal.de/rss/dienststelle_4970.rss2"
+_FEUERWEHR_URL = "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=feuerwehrffm.bsky.social&limit=50"
 _DWD_URL          = "https://api.brightsky.dev/alerts"
 _AUTOBAHN_URL     = "https://verkehr.autobahn.de/o/autobahn"
 _BAUSTELLEN_URL   = "https://geowebdienste.frankfurt.de/Baustellen"
@@ -310,6 +314,73 @@ class PolizeiPoller(BasePoller):
                 location_label=location_label,
             ))
         log.info("Polizei: fetched %d items", len(alerts))
+        return alerts
+
+
+class FeuerwehrPoller(BasePoller):
+    def __init__(self, ttl_hours: int = 4) -> None:
+        super().__init__()
+        self.ttl_hours = ttl_hours
+
+    def fetch(self) -> list[Alert]:
+        try:
+            resp = requests.get(_FEUERWEHR_URL, timeout=15)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.error("FeuerwehrPoller: request failed: %s", e)
+            self.ok = False
+            return []
+
+        data = resp.json()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.ttl_hours)
+
+        alerts = []
+        for item in data.get("feed", []):
+            post = item.get("post", {})
+            record = post.get("record", {})
+            text = record.get("text", "")
+            created_at_str = record.get("createdAt", "")
+            uri = post.get("uri", "")
+
+            if not text or not created_at_str or not uri:
+                continue
+
+            try:
+                post_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+
+            if post_time < cutoff:
+                continue
+
+            hashtags = [h.lower() for h in re.findall(r"#(\w+)", text)]
+            location_label = None
+            for tag in hashtags:
+                if tag in _DISTRICT_LOOKUP:
+                    location_label = _DISTRICT_LOOKUP[tag]
+                    break
+
+            if location_label is None:
+                continue
+
+            published_at = post_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            valid_until = (post_time + timedelta(hours=self.ttl_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            post_id = uri.split("/")[-1]
+
+            alerts.append(Alert(
+                id=uri,
+                source="feuerwehr",
+                title=f"Fire Department — {location_label}",
+                body=text,
+                url=f"https://bsky.app/profile/feuerwehrffm.bsky.social/post/{post_id}",
+                valid_from=published_at,
+                valid_until=valid_until,
+                service=None,
+                published_at=published_at,
+                location_label=location_label,
+            ))
+
+        log.info("FeuerwehrPoller: %d active posts", len(alerts))
         return alerts
 
 

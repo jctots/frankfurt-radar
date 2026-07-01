@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from db import clear_expired_alerts, expire_processed_alerts, get_meta, init_db, set_meta, sync_alert_cache, write_cost_debug
 from pipeline import process_alerts
 from extraction import extraction_ok, reset_extraction_health
-from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StrikePoller, TicketmasterPoller
+from pollers import AutobahnPoller, BaustellenPoller, DWDPoller, FeuerwehrPoller, OpenLigaPoller, PolizeiPoller, RMVPoller, StaticEventsPoller, StrikePoller, TicketmasterPoller
 from translation import reset_translation_health, translation_ok
 
 load_dotenv()
@@ -178,6 +178,9 @@ def main() -> None:
             locations=strike_cfg.get("locations"),
             max_age_days=strike_cfg.get("max_age_days", 14),
         ))
+    feuerwehr_cfg = config.get("feuerwehr", {})
+    if feuerwehr_cfg.get("enabled", False):
+        pollers.append(FeuerwehrPoller(ttl_hours=feuerwehr_cfg.get("ttl_hours", 4)))
 
     fetched = [(p, p.fetch()) for p in pollers]
     all_alerts = [a for _, alerts in fetched for a in alerts]
@@ -186,8 +189,8 @@ def main() -> None:
     _POLLER_SOURCE = {
         "RMVPoller": "rmv", "PolizeiPoller": "polizei", "DWDPoller": "dwd",
         "AutobahnPoller": "autobahn", "BaustellenPoller": "baustellen",
-        "StrikePoller": "strike", "OpenLigaPoller": "sports",
-        "TicketmasterPoller": "sports",
+        "StrikePoller": "strike", "FeuerwehrPoller": "feuerwehr",
+        "OpenLigaPoller": "sports", "TicketmasterPoller": "sports",
     }
     source_health = {type(p).__name__: p.ok for p, _ in fetched}
     set_meta("source_health", json.dumps(source_health))

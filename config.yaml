@@ -53,7 +53,7 @@ notifier:
   notify_burst_threshold: 10      # if new alerts >= this in one run, skip notifications (cold-start guard)
   notify_throttle_every: 10       # pause 3s after every N notifications (0 = disabled)
   # disabled_sources:             # sources never sent to Telegram/ntfy (still polled + shown on website)
-  #   - polizei                   # valid: rmv, dwd, polizei, autobahn, baustellen, events, sports
+  #   - polizei                   # valid: rmv, dwd, polizei, autobahn, baustellen, feuerwehr, events, sports
 
 police:
   enabled: true
@@ -86,6 +86,11 @@ baustellen:
   closures:
     - full                  # sperrung=1: road completely blocked
     # - partial               # sperrung=0: lane restriction / partial closure
+
+# Fire department alerts — Feuerwehr Frankfurt Bluesky feed (@feuerwehrffm.bsky.social)
+feuerwehr:
+  enabled: true
+  ttl_hours: 4          # keep fire alerts active for this many hours after first post
 
 # Strike alerts — ver.di Hessen + hessenschau RSS, LLM-extracted dates/locations
 strike:

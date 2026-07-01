@@ -22,7 +22,7 @@ CATEGORY_SOURCES: dict[str, list[str]] = {
     "weather": ["dwd"],
     "transport": ["rmv"],
     "roadworks": ["autobahn", "baustellen"],
-    "incidents": ["polizei", "strike"],
+    "incidents": ["polizei", "strike", "feuerwehr"],
     "events": ["events", "sports", "messe"],
 }
 
@@ -85,6 +85,8 @@ def _compute_weight(alert: dict) -> float:
         return 1.5
     if source == "polizei":
         return 0.5
+    if source == "feuerwehr":
+        return 1.0
     return WEIGHT_DEFAULT
 
 

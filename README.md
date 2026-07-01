@@ -7,7 +7,7 @@
 [![GHCR poller](https://img.shields.io/badge/ghcr.io-poller-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-poller)
 [![GHCR web](https://img.shields.io/badge/ghcr.io-web-blue?logo=docker)](https://github.com/jctots/frankfurt-radar/pkgs/container/frankfurt-radar-web)
 
-Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, road closures, police reports, festivals, and sports, translated to English and delivered via a live status page, Telegram channel, or personalized Telegram bot.
+Real-time alert service for Frankfurt am Main — transit disruptions, weather warnings, road closures, police reports, fire department alerts, festivals, and sports, translated to English and delivered via a live status page, Telegram channel, or personalized Telegram bot.
 
 **Website:** [frankfurt-radar.com](https://frankfurt-radar.com)
 **Telegram channel:** [@FrankfurtRadar](https://t.me/FrankfurtRadar)
@@ -17,7 +17,7 @@ Real-time alert service for Frankfurt am Main — transit disruptions, weather w
 
 ## ⚡ Features
 
-### 📊 Eight data sources
+### 📊 Nine data sources
 
 Frankfurt Radar aggregates alerts from public German data feeds, translates them to English, and delivers them in near real-time.
 
@@ -26,6 +26,7 @@ Frankfurt Radar aggregates alerts from public German data feeds, translates them
 | **RMV Transit** | S-Bahn, U-Bahn, Tram, Bus, Regional disruptions | HAFAS HIM API |
 | **DWD Weather** | Weather warnings from minor to extreme severity | BrightSky (DWD proxy) |
 | **Police** | Frankfurt police press releases | Presseportal RSS |
+| **Fire** | Feuerwehr Frankfurt active incidents by district | Bluesky AT Protocol (@feuerwehrffm.bsky.social) |
 | **Autobahn** | Highway incidents and closures (A3, A5, A66, etc.) | Autobahn API |
 | **City Roads** | Frankfurt road construction and closures | City of Frankfurt WFS |
 | **Strikes** | Labor strike alerts (ver.di Hessen, hessenschau) | RSS + Gemini Flash LLM extraction |
@@ -120,11 +121,12 @@ main.py                    bot.py                    app.py
 ├── RMVPoller              ├── /start, /settings     ├── /           (status page)
 ├── DWDPoller              ├── /mystatus, /help      ├── /api/status (JSON feed)
 ├── PolizeiPoller          ├── /stop, /deletedata    ├── /api/radar  (radar frames)
-├── AutobahnPoller         ├── /status (admin)       ├── /legal
-├── BaustellenPoller       ├── /alerts (admin)       └── /robots.txt
-├── StrikePoller           ├── /poll   (admin)
-├── StaticEventsPoller ×3  ├── /pulse  (admin)
-├── OpenLigaPoller         └── subscriber dispatch
+├── FeuerwehrPoller        ├── /status (admin)       ├── /legal
+├── AutobahnPoller         ├── /alerts (admin)       └── /robots.txt
+├── BaustellenPoller       ├── /poll   (admin)
+├── StrikePoller           ├── /pulse  (admin)
+├── StaticEventsPoller ×3  └── subscriber dispatch
+├── OpenLigaPoller
 ├── TicketmasterPoller          │
 │                               │
 pulse.py (hourly cron)          │

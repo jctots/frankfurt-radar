@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 _TG_API = "https://api.telegram.org/bot{token}"
 
-_ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "messe", "sports", "strike"]
+_ALL_SOURCES = ["rmv", "dwd", "polizei", "autobahn", "baustellen", "events", "messe", "sports", "strike", "feuerwehr"]
 _SUBSCRIBER_CAP = int(os.environ.get("SUBSCRIBER_CAP", "25"))
 _RATE_LIMIT = 30
 _RATE_WINDOW = 60
@@ -59,6 +59,7 @@ _SOURCE_LABELS = {
     "messe": "🎪 Trade Fairs",
     "sports": "⚽ Sports",
     "strike": "🪧 Strikes",
+    "feuerwehr": "🔥 Fire",
 }
 
 _RMV_SERVICES = ["S-Bahn", "U-Bahn", "Tram", "Bus", "Regional"]
