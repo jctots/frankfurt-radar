@@ -329,18 +329,19 @@ const CAT_META = {
 const CHART_H = 88;
 
 function renderChart(cat) {
-  const all = [...cat.history, cat.ongoing.score];
-  if (cat.projected) all.push(cat.projected.score);
-  const maxScore = Math.max(...all, cat.baseline.p75 * 1.15, 0.1);
-  const px = v => Math.max(1, Math.round((v / maxScore) * CHART_H));
-  const bot = v => Math.round((v / maxScore) * CHART_H);
+  const validScores = [...cat.history, cat.ongoing.score].filter(v => v != null);
+  if (cat.projected) validScores.push(cat.projected.score);
+  const p75val = cat.baseline ? cat.baseline.p75 : 0;
+  const maxScore = Math.max(...validScores, p75val * 1.15, 0.1);
+  const px = v => Math.max(1, Math.round(((v ?? 0) / maxScore) * CHART_H));
+  const bot = v => Math.round(((v ?? 0) / maxScore) * CHART_H);
 
   let bars = '', xlabels = '';
   const hlen = cat.history.length;
   cat.history.forEach((s, i) => {
     const isNow = i === hlen - 1;
     const h = px(s);
-    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s}"></div></div>`;
+    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s ?? 0}"></div></div>`;
     xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${isNow ? 'now' : (i === 0 ? `-${hlen - 1}` : '')}</div>`;
   });
   if (cat.projected) {
@@ -349,16 +350,18 @@ function renderChart(cat) {
     xlabels += `<div class="x-label is-proj">next</div>`;
   }
 
-  const meanBot = bot(cat.baseline.mean);
-  const p75Bot  = bot(cat.baseline.p75);
-
-  const refs = `
+  let refs = '';
+  if (cat.baseline) {
+    const meanBot = bot(cat.baseline.mean);
+    const p75Bot  = bot(cat.baseline.p75);
+    refs = `
     <div class="ref-line" style="bottom:${meanBot}px;border-top:1px solid var(--clr-mean);">
       <span class="ref-label" style="color:var(--clr-mean);">μ ${cat.baseline.mean}</span>
     </div>
     <div class="ref-line" style="bottom:${p75Bot}px;border-top:1px dashed var(--clr-projected);opacity:0.8;">
       <span class="ref-label" style="color:var(--clr-projected);">p75 ${cat.baseline.p75}</span>
     </div>`;
+  }
 
   const projLegend = cat.projected
     ? `<span><span class="leg-dot" style="background:var(--clr-projected)"></span>Projected (next interval)</span>`
@@ -380,15 +383,17 @@ function renderChart(cat) {
 
 function renderScores(cat) {
   const proj = cat.projected ? cat.projected.score : '—';
+  const mean = cat.baseline ? cat.baseline.mean : '—';
+  const p75  = cat.baseline ? cat.baseline.p75  : '—';
   return `
     <div class="score-row">
       <div class="score-item">
         <div class="score-label">Ongoing score</div>
-        <div class="score-val highlight">${cat.ongoing.score}</div>
+        <div class="score-val highlight">${cat.ongoing.score ?? '—'}</div>
       </div>
       <div class="score-item">
         <div class="score-label">Active alerts</div>
-        <div class="score-val">${cat.ongoing.count}</div>
+        <div class="score-val">${cat.ongoing.count ?? '—'}</div>
       </div>
       <div class="score-item">
         <div class="score-label">Projected (next)</div>
@@ -396,11 +401,11 @@ function renderScores(cat) {
       </div>
       <div class="score-item">
         <div class="score-label">Baseline mean (μ)</div>
-        <div class="score-val">${cat.baseline.mean}</div>
+        <div class="score-val">${mean}</div>
       </div>
       <div class="score-item">
         <div class="score-label">Baseline p75</div>
-        <div class="score-val">${cat.baseline.p75}</div>
+        <div class="score-val">${p75}</div>
       </div>
     </div>`;
 }

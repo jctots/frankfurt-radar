@@ -131,9 +131,10 @@ def pulse_methodology():
 def api_pulse_methodology_data():
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entries = _read_jsonl(DATA_DIR / "pulse_debug" / f"{today}.jsonl")
-    if not entries:
+    real_entries = [e for e in entries if not e.get("skipped")]
+    if not real_entries:
         return jsonify({"error": "no data available for today"}), 404
-    entry = entries[-1]
+    entry = real_entries[-1]
     layer1 = entry.get("layer_1_deterministic") or {}
     layer3 = entry.get("layer_3_output") or {}
     timeseries = layer1.get("timeseries") or {}
@@ -143,7 +144,7 @@ def api_pulse_methodology_data():
     for cat in ("transport", "weather", "roadworks", "events", "incidents"):
         ts = timeseries.get(cat) or {}
         current = ts.get("current") or {}
-        baseline = ts.get("baseline") or {}
+        baseline_raw = ts.get("baseline")
         history_raw = ts.get("history") or []
         cat_out = categories_out.get(cat) or {}
         projected = current.get("projected")
@@ -159,9 +160,9 @@ def api_pulse_methodology_data():
                 "count": projected.get("count") if projected else None,
             } if projected else None,
             "baseline": {
-                "mean": baseline.get("mean"),
-                "p75": baseline.get("p75"),
-            },
+                "mean": baseline_raw.get("mean"),
+                "p75": baseline_raw.get("p75"),
+            } if baseline_raw else None,
             "history": [h.get("score") if isinstance(h, dict) else h for h in history_raw],
         }
 
