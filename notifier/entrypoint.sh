@@ -22,8 +22,6 @@ env_block = "\n".join([
 job_block = "\n".join([
     "# Flush quiet-hour buffers and health check every 10 minutes",
     "*/10 * * * * root cd /app && python -m notifier.main --mode flush >> /proc/1/fd/1 2>&1",
-    "# Daily admin report (visits + costs) at midnight Frankfurt time",
-    "0 0 * * * root cd /app && python -m notifier.main --mode daily-report >> /proc/1/fd/1 2>&1",
     "",  # cron requires trailing newline
 ])
 

@@ -31,9 +31,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="frankfurt-radar notifier")
     parser.add_argument(
         "--mode",
-        choices=["poll", "webhook", "flush", "daily-report"],
+        choices=["poll", "webhook", "flush"],
         default="poll",
-        help="poll: dispatch + flush + health; webhook: bot HTTP server; flush: flush + health only; daily-report: send admin visits + costs",
+        help="poll: dispatch + flush + health; webhook: bot HTTP server; flush: flush + health only",
     )
     args = parser.parse_args()
 
@@ -43,9 +43,6 @@ def main() -> None:
     if args.mode == "webhook":
         from notifier.bot import run_webhook
         run_webhook(config, port=int(os.environ.get("WEBHOOK_PORT", "8443")))
-    elif args.mode == "daily-report":
-        from notifier.bot import send_daily_admin_report
-        send_daily_admin_report(config)
     elif args.mode == "flush":
         flush_quiet_buffers(config)
         check_and_notify_health(config)

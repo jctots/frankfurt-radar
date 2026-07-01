@@ -726,20 +726,6 @@ def _admin_cost(chat_id: int, config: dict) -> None:
     _send(chat_id, _build_cost_report_text(config))
 
 
-def send_daily_admin_report(config: dict) -> None:
-    admin_id = config.get("admin_health_notifier", {}).get("telegram_chat_id")
-    if not admin_id:
-        return
-    chat_id = int(admin_id)
-
-    visits = _build_visits_report_text(config)
-    if visits:
-        _send(chat_id, visits)
-
-    _send(chat_id, _build_cost_report_text(config))
-    log.info("Daily admin report sent (visits + costs)")
-
-
 def check_cost_threshold(config: dict) -> None:
     """Send admin alert when running cost crosses 50%, 80%, or 100% of budget."""
     cost_cfg = config.get("cost", {})
