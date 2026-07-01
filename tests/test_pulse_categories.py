@@ -235,9 +235,9 @@ class TestComputeSnapshot:
         # projected uses next 1h only: -1.5 (S-Bahn expiring) +1.0 (starting_soon)
         assert snap["transport"]["projected_count"] == 2
         assert snap["transport"]["projected_score"] == pytest.approx(2.0)
-        # upcoming covers full 6h lookahead: both starting alerts
-        assert snap["transport"]["upcoming_count"] == 2
-        assert snap["transport"]["upcoming_score"] == pytest.approx(2.0)
+        # horizon = ongoing(2) - expiring_full(1 S-Bahn) + starting_full(2) = 3, score = 2.5 - 1.5 + 2.0 = 3.0
+        assert snap["transport"]["upcoming_count"] == 3
+        assert snap["transport"]["upcoming_score"] == pytest.approx(3.0)
         # near_score = only the one starting within next 1h
         assert snap["transport"]["upcoming_near_score"] == pytest.approx(1.0)
 
