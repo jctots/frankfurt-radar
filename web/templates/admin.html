@@ -593,8 +593,7 @@ function renderGeminiLog(entries) {
     const svc = (e.service || 'gemini_pulse').replace('gemini_', '');
 
     if (e.skipped) {
-      const reason = e.reason || 'adaptive frequency';
-      rows.push({ time, service: svc, skipped: true, tokensIn: 0, tokensOut: 0, notes: `skipped · ${reason}`, cost: 0 });
+      // omitted — check pulse_debug logs for skip reasons
     } else if (e.usage) {
       const u = e.usage;
       const tokensIn = u.tokens_in || 0;
