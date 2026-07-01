@@ -122,6 +122,56 @@ def api_poll():
     return jsonify(get_status_json())
 
 
+@app.route("/pulse-methodology")
+def pulse_methodology():
+    return render_template("pulse_methodology.html")
+
+
+@app.route("/api/pulse-methodology-data")
+def api_pulse_methodology_data():
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    entries = _read_jsonl(DATA_DIR / "pulse_debug" / f"{today}.jsonl")
+    if not entries:
+        return jsonify({"error": "no data available for today"}), 404
+    entry = entries[-1]
+    layer1 = entry.get("layer_1_deterministic") or {}
+    layer3 = entry.get("layer_3_output") or {}
+    timeseries = layer1.get("timeseries") or {}
+    categories_out = layer3.get("categories") or {}
+
+    categories = {}
+    for cat in ("transport", "weather", "roadworks", "events", "incidents"):
+        ts = timeseries.get(cat) or {}
+        current = ts.get("current") or {}
+        baseline = ts.get("baseline") or {}
+        history_raw = ts.get("history") or []
+        cat_out = categories_out.get(cat) or {}
+        projected = current.get("projected")
+        categories[cat] = {
+            "status": cat_out.get("status"),
+            "trend": cat_out.get("trend"),
+            "ongoing": {
+                "score": current.get("ongoing", {}).get("score") if current.get("ongoing") else None,
+                "count": current.get("ongoing", {}).get("count") if current.get("ongoing") else None,
+            },
+            "projected": {
+                "score": projected.get("score") if projected else None,
+                "count": projected.get("count") if projected else None,
+            } if projected else None,
+            "baseline": {
+                "mean": baseline.get("mean"),
+                "p75": baseline.get("p75"),
+            },
+            "history": [h.get("score") if isinstance(h, dict) else h for h in history_raw],
+        }
+
+    return jsonify({
+        "generated_at": entry.get("generated_at"),
+        "alert_count": layer3.get("alert_count"),
+        "categories": categories,
+    })
+
+
 @app.route("/radar-test")
 def radar_test():
     return render_template("radar_test.html")

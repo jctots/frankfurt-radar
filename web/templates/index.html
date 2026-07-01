@@ -2536,7 +2536,7 @@ function renderPulseOverlay(pulse) {
   }
 
   const legendHtml = `<div class="pulse-legend">Status: <span class="pulse-cat-status level-0">● clear</span> <span class="pulse-cat-status level-1">● minor</span> <span class="pulse-cat-status level-2">● moderate</span> <span class="pulse-cat-status level-3">● severe</span></div><div class="pulse-legend">Trend: <span class="pulse-cat-trend stable">→ stable</span> <span class="pulse-cat-trend worsening">↗ worsening</span> <span class="pulse-cat-trend improving">↘ improving</span></div>`;
-  const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/analysis.md" target="_blank" rel="noopener">How it works&nbsp;↗</a></div>`;
+  const methodHtml = `<div class="pulse-method">Status and trends judged from alert patterns and severity across category-specific time windows. <a href="/pulse-methodology" target="_blank">How it works&nbsp;↗</a></div>`;
 
   const collapsibleContent = refsHtml || methodHtml
     ? `<button class="pulse-disclaimer-toggle" onclick="togglePulseDetails(this)"><span>AI-generated summary · verify before acting</span><span class="pulse-disclaimer-cta">How is this generated?</span></button><div class="pulse-collapsible">${refsHtml}${legendHtml}${methodHtml}</div>`

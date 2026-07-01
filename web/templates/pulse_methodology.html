@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>City Pulse — How It Works · Frankfurt Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <style>
+    :root {
+      --clr-bg:        #f8fafc;
+      --clr-surface:   #ffffff;
+      --clr-border:    #e2e8f0;
+      --clr-text:      #1e293b;
+      --clr-muted:     #64748b;
+      --clr-ongoing:   #58a6ff;
+      --clr-current:   #2563eb;
+      --clr-projected: #f0883e;
+      --clr-mean:      #94a3b8;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--clr-bg); color: var(--clr-text); line-height: 1.6; font-size: 14px; }
+
+    /* ── Header ── */
+    .page-header { background: var(--clr-surface); border-bottom: 1px solid var(--clr-border); padding: 12px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+    .page-header a { color: var(--clr-muted); text-decoration: none; font-size: 13px; }
+    .page-header a:hover { color: var(--clr-text); }
+    .header-sep { color: var(--clr-border); }
+    .header-title { font-size: 14px; font-weight: 700; }
+
+    /* ── Layout ── */
+    .page { max-width: 900px; margin: 0 auto; padding: 36px 20px 80px; }
+    .section { margin-bottom: 52px; }
+    .section-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 10px; }
+    .section-lead { font-size: 15px; line-height: 1.75; color: var(--clr-text); max-width: 680px; }
+
+    /* ── Pills ── */
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+    .pill.clear    { background: #e2e8f0; color: #475569; }
+    .pill.minor    { background: #d1fae5; color: #065f46; }
+    .pill.moderate { background: #fef3c7; color: #92400e; }
+    .pill.severe   { background: #fee2e2; color: #991b1b; }
+    .trend { font-size: 12px; font-weight: 600; }
+    .trend.worsening { color: #ef4444; }
+    .trend.improving { color: #22c55e; }
+    .trend.stable    { color: var(--clr-muted); }
+
+    /* ── Three-layer flow ── */
+    .layer-flow { display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr; align-items: start; gap: 4px; margin-bottom: 20px; }
+    .layer-card { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 16px 18px; }
+    .layer-arrow { display: flex; align-items: flex-start; justify-content: center; padding-top: 28px; color: var(--clr-muted); font-size: 18px; }
+    .layer-num { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 4px; }
+    .layer-name { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .layer-desc { font-size: 12px; color: var(--clr-muted); line-height: 1.55; margin-bottom: 10px; }
+    .layer-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+    .layer-badge.det { background: #dbeafe; color: #1e40af; }
+    .layer-badge.ai  { background: #ede9fe; color: #5b21b6; }
+    .layer-badge.out { background: #d1fae5; color: #065f46; }
+
+    /* ── Callout ── */
+    .callout { background: #ede9fe; border: 1px solid #c4b5fd; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 14px 18px; font-size: 13px; line-height: 1.65; }
+    .callout strong { color: #5b21b6; }
+
+    /* ── Category cards ── */
+    .cat-cards { display: flex; flex-direction: column; gap: 20px; }
+    .cat-card { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 18px; }
+    .cat-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .cat-icon { font-size: 18px; line-height: 1; }
+    .cat-name { font-size: 14px; font-weight: 700; flex: 1; }
+    .cat-window { font-size: 10px; color: var(--clr-muted); align-self: flex-end; margin-left: auto; }
+
+    /* ── Score row ── */
+    .score-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .score-item { background: var(--clr-bg); border: 1px solid var(--clr-border); border-radius: 6px; padding: 6px 12px; min-width: 90px; }
+    .score-label { font-size: 10px; color: var(--clr-muted); margin-bottom: 2px; }
+    .score-val { font-size: 16px; font-weight: 700; }
+    .score-val.highlight { color: var(--clr-current); }
+
+    /* ── Bar chart ── */
+    .chart-wrap { margin-bottom: 6px; }
+    .chart-bars { display: flex; align-items: flex-end; gap: 3px; position: relative; height: 88px; }
+    .bar-grp { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+    .bar-grp.proj-grp { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
+    .bar { border-radius: 2px 2px 0 0; min-height: 1px; width: 100%; }
+    .bar.ongoing   { background: var(--clr-ongoing); }
+    .bar.current   { background: var(--clr-current); }
+    .bar.projected { background: var(--clr-projected); }
+    .ref-line { position: absolute; left: 0; right: 0; pointer-events: none; }
+    .ref-label { position: absolute; right: 0; font-size: 9px; top: -11px; }
+    .chart-xlabels { display: flex; gap: 3px; margin-top: 3px; }
+    .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; }
+    .x-label.is-now  { color: var(--clr-current); font-weight: 700; }
+    .x-label.is-proj { color: var(--clr-projected); }
+    .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
+    .leg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
+    .leg-line-mean { display: inline-block; width: 14px; border-top: 1px solid var(--clr-mean); vertical-align: middle; margin-right: 4px; }
+    .leg-line-p75  { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-projected); vertical-align: middle; margin-right: 4px; opacity: 0.8; }
+
+    /* ── Explain ── */
+    .cat-explain { font-size: 12px; color: var(--clr-muted); line-height: 1.6; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--clr-border); }
+    .cat-explain strong { color: var(--clr-text); }
+
+    /* ── Threshold table ── */
+    .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tbl th { text-align: left; color: var(--clr-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 10px 8px; border-bottom: 1px solid var(--clr-border); }
+    .tbl td { padding: 9px 10px; border-bottom: 1px solid var(--clr-border); vertical-align: middle; }
+    .tbl td[rowspan] { border-right: 1px solid var(--clr-border); font-weight: 600; }
+    .tbl tr:last-child td { border-bottom: none; }
+
+    .snapshot-meta { font-size: 12px; color: var(--clr-muted); margin-bottom: 16px; }
+    .snapshot-meta strong { color: var(--clr-text); font-weight: 600; }
+    .snapshot-meta .snap-note { font-style: italic; }
+    .data-note { font-size: 11px; color: var(--clr-muted); text-align: center; margin-top: 40px; font-style: italic; }
+
+    /* ── Dark mode overrides ── */
+    .dark {
+      --clr-bg:        #131921;
+      --clr-surface:   #1c2433;
+      --clr-border:    #2a3344;
+      --clr-text:      #d1d5db;
+      --clr-muted:     #8892a4;
+      --clr-mean:      #4a5568;
+    }
+    .dark .pill.clear    { background: #1e2838; color: #8892a4; }
+    .dark .pill.minor    { background: #0d2018; color: #4ade80; }
+    .dark .pill.moderate { background: #1e1a00; color: #fbbf24; }
+    .dark .pill.severe   { background: #1f0d0d; color: #f87171; }
+    .dark .layer-badge.det { background: #1a2a40; color: #60a5fa; }
+    .dark .layer-badge.ai  { background: #1c1535; color: #a78bfa; }
+    .dark .layer-badge.out { background: #0d2018; color: #4ade80; }
+    .dark .callout { background: #1c1535; border-color: #4c1d95; border-left-color: #7c3aed; }
+    .dark .callout strong { color: #a78bfa; }
+    .dark .score-item { background: #131921; }
+    .dark .tbl td[rowspan] { border-right-color: #2a3344; }
+    .dark .cat-explain { border-top-color: #2a3344; }
+
+    @media (max-width: 640px) {
+      .layer-flow { grid-template-columns: 1fr; }
+      .layer-arrow { display: none; }
+      .score-row { flex-wrap: wrap; }
+      .score-item { min-width: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <a href="/">← Radar</a>
+  <span class="header-sep">|</span>
+  <span class="header-title">City Pulse — How It Works</span>
+</header>
+
+<main class="page">
+
+  <!-- Lead -->
+  <div class="section">
+    <p class="section-lead">City Pulse gives you a glanceable read on Frankfurt's real-time situation across five categories. Here's exactly how the status and trend labels are computed — and the underlying score data that proves it.</p>
+  </div>
+
+  <!-- Three-layer pipeline -->
+  <div class="section">
+    <div class="section-eyebrow">The pipeline</div>
+    <div class="layer-flow">
+      <div class="layer-card">
+        <div class="layer-num">Layer 1</div>
+        <div class="layer-name">Deterministic scoring</div>
+        <div class="layer-desc">Active alerts are weighted by severity and service type, summed into a score per category, compared to a historical baseline, and assigned a status label. No AI involved.</div>
+        <span class="layer-badge det">No AI</span>
+      </div>
+      <div class="layer-arrow">→</div>
+      <div class="layer-card">
+        <div class="layer-num">Layer 2</div>
+        <div class="layer-name">AI synthesis</div>
+        <div class="layer-desc">Gemini Flash receives the computed scores, baseline, alert bodies, and pulse history. Its only job: judge the <em>trend</em> per category and write the summary. It cannot assign or override status.</div>
+        <span class="layer-badge ai">Gemini Flash</span>
+      </div>
+      <div class="layer-arrow">→</div>
+      <div class="layer-card">
+        <div class="layer-num">Layer 3</div>
+        <div class="layer-name">Final output</div>
+        <div class="layer-desc">Layer 1 status + Layer 2 trend are merged into the pulse card you see on the map. Generation frequency is adaptive — see below.</div>
+        <span class="layer-badge out">Adaptive</span>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Status is never decided by AI.</strong> It is a score that crosses a threshold derived from historical data. The charts below show exactly where today's score sits relative to those thresholds — that is the proof.
+    </div>
+  </div>
+
+  <!-- Generation frequency -->
+  <div class="section">
+    <div class="section-eyebrow">When is pulse generated?</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The pulse runs on a schedule but skips when conditions are calm, to avoid unnecessary AI calls.</p>
+    <table class="tbl">
+      <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
+      <tbody>
+        <tr><td>Transport or weather is <span class="pill moderate">moderate</span> or <span class="pill severe">severe</span></td><td>Every hour — always runs</td></tr>
+        <tr><td>All calm — daytime (06:00–22:59 Frankfurt)</td><td>At most every 2 hours</td></tr>
+        <tr><td>All calm — nighttime (23:00–05:59 Frankfurt)</td><td>At most every 3 hours</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Trend rules -->
+  <div class="section">
+    <div class="section-eyebrow">How trend is judged</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is the only thing the AI decides. Two signals feed into it — Signal 1 is the default; Signal 2 can override it.</p>
+    <table class="tbl">
+      <thead><tr><th>Signal</th><th>What it looks at</th><th>When it applies</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Signal 1</strong> — next-interval projection</td>
+          <td>Compares the current ongoing score to the projected score at the end of the next sample interval, combined with the shape of recent history</td>
+          <td>Default for all categories</td>
+        </tr>
+        <tr>
+          <td><strong>Signal 2</strong> — horizon momentum</td>
+          <td>Looks at whether the horizon score series shows sharp acceleration <em>and</em> whether near-term activity already accounts for a large share of the total upcoming load</td>
+          <td>Overrides Signal 1 only when both conditions hold; AI uses bridging language ("conditions will worsen significantly later today")</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Category evidence -->
+  <div class="section">
+    <div class="section-eyebrow">Score evidence</div>
+    <p class="snapshot-meta" id="snapshot-meta"></p>
+    <div class="cat-cards" id="cat-cards"></div>
+  </div>
+
+  <!-- Threshold table -->
+  <div class="section">
+    <div class="section-eyebrow">How status labels are assigned</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. the baseline of the last N snapshots. 100% deterministic.</p>
+    <table class="tbl">
+      <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill clear">clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
+        <tr><td><span class="pill minor">minor</span></td><td>Score ≤ baseline mean</td><td>Activity at or below the typical level for this category</td></tr>
+        <tr><td><span class="pill moderate">moderate</span></td><td>Mean &lt; score ≤ p75</td><td>Elevated above normal — worth being aware of</td></tr>
+        <tr><td><span class="pill severe">severe</span></td><td>Score &gt; p75</td><td>Well above the 75th percentile — significant disruption</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Alert weights -->
+  <div class="section">
+    <div class="section-eyebrow">Alert severity weights</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Each active alert contributes a weight to its category score. Weights are fixed rules — not learned or adjusted by AI.</p>
+    <table class="tbl">
+      <thead><tr><th>Category</th><th>Source</th><th>What drives the weight</th><th>Weight</th></tr></thead>
+      <tbody>
+        <tr>
+          <td rowspan="2">Transport</td>
+          <td>RMV S-Bahn, U-Bahn, Regional</td>
+          <td>High-ridership trunk lines</td>
+          <td><strong>1.5×</strong></td>
+        </tr>
+        <tr>
+          <td>RMV Tram, Bus</td>
+          <td>Local services</td>
+          <td><strong>1.0×</strong></td>
+        </tr>
+        <tr>
+          <td rowspan="4">Weather</td>
+          <td rowspan="4">DWD</td>
+          <td>Severity: minor</td>
+          <td><strong>0.5×</strong></td>
+        </tr>
+        <tr>
+          <td>Severity: moderate</td>
+          <td><strong>1.0×</strong></td>
+        </tr>
+        <tr>
+          <td>Severity: severe</td>
+          <td><strong>1.5×</strong></td>
+        </tr>
+        <tr>
+          <td>Severity: extreme</td>
+          <td><strong>2.0×</strong></td>
+        </tr>
+        <tr>
+          <td rowspan="2">Roadworks</td>
+          <td>Autobahn</td>
+          <td>Title contains "closure"</td>
+          <td><strong>1.5×</strong></td>
+        </tr>
+        <tr>
+          <td>Baustellen</td>
+          <td>City full closure; partial closure</td>
+          <td><strong>1.5×</strong> / <strong>1.0×</strong></td>
+        </tr>
+        <tr>
+          <td>Events</td>
+          <td>Events, Messe, Sports</td>
+          <td>Fixed — all events treated equally</td>
+          <td><strong>2.0×</strong></td>
+        </tr>
+        <tr>
+          <td>Incidents</td>
+          <td>Polizei, Strike</td>
+          <td>Fixed — no severity field available</td>
+          <td><strong>1.0×</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="data-note">Charts load from today's hourly pulse snapshots.</p>
+</main>
+
+<script>
+/* ── Dark mode: follow main page setting ── */
+if (localStorage.getItem('fr_dark') === '1') document.body.classList.add('dark');
+
+const CAT_META = {
+  transport: { name: 'Transport', icon: '🚆', window: '24h · hourly' },
+  weather:   { name: 'Weather',   icon: '⛈️', window: '3 days · 6h intervals' },
+  roadworks: { name: 'Roadworks', icon: '🚧', window: '4 weeks · daily' },
+  events:    { name: 'Events',    icon: '🎪', window: '1 week · daily' },
+  incidents: { name: 'Incidents', icon: '🚨', window: '1 week · daily' },
+};
+
+const CHART_H = 88;
+
+function renderChart(cat) {
+  const all = [...cat.history, cat.ongoing.score];
+  if (cat.projected) all.push(cat.projected.score);
+  const maxScore = Math.max(...all, cat.baseline.p75 * 1.15, 0.1);
+  const px = v => Math.max(1, Math.round((v / maxScore) * CHART_H));
+  const bot = v => Math.round((v / maxScore) * CHART_H);
+
+  let bars = '', xlabels = '';
+  const hlen = cat.history.length;
+  cat.history.forEach((s, i) => {
+    const isNow = i === hlen - 1;
+    const h = px(s);
+    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s}"></div></div>`;
+    xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${isNow ? 'now' : (i === 0 ? `-${hlen - 1}` : '')}</div>`;
+  });
+  if (cat.projected) {
+    const h = px(cat.projected.score);
+    bars    += `<div class="bar-grp proj-grp"><div class="bar projected" style="height:${h}px" title="projected: ${cat.projected.score}"></div></div>`;
+    xlabels += `<div class="x-label is-proj">next</div>`;
+  }
+
+  const meanBot = bot(cat.baseline.mean);
+  const p75Bot  = bot(cat.baseline.p75);
+
+  const refs = `
+    <div class="ref-line" style="bottom:${meanBot}px;border-top:1px solid var(--clr-mean);">
+      <span class="ref-label" style="color:var(--clr-mean);">μ ${cat.baseline.mean}</span>
+    </div>
+    <div class="ref-line" style="bottom:${p75Bot}px;border-top:1px dashed var(--clr-projected);opacity:0.8;">
+      <span class="ref-label" style="color:var(--clr-projected);">p75 ${cat.baseline.p75}</span>
+    </div>`;
+
+  const projLegend = cat.projected
+    ? `<span><span class="leg-dot" style="background:var(--clr-projected)"></span>Projected (next interval)</span>`
+    : '';
+
+  return `
+    <div class="chart-wrap">
+      <div class="chart-bars">${refs}${bars}</div>
+      <div class="chart-xlabels">${xlabels}</div>
+      <div class="chart-legend">
+        <span><span class="leg-dot" style="background:var(--clr-current)"></span>Current</span>
+        <span><span class="leg-dot" style="background:var(--clr-ongoing)"></span>History (${cat.window})</span>
+        ${projLegend}
+        <span><span class="leg-line-mean"></span>baseline mean</span>
+        <span><span class="leg-line-p75"></span>baseline p75</span>
+      </div>
+    </div>`;
+}
+
+function renderScores(cat) {
+  const proj = cat.projected ? cat.projected.score : '—';
+  return `
+    <div class="score-row">
+      <div class="score-item">
+        <div class="score-label">Ongoing score</div>
+        <div class="score-val highlight">${cat.ongoing.score}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Active alerts</div>
+        <div class="score-val">${cat.ongoing.count}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Projected (next)</div>
+        <div class="score-val">${proj}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Baseline mean (μ)</div>
+        <div class="score-val">${cat.baseline.mean}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Baseline p75</div>
+        <div class="score-val">${cat.baseline.p75}</div>
+      </div>
+    </div>`;
+}
+
+function renderCard(cat) {
+  const trendIcon = cat.trend === 'improving' ? '↓' : cat.trend === 'worsening' ? '↑' : '→';
+  return `
+    <div class="cat-card">
+      <div class="cat-header">
+        <span class="cat-icon">${cat.icon}</span>
+        <span class="cat-name">${cat.name}</span>
+        <span class="pill ${cat.status}">${cat.status}</span>
+        <span class="trend ${cat.trend}">${trendIcon} ${cat.trend}</span>
+        <span class="cat-window">${cat.window}</span>
+      </div>
+      ${renderScores(cat)}
+      ${renderChart(cat)}
+      ${cat.explain ? `<div class="cat-explain">${cat.explain}</div>` : ''}
+    </div>`;
+}
+
+const fmtPulseTime = iso => {
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('en-GB', { timeZone: 'Europe/Berlin', day: 'numeric', month: 'long', year: 'numeric' });
+    const time = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+    return `${date} · ${time} Frankfurt`;
+  } catch { return iso; }
+};
+
+function renderFromData(data) {
+  document.getElementById('snapshot-meta').innerHTML =
+    `Pulse generated <strong>${fmtPulseTime(data.generated_at)}</strong> · ${data.alert_count} active alerts · <span class="snap-note">scores below are for this snapshot only</span>`;
+
+  const cats = ['transport', 'weather', 'roadworks', 'events', 'incidents'].map(id => {
+    const c = data.categories[id] || {};
+    const m = CAT_META[id];
+    return Object.assign({ id }, m, c);
+  });
+  document.getElementById('cat-cards').innerHTML = cats.map(renderCard).join('');
+}
+
+fetch('/api/pulse-methodology-data')
+  .then(r => {
+    if (!r.ok) throw new Error('no data');
+    return r.json();
+  })
+  .then(renderFromData)
+  .catch(() => {
+    document.getElementById('snapshot-meta').textContent = 'No pulse data available for today yet.';
+    document.getElementById('cat-cards').innerHTML = '';
+  });
+</script>
+</body>
+</html>
