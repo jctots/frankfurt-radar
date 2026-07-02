@@ -93,7 +93,7 @@
     .ref-line { position: absolute; left: 0; right: 0; pointer-events: none; }
     .ref-label { position: absolute; right: 0; font-size: 9px; top: -11px; }
     .chart-xlabels { display: flex; gap: 3px; margin-top: 3px; }
-    .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; }
+    .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .x-label.is-now  { color: var(--clr-current); font-weight: 700; }
     .x-label.is-proj { color: var(--clr-projected); }
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
@@ -365,20 +365,39 @@ const statusBadge = status => `<span class="status ${status}"><span class="statu
 const CHART_H = 88;
 
 function renderChart(cat) {
-  const validScores = [...cat.history, cat.ongoing.score].filter(v => v != null);
+  const scores = cat.history.map(h => (h && typeof h === 'object') ? h.score : h);
+  const validScores = [...scores, cat.ongoing.score].filter(v => v != null);
   if (cat.projected) validScores.push(cat.projected.score);
   const p75val = cat.baseline ? cat.baseline.p75 : 0;
   const maxScore = Math.max(...validScores, p75val * 1.15, 0.1);
   const px = v => Math.max(1, Math.round(((v ?? 0) / maxScore) * CHART_H));
   const bot = v => Math.round(((v ?? 0) / maxScore) * CHART_H);
 
+  // Per-bar x-axis labels: derived from each bucket's real timestamp
+  // (period/hour/date), not just first/last — matches admin.html's mini-chart.
   let bars = '', xlabels = '';
   const hlen = cat.history.length;
-  cat.history.forEach((s, i) => {
+  const nowMs = Date.now();
+  cat.history.forEach((entry, i) => {
     const isNow = i === hlen - 1;
+    const isObj = entry && typeof entry === 'object';
+    const s = isObj ? entry.score : entry;
+    const count = isObj ? entry.count : null;
+    const rawLabel = isObj ? (entry.period || entry.hour || entry.date || '') : '';
+    let shortLabel = '';
+    const bucketMs = rawLabel.length === 10
+      ? new Date(rawLabel + 'T00:00:00Z').getTime()
+      : new Date(rawLabel).getTime();
+    if (!isNaN(bucketMs)) {
+      const diffH = Math.round((nowMs - bucketMs) / 3600000);
+      if (diffH < 1) shortLabel = 'now';
+      else if (diffH < 24) shortLabel = `-${diffH}h`;
+      else shortLabel = `-${Math.round(diffH / 24)}d`;
+    }
     const h = px(s);
-    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s ?? 0}"></div></div>`;
-    xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${isNow ? 'now' : (i === 0 ? `-${hlen - 1}` : '')}</div>`;
+    const countTitle = count != null ? ` (${count} alerts)` : '';
+    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s ?? 0}${countTitle}"></div></div>`;
+    xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${shortLabel}</div>`;
   });
   if (cat.projected) {
     const h = px(cat.projected.score);
