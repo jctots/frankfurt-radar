@@ -25,12 +25,12 @@
     .page-header a { color: var(--clr-muted); text-decoration: none; font-size: 13px; }
     .page-header a:hover { color: var(--clr-text); }
     .header-sep { color: var(--clr-border); }
-    .header-title { font-size: 14px; font-weight: 700; }
+    .header-title { font-size: 18px; font-weight: 700; }
 
     /* ── Layout ── */
     .page { max-width: 900px; margin: 0 auto; padding: 36px 20px 80px; }
     .section { margin-bottom: 52px; }
-    .section-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 10px; }
+    .section-eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 10px; }
     .section-lead { font-size: 15px; line-height: 1.75; color: var(--clr-text); max-width: 680px; }
 
     /* ── Status: icon + colored text (clear/minor/moderate/severe) ──
@@ -151,7 +151,7 @@
 <header class="page-header">
   <a href="/">← Radar</a>
   <span class="header-sep">|</span>
-  <span class="header-title">City Pulse — How It Works</span>
+  <span class="header-title">📡 City Pulse — How It Works</span>
 </header>
 
 <main class="page">
@@ -163,25 +163,25 @@
 
   <!-- Three-layer pipeline -->
   <div class="section">
-    <div class="section-eyebrow">The pipeline</div>
+    <div class="section-eyebrow">⚙️ The pipeline</div>
     <div class="layer-flow">
       <div class="layer-card">
         <div class="layer-num">Layer 1</div>
-        <div class="layer-name">Deterministic scoring</div>
+        <div class="layer-name">🧮 Deterministic scoring</div>
         <div class="layer-desc">Active alerts are weighted by severity and service type, summed into a score per category, compared to a historical baseline, and assigned a status label. No AI involved.</div>
         <span class="layer-badge det">No AI</span>
       </div>
       <div class="layer-arrow">→</div>
       <div class="layer-card">
         <div class="layer-num">Layer 2</div>
-        <div class="layer-name">AI synthesis</div>
+        <div class="layer-name">🤖 AI synthesis</div>
         <div class="layer-desc">Gemini Flash receives the computed scores, baseline, alert bodies, and pulse history. Its only job: judge the <em>trend</em> per category and write the summary. It cannot assign or override status.</div>
         <span class="layer-badge ai">Gemini Flash</span>
       </div>
       <div class="layer-arrow">→</div>
       <div class="layer-card">
         <div class="layer-num">Layer 3</div>
-        <div class="layer-name">Final output</div>
+        <div class="layer-name">📤 Final output</div>
         <div class="layer-desc">Layer 1 status + Layer 2 trend are merged into the pulse card you see on the map. Generation frequency is adaptive — see below.</div>
         <span class="layer-badge out">Adaptive</span>
       </div>
@@ -193,7 +193,7 @@
 
   <!-- Generation frequency -->
   <div class="section">
-    <div class="section-eyebrow">When is pulse generated?</div>
+    <div class="section-eyebrow">⏱️ When is pulse generated?</div>
     <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The pulse runs on a schedule but skips when conditions are calm, to avoid unnecessary AI calls.</p>
     <table class="tbl">
       <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
@@ -207,7 +207,7 @@
 
   <!-- Trend rules -->
   <div class="section">
-    <div class="section-eyebrow">How trend is judged</div>
+    <div class="section-eyebrow">📈 How trend is judged</div>
     <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is the only thing the AI decides. Two signals feed into it — Signal 1 is the default; Signal 2 can override it.</p>
     <table class="tbl">
       <thead><tr><th>Signal</th><th>What it looks at</th><th>When it applies</th></tr></thead>
@@ -228,14 +228,14 @@
 
   <!-- Category evidence -->
   <div class="section">
-    <div class="section-eyebrow">Score evidence</div>
+    <div class="section-eyebrow">📊 Score evidence</div>
     <p class="snapshot-meta" id="snapshot-meta"></p>
     <div class="cat-cards" id="cat-cards"></div>
   </div>
 
   <!-- Threshold table -->
   <div class="section">
-    <div class="section-eyebrow">How status labels are assigned</div>
+    <div class="section-eyebrow">🎯 How status labels are assigned</div>
     <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. the baseline of the last N snapshots. 100% deterministic.</p>
     <table class="tbl">
       <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
@@ -250,80 +250,85 @@
 
   <!-- Alert weights -->
   <div class="section">
-    <div class="section-eyebrow">Alert severity weights</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Each active alert contributes a weight to its category score. Weights are fixed rules — not learned or adjusted by AI. RMV alerts are additionally multiplied by the number of affected lines, capped at 4 — so an alert covering 4 or more lines scores the same as 4 individual alerts of the same type.</p>
+    <div class="section-eyebrow">⚖️ Alert severity weights</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Each active alert contributes a weight to its category score. Weights are fixed rules — not learned or adjusted by AI. RMV weights below are the base rate; they're additionally multiplied by the number of affected lines, capped at 4 — so an alert covering 4 or more lines scores the same as 4 individual alerts of the same type.</p>
     <table class="tbl">
       <thead><tr><th>Category</th><th>Source</th><th>What drives the weight</th><th>Weight</th></tr></thead>
       <tbody>
         <tr>
-          <td rowspan="3">Transport</td>
-          <td>RMV S-Bahn, U-Bahn, Regional</td>
-          <td>High-ridership trunk lines × affected lines (max 4)</td>
-          <td><strong>1.5×</strong> – <strong>6.0×</strong></td>
+          <td rowspan="3">🚇 Transport</td>
+          <td>RMV <img src="/static/icons/sbahn.svg" alt="S-Bahn" style="width:14px;height:14px;vertical-align:-3px;margin:0 1px 0 3px">S-Bahn, <img src="/static/icons/ubahn.svg" alt="U-Bahn" style="width:14px;height:14px;vertical-align:-3px;margin:0 1px 0 3px">U-Bahn, <img src="/static/icons/regional.svg" alt="Regional" style="width:14px;height:14px;vertical-align:-3px;margin:0 1px 0 3px">Regional</td>
+          <td>High-ridership trunk lines</td>
+          <td><strong>1.5×</strong></td>
         </tr>
         <tr>
-          <td>RMV Tram</td>
-          <td>Local rail × affected lines (max 4)</td>
-          <td><strong>1.0×</strong> – <strong>4.0×</strong></td>
+          <td>RMV <img src="/static/icons/tram.svg" alt="Tram" style="width:14px;height:14px;vertical-align:-3px;margin:0 1px 0 3px">Tram</td>
+          <td>Local rail</td>
+          <td><strong>1.0×</strong></td>
         </tr>
         <tr>
-          <td>RMV Bus</td>
-          <td>Local bus × affected lines (max 4)</td>
-          <td><strong>0.5×</strong> – <strong>2.0×</strong></td>
-        </tr>
-        <tr>
-          <td rowspan="4">Weather</td>
-          <td rowspan="4">DWD</td>
-          <td>Severity: minor</td>
+          <td>RMV <img src="/static/icons/bus.svg" alt="Bus" style="width:14px;height:14px;vertical-align:-3px;margin:0 1px 0 3px">Bus</td>
+          <td>Local bus</td>
           <td><strong>0.5×</strong></td>
         </tr>
         <tr>
-          <td>Severity: moderate</td>
-          <td><strong>1.0×</strong></td>
+          <td rowspan="4">⛈️ Weather</td>
+          <td rowspan="4">⛈️ DWD</td>
+          <td>Severity: extreme</td>
+          <td><strong>2.0×</strong></td>
         </tr>
         <tr>
           <td>Severity: severe</td>
           <td><strong>1.5×</strong></td>
         </tr>
         <tr>
-          <td>Severity: extreme</td>
-          <td><strong>2.0×</strong></td>
+          <td>Severity: moderate</td>
+          <td><strong>1.0×</strong></td>
         </tr>
         <tr>
-          <td rowspan="3">Roadworks</td>
-          <td>Autobahn</td>
+          <td>Severity: minor</td>
+          <td><strong>0.5×</strong></td>
+        </tr>
+        <tr>
+          <td rowspan="4">🚧 Roadworks</td>
+          <td>⚠️ Autobahn</td>
           <td>Title contains "closure"</td>
           <td><strong>2.0×</strong></td>
         </tr>
         <tr>
-          <td>Autobahn</td>
+          <td>🛑 City Roads</td>
+          <td>Full closure</td>
+          <td><strong>1.5×</strong></td>
+        </tr>
+        <tr>
+          <td>⚠️ Autobahn</td>
           <td>No closure in title</td>
           <td><strong>1.0×</strong></td>
         </tr>
         <tr>
-          <td>Baustellen</td>
-          <td>City full closure / partial closure</td>
-          <td><strong>1.5×</strong> / <strong>0.5×</strong></td>
+          <td>🚧 City Roads</td>
+          <td>Partial closure</td>
+          <td><strong>0.5×</strong></td>
         </tr>
         <tr>
-          <td>Events</td>
-          <td>Events, Messe, Sports</td>
+          <td>🎉 Events</td>
+          <td>🎉 Festivals, 🎪 Messe, ⚽ Sports</td>
           <td>Fixed — all events treated equally</td>
           <td><strong>2.0×</strong></td>
         </tr>
         <tr>
-          <td rowspan="3">Incidents</td>
-          <td>Strike</td>
+          <td rowspan="3">🚨 Incidents</td>
+          <td>🪧 Strike</td>
           <td>Fixed — no severity field available</td>
           <td><strong>1.5×</strong></td>
         </tr>
         <tr>
-          <td>🔥 Fire</td>
+          <td>🔥 Fire Department</td>
           <td>Fixed — no severity field available</td>
           <td><strong>1.0×</strong></td>
         </tr>
         <tr>
-          <td>Polizei</td>
+          <td>🚨 Police</td>
           <td>Fixed — no severity field available</td>
           <td><strong>0.5×</strong></td>
         </tr>
@@ -339,10 +344,10 @@
 if (localStorage.getItem('fr_dark') === '1') document.body.classList.add('dark');
 
 const CAT_META = {
-  transport: { name: 'Transport', icon: '🚆', window: '24h · hourly' },
+  transport: { name: 'Transport', icon: '🚇', window: '24h · hourly' },
   weather:   { name: 'Weather',   icon: '⛈️', window: '3 days · 6h intervals' },
   roadworks: { name: 'Roadworks', icon: '🚧', window: '4 weeks · daily' },
-  events:    { name: 'Events',    icon: '🎪', window: '1 week · daily' },
+  events:    { name: 'Events',    icon: '🎉', window: '1 week · daily' },
   incidents: { name: 'Incidents', icon: '🚨', window: '1 week · daily' },
 };
 
