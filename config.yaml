@@ -35,6 +35,8 @@ location:
 translator:
   backend: libretranslate          # libretranslate | google
   libretranslate_url: http://libretranslate:5000   # set if using libretranslate backend
+  max_chars: 1500                  # hard cap per translate() call — cost circuit-breaker against
+                                    # unusually long alert text, not a routine UX truncation
 
 admin_health_notifier:
   backend: telegram                # ntfy | telegram

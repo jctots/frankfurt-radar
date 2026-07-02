@@ -38,6 +38,11 @@ _UMLAUT_MAP = str.maketrans({
 
 
 def translate(text: str, config: dict) -> str:
+    max_chars = config.get("translator", {}).get("max_chars")
+    if max_chars and len(text) > max_chars:
+        log.warning("Text exceeds translator.max_chars (%d > %d); truncating before translation", len(text), max_chars)
+        text = text[:max_chars]
+
     backend = config.get("translator", {}).get("backend", "libretranslate").lower()
     if backend == "libretranslate":
         return _translate_libre(text, config)

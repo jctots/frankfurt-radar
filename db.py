@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS category_snapshots (
 CREATE TABLE IF NOT EXISTS translation_variants (
     alert_id   TEXT NOT NULL,
     text_hash  TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT '',
     title_en   TEXT NOT NULL,
     body_en    TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -302,6 +303,15 @@ def init_db() -> None:
             )""")
         except Exception:
             pass
+        # source column lets a repeat translation be reused across alert_ids (e.g. DWD
+        # reissues a new CAP id for the same warning every ~10-30 min) — scoped by
+        # source to avoid coincidental cross-source hash matches.
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(translation_variants)")]
+            if "source" not in cols:
+                conn.execute("ALTER TABLE translation_variants ADD COLUMN source TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass
     log.info("DB ready: %s", DB_PATH)
 
 
@@ -474,11 +484,27 @@ def _get_cached_variant(conn, alert_id: str, th: str) -> Optional[tuple[str, str
     return (row["title_en"], row["body_en"]) if row else None
 
 
-def _store_variant(conn, alert_id: str, th: str, title_en: str, body_en: str) -> None:
+def _get_cached_variant_by_hash(conn, source: str, th: str) -> Optional[tuple[str, str]]:
+    """Look up a cached translation by content hash alone, ignoring alert_id.
+
+    Catches sources that reissue the same warning text under a brand-new
+    alert_id (e.g. DWD/BrightSky mints a new CAP id every reissue even when
+    the description is unchanged) — those never reach _get_cached_variant
+    since that alert_id has never been seen before.
+    """
+    row = conn.execute(
+        """SELECT title_en, body_en FROM translation_variants
+           WHERE source = ? AND text_hash = ? ORDER BY created_at DESC LIMIT 1""",
+        (source, th),
+    ).fetchone()
+    return (row["title_en"], row["body_en"]) if row else None
+
+
+def _store_variant(conn, alert_id: str, th: str, title_en: str, body_en: str, source: str = "") -> None:
     conn.execute(
-        """INSERT OR IGNORE INTO translation_variants (alert_id, text_hash, title_en, body_en)
-           VALUES (?, ?, ?, ?)""",
-        (alert_id, th, title_en, body_en),
+        """INSERT OR IGNORE INTO translation_variants (alert_id, text_hash, source, title_en, body_en)
+           VALUES (?, ?, ?, ?, ?)""",
+        (alert_id, th, source, title_en, body_en),
     )
 
 
@@ -544,9 +570,27 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
     for alert in alerts:
         stale_int = 1 if alert.stale else 0
         if alert.id not in cached:
-            en_title, en_body = translate_alert(alert, config)
             th = _text_hash(alert.title or "", alert.body or "")
-            variant_writes.append((alert.id, th, en_title, en_body))
+            with _conn() as vconn:
+                cached_variant = _get_cached_variant_by_hash(vconn, alert.source, th)
+            if cached_variant:
+                # Same source has translated this exact text before, under a different
+                # alert_id — e.g. DWD mints a new CAP id on every reissue even when the
+                # warning description is unchanged. Reuse instead of paying to retranslate.
+                en_title, en_body = cached_variant
+                log.info("alert_cache: cross-id variant cache hit for %s", alert.id)
+                _debug_entries.append({
+                    "alert_id": alert.id, "source": alert.source, "action": "variant_hit",
+                    "reason": "duplicate_content_new_id",
+                    "title": (alert.title or "")[:80],
+                })
+            else:
+                en_title, en_body = translate_alert(alert, config)
+                _debug_entries.append({
+                    "alert_id": alert.id, "source": alert.source, "action": "new",
+                    "title": (alert.title or "")[:80],
+                })
+            variant_writes.append((alert.id, th, en_title, en_body, alert.source))
             to_insert.append((
                 alert.id, alert.source, en_title, en_body, alert.url,
                 alert.valid_until, alert.service,
@@ -555,10 +599,6 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
                 alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
                 alert.icon, alert.title or "", alert.body or "",
             ))
-            _debug_entries.append({
-                "alert_id": alert.id, "source": alert.source, "action": "new",
-                "title": (alert.title or "")[:80],
-            })
         else:
             c = cached[alert.id]
             text_changed = _meaningful_text_changed(
@@ -588,7 +628,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
                     })
                 else:
                     en_title, en_body = translate_alert(alert, config)
-                    variant_writes.append((alert.id, th, en_title, en_body))
+                    variant_writes.append((alert.id, th, en_title, en_body, alert.source))
                     log.info("alert_cache: updated %s (text changed)", alert.id)
                     _debug_entries.append({
                         "alert_id": alert.id, "source": alert.source, "action": "retranslate",
@@ -707,8 +747,8 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             "DELETE FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
         )
         if variant_writes:
-            for aid, th, t_en, b_en in variant_writes:
-                _store_variant(conn, aid, th, t_en, b_en)
+            for aid, th, t_en, b_en, src in variant_writes:
+                _store_variant(conn, aid, th, t_en, b_en, src)
 
     if failed_sources:
         log.warning("alert_cache: skipped removal for failed sources: %s", ", ".join(sorted(failed_sources)))
