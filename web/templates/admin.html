@@ -414,6 +414,9 @@ const eur = (v, decimals=2) => '€' + v.toFixed(decimals);
 const num = v => v.toLocaleString('en-US');
 const costClass = (val, budget) => val <= budget * 0.8 ? 'ok' : val <= budget ? 'warn' : 'danger';
 const statusPill = s => `<span class="pill ${s}">${s}</span>`;
+// Diagonal trend arrows: worsening rises (↗), improving falls (↘), stable is flat (→).
+// Unjudged (deterministic-only, no LLM ran) returns '' — distinct from an explicit 'stable'.
+const trendIcon = t => t === 'worsening' ? '↗' : t === 'improving' ? '↘' : t === 'stable' ? '→' : '';
 
 let P = { usd_to_eur: 0.92, gemini_input_per_m: 0.15, gemini_output_per_m: 0.60, gemini_thinking_per_m: 3.50, translate_chars_per_m: 20.0 };
 const geminiCostEur = (tIn, tOut, tThink) => (tIn / 1e6 * P.gemini_input_per_m + tOut / 1e6 * P.gemini_output_per_m + tThink / 1e6 * P.gemini_thinking_per_m) * P.usd_to_eur;
@@ -669,7 +672,9 @@ let _pulseEntries = [];
 let _activePulseIdx = null;
 
 function renderCategoryGrid(entries) {
-  _pulseEntries = entries.filter(e => !e.skipped && e.layer_3_output);
+  // Skipped ("all calm") hours still carry a deterministic status — include them
+  // so the log has one row per hour instead of gaps wherever the LLM didn't run.
+  _pulseEntries = entries.filter(e => e.layer_3_output || (e.skipped && e.layer_1_deterministic));
   _activePulseIdx = null;
   closePulseDetail();
 
@@ -694,12 +699,21 @@ function renderCategoryGrid(entries) {
     const t = utcToBerlin(e.generated_at);
     tbody += `<tr><td><button class="pulse-time-btn" onclick="selectCell(${i}, null)">${t}</button></td>`;
     for (const cat of CAT_ORDER) {
-      const cats = e.layer_3_output?.categories || {};
-      const status = (cats[cat] || {}).status || 'clear';
-      const trend = (cats[cat] || {}).trend || 'stable';
-      const trendIcon = trend === 'improving' ? '↓' : trend === 'worsening' ? '↑' : '';
-      tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trend})">
-        <span class="pill ${status}">${status}${trendIcon ? ' ' + trendIcon : ''}</span>
+      const l3cat = e.layer_3_output?.categories?.[cat];
+      let status, trend;
+      if (l3cat) {
+        status = l3cat.status || 'clear';
+        trend = l3cat.trend || 'stable';
+      } else {
+        // No LLM ran this hour — status is the deterministic (rules-based) value;
+        // trend is an LLM judgment call, so it's genuinely unavailable here.
+        status = e.layer_1_deterministic?.timeseries?.[cat]?.current?.status || 'clear';
+        trend = null;
+      }
+      const icon = trendIcon(trend);
+      const trendLabel = trend || 'not judged (deterministic only)';
+      tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trendLabel})">
+        <span class="pill ${status}">${status}${icon ? ' ' + icon : ''}</span>
       </button></td>`;
     }
     tbody += '</tr>';
@@ -764,8 +778,9 @@ function selectCell(idx, cat) {
     const horizon = cur.horizon || null;
     const history = ts.history || [];
     const l3cats = l3.categories || {};
-    const status = (l3cats[c] || {}).status || 'clear';
-    const trend = (l3cats[c] || {}).trend || 'stable';
+    const l3cat = l3cats[c];
+    const status = l3cat ? (l3cat.status || 'clear') : (cur.status || 'clear');
+    const trend = l3cat ? (l3cat.trend || 'stable') : null;
 
     // Compute baseline stats here so they're available for both score cards and chart
     let bMean = 0, bP75 = 0;
@@ -782,7 +797,8 @@ function selectCell(idx, cat) {
 
     body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
     const trendColor = trend === 'worsening' ? '#f85149' : trend === 'improving' ? '#3fb950' : '#7d8590';
-    const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trend}</span>`;
+    const trendText = trend ? `${trend} ${trendIcon(trend)}` : 'not judged (deterministic only)';
+    const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trendText}</span>`;
     if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)} ${trendPill}</div>`;
 
     // Score cards: ongoing / projected / horizon

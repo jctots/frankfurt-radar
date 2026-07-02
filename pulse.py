@@ -240,18 +240,19 @@ _LEVEL_2_PLUS = {"moderate", "severe"}
 _FAST_CATEGORIES = frozenset(("transport", "weather"))
 
 
-def _should_skip_pulse(now: datetime) -> dict | None:
-    """Return skip info dict if pulse should be skipped, None otherwise."""
+def _should_skip_pulse(now: datetime, current_status: dict[str, str]) -> dict | None:
+    """Return skip info dict if pulse should be skipped, None otherwise.
+
+    `current_status` is this hour's freshly computed deterministic status per
+    category (no LLM involved) — used for the elevated check so a category
+    that turns severe during a "calm" gap is caught immediately, rather than
+    waiting on the next scheduled LLM pulse to notice.
+    """
     last = db.get_latest_pulse()
     if not last:
         return None
 
-    last_cats = last.get("categories", {})
-    elevated = any(
-        cat.get("status") in _LEVEL_2_PLUS
-        for key, cat in last_cats.items()
-        if key in _FAST_CATEGORIES
-    )
+    elevated = any(current_status.get(cat) in _LEVEL_2_PLUS for cat in _FAST_CATEGORIES)
     if elevated:
         return None
 
@@ -272,7 +273,7 @@ def _should_skip_pulse(now: datetime) -> dict | None:
             "interval_hours": interval_hours,
             "elapsed_hours": round(elapsed, 2),
             "mode": mode,
-            "last_categories": {k: v.get("status") for k, v in last_cats.items()},
+            "status": current_status,
         }
     return None
 
@@ -304,13 +305,19 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
     db.store_category_snapshots(snapshot_ts, snapshot)
 
+    # Deterministic status needs no LLM — compute it every hour so a skipped
+    # (calm) hour still has a real status on record, not just the last pulse's.
+    timeseries = build_category_timeseries(db.get_category_snapshots, snapshot, now)
+    current_status = {cat: ts["current"]["status"] for cat, ts in timeseries.items()}
+
     if not force:
-        skip_info = _should_skip_pulse(now)
+        skip_info = _should_skip_pulse(now, current_status)
         if skip_info:
             _write_debug_log({
                 "generated_at": generated_at,
                 "service": "gemini_pulse",
                 "skipped": True,
+                "layer_1_deterministic": {"timeseries": timeseries},
                 **skip_info,
             })
             return None
@@ -322,8 +329,6 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         db.store_pulse(pulse)
         log.info("Pulse generated: all clear (0 alerts)")
         return pulse
-
-    timeseries = build_category_timeseries(db.get_category_snapshots, snapshot, now)
 
     prompt_config, template = load_prompt("pulse")
     alerts_json, stale_summary = _build_alert_data(alerts)

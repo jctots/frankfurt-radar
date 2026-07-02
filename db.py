@@ -400,11 +400,18 @@ _COST_DEBUG_RETENTION_DAYS = 30
 
 
 def write_cost_debug(config: dict) -> None:
-    """Append an hourly cost snapshot to the daily JSONL file. Skips if current hour already logged."""
+    """Append a cost snapshot for the last fully completed hour to its daily JSONL file.
+
+    Snapshots the *previous* hour (not the current, still-in-progress one) so the
+    "hourly" figures reflect that hour's full totals rather than whatever had
+    accumulated at the moment this happened to first run after the hour rolled over.
+    Skips if that hour is already logged.
+    """
     now = datetime.now(timezone.utc)
-    hour = now.strftime("%Y-%m-%dT%H")
-    today = now.strftime("%Y-%m-%d")
-    month = now.strftime("%Y-%m")
+    target = now - timedelta(hours=1)
+    hour = target.strftime("%Y-%m-%dT%H")
+    today = target.strftime("%Y-%m-%d")
+    month = target.strftime("%Y-%m")
 
     try:
         _COST_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
