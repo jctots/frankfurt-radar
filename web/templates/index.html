@@ -628,7 +628,7 @@
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 500;
+      z-index: 1001;
       display: flex;
       gap: 8px;
       pointer-events: auto;
@@ -706,7 +706,10 @@
     #pulse-overlay.swipe-down  { opacity: 0; transform: translateY(60px);  transition: opacity 0.25s ease, transform 0.25s ease; }
     .dark #pulse-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     @media (max-width: 767px) {
-      #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: none; overflow-y: visible; }
+      /* Cap expanded height so the top edge stops at 24px from the map's
+         top (10px control-row offset + half the ~28px button height) —
+         the buttons sit above via z-index, overlapping the bottom half. */
+      #pulse-overlay { top: auto; bottom: 12px; left: 12px; right: 12px; max-width: none; max-height: calc(100% - 36px); overflow-y: auto; }
     }
     /* ── Weather overlay ────────────────────────────────── */
     #weather-overlay {
@@ -718,6 +721,7 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
       pointer-events: auto;
       scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
       opacity: 0; transition: opacity 0.3s ease;
     }
     #weather-overlay.visible { opacity: 1; }
@@ -727,7 +731,10 @@
     #weather-overlay.swipe-down  { opacity: 0; transform: translateY(60px);  transition: opacity 0.25s ease, transform 0.25s ease; }
     .dark #weather-overlay { background: rgba(19,25,33,0.95); color: #d1d5db; border-color: #2a3344; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     @media (max-width: 767px) {
-      #weather-overlay { top: 52px; left: 8px; right: 8px; max-width: none; max-height: 50vh; }
+      /* Starts at 28px from the map's top — behind the control-row buttons
+         (lower z-index than .map-controls-row), which stay on top of the
+         overlap. Grows down; overflow scrolls instead of pushing off-screen. */
+      #weather-overlay { top: 28px; left: 8px; right: 8px; max-width: none; max-height: calc(100% - 40px); overflow-y: auto; }
     }
     .wx-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .wx-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; flex: 1; color: var(--clr-weather); }
@@ -1172,36 +1179,43 @@
     .section-body::-webkit-scrollbar,
     .popup-body::-webkit-scrollbar,
     #pulse-overlay::-webkit-scrollbar,
+    #weather-overlay::-webkit-scrollbar,
     .modal-box::-webkit-scrollbar,
     .lines-popup-body::-webkit-scrollbar            { width: 6px; }
     .section-body::-webkit-scrollbar-track,
     .popup-body::-webkit-scrollbar-track,
     #pulse-overlay::-webkit-scrollbar-track,
+    #weather-overlay::-webkit-scrollbar-track,
     .modal-box::-webkit-scrollbar-track,
     .lines-popup-body::-webkit-scrollbar-track      { background: transparent; }
     .section-body::-webkit-scrollbar-thumb,
     .popup-body::-webkit-scrollbar-thumb,
     #pulse-overlay::-webkit-scrollbar-thumb,
+    #weather-overlay::-webkit-scrollbar-thumb,
     .modal-box::-webkit-scrollbar-thumb,
     .lines-popup-body::-webkit-scrollbar-thumb      { background: #cbd5e1; border-radius: 3px; }
     .section-body::-webkit-scrollbar-thumb:hover,
     .popup-body::-webkit-scrollbar-thumb:hover,
     #pulse-overlay::-webkit-scrollbar-thumb:hover,
+    #weather-overlay::-webkit-scrollbar-thumb:hover,
     .modal-box::-webkit-scrollbar-thumb:hover,
     .lines-popup-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     .dark .section-body::-webkit-scrollbar-track,
     .dark .popup-body::-webkit-scrollbar-track,
     .dark #pulse-overlay::-webkit-scrollbar-track,
+    .dark #weather-overlay::-webkit-scrollbar-track,
     .dark .modal-box::-webkit-scrollbar-track,
     .dark .lines-popup-body::-webkit-scrollbar-track { background: transparent; }
     .dark .section-body::-webkit-scrollbar-thumb,
     .dark .popup-body::-webkit-scrollbar-thumb,
     .dark #pulse-overlay::-webkit-scrollbar-thumb,
+    .dark #weather-overlay::-webkit-scrollbar-thumb,
     .dark .modal-box::-webkit-scrollbar-thumb,
     .dark .lines-popup-body::-webkit-scrollbar-thumb { background: #2a3344; }
     .dark .section-body::-webkit-scrollbar-thumb:hover,
     .dark .popup-body::-webkit-scrollbar-thumb:hover,
     .dark #pulse-overlay::-webkit-scrollbar-thumb:hover,
+    .dark #weather-overlay::-webkit-scrollbar-thumb:hover,
     .dark .modal-box::-webkit-scrollbar-thumb:hover,
     .dark .lines-popup-body::-webkit-scrollbar-thumb:hover { background: #3a4456; }
 
@@ -2936,12 +2950,9 @@ function buildFilterBar() {
   const abOn = filters.sources.autobahn !== false;
   html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
   if (abOn) {
-    const roadAlerts = sectionAlerts.filter(a => a.source === 'autobahn' || a.source === 'baustellen');
-    if (roadAlerts.length) {
-      const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
-      const roadPartial = enabledRoadTypes < 3;
-      html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
-    }
+    const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
+    const roadPartial = enabledRoadTypes < 3;
+    html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
   }
 
   // Incidents (grouped: police + strikes)
@@ -2950,12 +2961,9 @@ function buildFilterBar() {
   const incCount = counts.polizei + counts.strike + counts.feuerwehr;
   html += `<button class="chip src-incidents${incOn ? ' on' : ''}" onclick="toggleSrc('incidents')">🚨 Incidents${badge(incCount)}</button>`;
   if (incOn) {
-    const incAlerts = sectionAlerts.filter(a => ['polizei','strike','feuerwehr'].includes(a.source));
-    if (incAlerts.length) {
-      const enabledIncTypes = ['police','strikes','fire'].filter(k => filters.incidentTypes[k] !== false).length;
-      const incPartial = enabledIncTypes < 3;
-      html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
-    }
+    const enabledIncTypes = ['police','strikes','fire'].filter(k => filters.incidentTypes[k] !== false).length;
+    const incPartial = enabledIncTypes < 3;
+    html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
   }
 
   // Events (grouped: festivals + trade fairs + sports)
@@ -2963,12 +2971,9 @@ function buildFilterBar() {
   const evOn = filters.sources.events !== false;
   html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">🎉 ${SOURCE.events.label}${badge(counts.events)}</button>`;
   if (evOn) {
-    const evAlerts = sectionAlerts.filter(a => ['events','messe','sports'].includes(a.source));
-    if (evAlerts.length) {
-      const enabledEvTypes = ['festivals','trade_fairs','sports'].filter(k => filters.eventTypes[k] !== false).length;
-      const evPartial = enabledEvTypes < 3;
-      html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
-    }
+    const enabledEvTypes = ['festivals','trade_fairs','sports'].filter(k => filters.eventTypes[k] !== false).length;
+    const evPartial = enabledEvTypes < 3;
+    html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
   }
 
   bar.innerHTML = html;
@@ -3058,9 +3063,9 @@ function setAllLines(svc, val) {
 
 // ── Roads popup ───────────────────────────────────────────────────────────────
 const ROAD_TYPES = [
-  { key: 'highways',     label: 'Autobahn' },
-  { key: 'city_partial', label: 'City - Partial Closure' },
-  { key: 'city_full',    label: 'City - Full Closure' },
+  { key: 'highways',     label: 'Autobahn', emoji: '⚠️' },
+  { key: 'city_partial', label: 'City - Partial Closure', emoji: '🚧' },
+  { key: 'city_full',    label: 'City - Full Closure', emoji: '🛑' },
 ];
 const ROAD_SERVICE_LABEL = {
   'City (Partial)': 'City - Partial Closure',
@@ -3090,7 +3095,7 @@ function openRoadsPopup(btn) {
       ${ROAD_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.roads[t.key] !== false ? 'checked' : ''} onchange="toggleRoad('${t.key}')">
-          ${t.label}
+          ${t.emoji} ${t.label}
         </label>`).join('')}
     </div>`;
 
@@ -3142,9 +3147,9 @@ function setAllRoads(val) {
 
 // ── Events popup ─────────────────────────────────────────────────────────────
 const EVENT_TYPES = [
-  { key: 'festivals',   label: 'Festivals' },
-  { key: 'trade_fairs', label: 'Trade Fairs' },
-  { key: 'sports',      label: 'Sports' },
+  { key: 'festivals',   label: 'Festivals', emoji: '🎉' },
+  { key: 'trade_fairs', label: 'Trade Fairs', emoji: '🎪' },
+  { key: 'sports',      label: 'Sports', emoji: '⚽' },
 ];
 
 function openEventsPopup(btn) {
@@ -3171,7 +3176,7 @@ function openEventsPopup(btn) {
       ${EVENT_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.eventTypes[t.key] !== false ? 'checked' : ''} onchange="toggleEventType('${t.key}')">
-          ${t.label}
+          ${t.emoji} ${t.label}
         </label>`).join('')}
     </div>`;
 
@@ -3223,9 +3228,9 @@ function setAllEventTypes(val) {
 
 // ── Incidents popup ──────────────────────────────────────────────────────────
 const INCIDENT_TYPES = [
-  { key: 'police',  label: 'Police' },
-  { key: 'strikes', label: 'Strikes' },
-  { key: 'fire',    label: 'Fire' },
+  { key: 'police',  label: 'Police', emoji: '🚨' },
+  { key: 'strikes', label: 'Strikes', emoji: '🪧' },
+  { key: 'fire',    label: 'Fire', emoji: '🔥' },
 ];
 
 function openIncidentsPopup(btn) {
@@ -3252,7 +3257,7 @@ function openIncidentsPopup(btn) {
       ${INCIDENT_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.incidentTypes[t.key] !== false ? 'checked' : ''} onchange="toggleIncidentType('${t.key}')">
-          ${t.label}
+          ${t.emoji} ${t.label}
         </label>`).join('')}
     </div>`;
 
