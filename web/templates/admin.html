@@ -100,14 +100,22 @@
     .log-table .note { font-size: 12px; color: var(--clr-muted); }
 
     .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .pill.clear     { background: #0f2d17; color: #3fb950; }
-    .pill.minor     { background: #2d1f05; color: #d29922; }
-    .pill.moderate  { background: #2d1005; color: #f0883e; }
-    .pill.severe    { background: #2d0a0a; color: #f85149; }
     .pill.skipped   { background: #21262d; color: #7d8590; }
     .pill.pulse     { background: #0c2044; color: #58a6ff; }
     .pill.extraction { background: #1a1044; color: #a78bfa; }
     .pill.daily     { background: #2d1f05; color: #d29922; }
+
+    /* ── Status: icon + colored text (clear/minor/moderate/severe) ──
+       SVG shapes, not font glyphs — every icon sits in the same box with
+       matched visual area regardless of font rendering. Same system as
+       pulse_methodology.html and the main-page pulse overlay. */
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; }
+    .status-icon { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; flex-shrink: 0; }
+    .status-icon svg { width: 100%; height: 100%; fill: currentColor; }
+    .status.clear    { color: var(--clr-muted); }
+    .status.minor    { color: #d29922; }
+    .status.moderate { color: #f0883e; }
+    .status.severe   { color: #f85149; }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
@@ -413,7 +421,13 @@ const utcToBerlin = iso => {
 const eur = (v, decimals=2) => '€' + v.toFixed(decimals);
 const num = v => v.toLocaleString('en-US');
 const costClass = (val, budget) => val <= budget * 0.8 ? 'ok' : val <= budget ? 'warn' : 'danger';
-const statusPill = s => `<span class="pill ${s}">${s}</span>`;
+const STATUS_ICON_SVG = {
+  clear:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  minor:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg>',
+  moderate: '<svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg>',
+  severe:   '<svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg>',
+};
+const statusBadge = s => `<span class="status ${s}"><span class="status-icon">${STATUS_ICON_SVG[s] || ''}</span>${s}</span>`;
 // Diagonal trend arrows: worsening rises (↗), improving falls (↘), stable is flat (→).
 // Unjudged (deterministic-only, no LLM ran) returns '' — distinct from an explicit 'stable'.
 const trendIcon = t => t === 'worsening' ? '↗' : t === 'improving' ? '↘' : t === 'stable' ? '→' : '';
@@ -713,7 +727,7 @@ function renderCategoryGrid(entries) {
       const icon = trendIcon(trend);
       const trendLabel = trend || 'not judged (deterministic only)';
       tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trendLabel})">
-        <span class="pill ${status}">${status}${icon ? ' ' + icon : ''}</span>
+        ${statusBadge(status)}${icon ? ' ' + icon : ''}
       </button></td>`;
     }
     tbody += '</tr>';
@@ -799,10 +813,10 @@ function selectCell(idx, cat) {
     const trendColor = trend === 'worsening' ? '#f85149' : trend === 'improving' ? '#3fb950' : '#7d8590';
     const trendText = trend ? `${trend} ${trendIcon(trend)}` : 'not judged (deterministic only)';
     const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trendText}</span>`;
-    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusPill(status)} ${trendPill}</div>`;
+    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusBadge(status)} ${trendPill}</div>`;
 
     // Score cards: ongoing / projected / horizon
-    if (cat) body += `<div style="margin-bottom:8px;">${statusPill(status)} ${trendPill}</div>`;
+    if (cat) body += `<div style="margin-bottom:8px;">${statusBadge(status)} ${trendPill}</div>`;
     body += `<div class="score-grid">
       <div class="score-item">
         <div class="score-label">Ongoing</div>
@@ -886,7 +900,7 @@ function selectCell(idx, cat) {
       <details>
         <summary style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);cursor:pointer;user-select:none;">Override Status</summary>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
-          <div style="font-size:12px;color:var(--clr-muted);">Computed: ${statusPill(catStatus)} — override if this is wrong and record your reasoning</div>
+          <div style="font-size:12px;color:var(--clr-muted);">Computed: ${statusBadge(catStatus)} — override if this is wrong and record your reasoning</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <select id="ov-status-${c}" style="padding:5px 8px;border:1px solid var(--clr-border);border-radius:6px;background:var(--clr-surface2);color:var(--clr-text);font-size:12px;">
               <option value="clear">clear</option>
@@ -1131,8 +1145,8 @@ function renderOverrides(overrides) {
   el.innerHTML = overrides.map(o => `<tr>
     <td style="white-space:nowrap;font-size:12px;">${new Date(o.pulse_ts).toLocaleDateString('sv-SE', {timeZone:'Europe/Berlin'})} ${utcToBerlin(o.pulse_ts)}</td>
     <td>${o.category}</td>
-    <td>${statusPill(o.computed_status)}</td>
-    <td>${statusPill(o.override_status)}</td>
+    <td>${statusBadge(o.computed_status)}</td>
+    <td>${statusBadge(o.override_status)}</td>
     <td class="note">${o.reason}</td>
     <td><button class="btn btn-sm btn-danger" onclick="deleteOverride(${o.id})">✕</button></td>
   </tr>`).join('');

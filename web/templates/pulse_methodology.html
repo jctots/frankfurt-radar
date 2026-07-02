@@ -33,12 +33,17 @@
     .section-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 10px; }
     .section-lead { font-size: 15px; line-height: 1.75; color: var(--clr-text); max-width: 680px; }
 
-    /* ── Pills ── */
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
-    .pill.clear    { background: #e2e8f0; color: #475569; }
-    .pill.minor    { background: #d1fae5; color: #065f46; }
-    .pill.moderate { background: #fef3c7; color: #92400e; }
-    .pill.severe   { background: #fee2e2; color: #991b1b; }
+    /* ── Status: icon + colored text (clear/minor/moderate/severe) ──
+       SVG shapes, not font glyphs — every icon sits in the same box with
+       matched visual area regardless of font rendering. Same system as
+       admin.html and the main-page pulse overlay. */
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+    .status-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
+    .status-icon svg { width: 100%; height: 100%; fill: currentColor; }
+    .status.clear    { color: #64748b; }
+    .status.minor    { color: #a16207; }
+    .status.moderate { color: #c2410c; }
+    .status.severe   { color: #dc2626; }
     .trend { font-size: 12px; font-weight: 600; }
     .trend.worsening { color: #ef4444; }
     .trend.improving { color: #22c55e; }
@@ -120,10 +125,10 @@
       --clr-muted:     #8892a4;
       --clr-mean:      #4a5568;
     }
-    .dark .pill.clear    { background: #1e2838; color: #8892a4; }
-    .dark .pill.minor    { background: #0d2018; color: #4ade80; }
-    .dark .pill.moderate { background: #1e1a00; color: #fbbf24; }
-    .dark .pill.severe   { background: #1f0d0d; color: #f87171; }
+    .dark .status.clear    { color: var(--clr-muted); }
+    .dark .status.minor    { color: #d29922; }
+    .dark .status.moderate { color: #f0883e; }
+    .dark .status.severe   { color: #f85149; }
     .dark .layer-badge.det { background: #1a2a40; color: #60a5fa; }
     .dark .layer-badge.ai  { background: #1c1535; color: #a78bfa; }
     .dark .layer-badge.out { background: #0d2018; color: #4ade80; }
@@ -193,7 +198,7 @@
     <table class="tbl">
       <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
       <tbody>
-        <tr><td>Transport or weather is <span class="pill moderate">moderate</span> or <span class="pill severe">severe</span></td><td>Every hour — always runs</td></tr>
+        <tr><td>Transport or weather is <span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span> or <span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Every hour — always runs</td></tr>
         <tr><td>All calm — daytime (06:00–22:59 Frankfurt)</td><td>At most every 2 hours</td></tr>
         <tr><td>All calm — nighttime (23:00–05:59 Frankfurt)</td><td>At most every 3 hours</td></tr>
       </tbody>
@@ -235,10 +240,10 @@
     <table class="tbl">
       <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
       <tbody>
-        <tr><td><span class="pill clear">clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
-        <tr><td><span class="pill minor">minor</span></td><td>Score ≤ baseline mean</td><td>Activity at or below the typical level for this category</td></tr>
-        <tr><td><span class="pill moderate">moderate</span></td><td>Mean &lt; score ≤ p75</td><td>Elevated above normal — worth being aware of</td></tr>
-        <tr><td><span class="pill severe">severe</span></td><td>Score &gt; p75</td><td>Well above the 75th percentile — significant disruption</td></tr>
+        <tr><td><span class="status clear"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
+        <tr><td><span class="status minor"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg></span>minor</span></td><td>Score ≤ baseline mean</td><td>Activity at or below the typical level for this category</td></tr>
+        <tr><td><span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span></td><td>Mean &lt; score ≤ p75</td><td>Elevated above normal — worth being aware of</td></tr>
+        <tr><td><span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Score &gt; p75</td><td>Well above the 75th percentile — significant disruption</td></tr>
       </tbody>
     </table>
   </div>
@@ -341,6 +346,14 @@ const CAT_META = {
   incidents: { name: 'Incidents', icon: '🚨', window: '1 week · daily' },
 };
 
+const STATUS_ICON_SVG = {
+  clear:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  minor:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg>',
+  moderate: '<svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg>',
+  severe:   '<svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg>',
+};
+const statusBadge = status => `<span class="status ${status}"><span class="status-icon">${STATUS_ICON_SVG[status] || ''}</span>${status}</span>`;
+
 const CHART_H = 88;
 
 function renderChart(cat) {
@@ -426,13 +439,13 @@ function renderScores(cat) {
 }
 
 function renderCard(cat) {
-  const trendIcon = cat.trend === 'improving' ? '↓' : cat.trend === 'worsening' ? '↑' : '→';
+  const trendIcon = cat.trend === 'improving' ? '↘' : cat.trend === 'worsening' ? '↗' : '→';
   return `
     <div class="cat-card">
       <div class="cat-header">
         <span class="cat-icon">${cat.icon}</span>
         <span class="cat-name">${cat.name}</span>
-        <span class="pill ${cat.status}">${cat.status}</span>
+        ${statusBadge(cat.status)}
         <span class="trend ${cat.trend}">${trendIcon} ${cat.trend}</span>
         <span class="cat-window">${cat.window}</span>
       </div>
