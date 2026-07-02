@@ -16,6 +16,7 @@
       --clr-current:   #2563eb;
       --clr-projected: #f0883e;
       --clr-mean:      #94a3b8;
+      --clr-p25:       #22c55e;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--clr-bg); color: var(--clr-text); line-height: 1.6; font-size: 14px; }
@@ -98,6 +99,7 @@
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
     .leg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
     .leg-line-mean { display: inline-block; width: 14px; border-top: 1px solid var(--clr-mean); vertical-align: middle; margin-right: 4px; }
+    .leg-line-p25  { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-p25); vertical-align: middle; margin-right: 4px; opacity: 0.8; }
     .leg-line-p75  { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-projected); vertical-align: middle; margin-right: 4px; opacity: 0.8; }
 
     /* ── Explain ── */
@@ -124,6 +126,7 @@
       --clr-text:      #d1d5db;
       --clr-muted:     #8892a4;
       --clr-mean:      #4a5568;
+      --clr-p25:       #3fb950;
     }
     .dark .status.clear    { color: var(--clr-muted); }
     .dark .status.minor    { color: #d29922; }
@@ -385,9 +388,13 @@ function renderChart(cat) {
 
   let refs = '';
   if (cat.baseline) {
+    const p25Bot  = bot(cat.baseline.p25);
     const meanBot = bot(cat.baseline.mean);
     const p75Bot  = bot(cat.baseline.p75);
     refs = `
+    <div class="ref-line" style="bottom:${p25Bot}px;border-top:1px dashed var(--clr-p25);opacity:0.8;">
+      <span class="ref-label" style="color:var(--clr-p25);">p25 ${cat.baseline.p25}</span>
+    </div>
     <div class="ref-line" style="bottom:${meanBot}px;border-top:1px solid var(--clr-mean);">
       <span class="ref-label" style="color:var(--clr-mean);">μ ${cat.baseline.mean}</span>
     </div>
@@ -408,6 +415,7 @@ function renderChart(cat) {
         <span><span class="leg-dot" style="background:var(--clr-current)"></span>Current</span>
         <span><span class="leg-dot" style="background:var(--clr-ongoing)"></span>History (${cat.window})</span>
         ${projLegend}
+        <span><span class="leg-line-p25"></span>baseline p25</span>
         <span><span class="leg-line-mean"></span>baseline mean</span>
         <span><span class="leg-line-p75"></span>baseline p75</span>
       </div>
@@ -416,6 +424,7 @@ function renderChart(cat) {
 
 function renderScores(cat) {
   const proj = cat.projected ? cat.projected.score : '—';
+  const p25  = cat.baseline ? cat.baseline.p25  : '—';
   const mean = cat.baseline ? cat.baseline.mean : '—';
   const p75  = cat.baseline ? cat.baseline.p75  : '—';
   return `
@@ -431,6 +440,10 @@ function renderScores(cat) {
       <div class="score-item">
         <div class="score-label">Projected (next)</div>
         <div class="score-val">${proj}</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">Baseline p25</div>
+        <div class="score-val">${p25}</div>
       </div>
       <div class="score-item">
         <div class="score-label">Baseline mean (μ)</div>

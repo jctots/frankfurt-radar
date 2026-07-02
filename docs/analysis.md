@@ -69,7 +69,8 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 
 **Statistical baseline** — Computed from the history window when ≥3 data points exist:
 - `baseline.mean`: average ongoing score — the "typical" level for this category
-- `baseline.p75`: 75th percentile — above this is genuinely elevated
+- `baseline.p25`: 25th percentile — quieter than 75% of past periods. Trend-only signal (see Layer 2); not used in status thresholds. Collapses to 0 for bursty categories (weather, events) since scores are excluded when zero.
+- `baseline.p75`: 75th percentile — above this is genuinely elevated. Used for both status thresholds and the worsening-trend signal.
 
 **Deterministic status** — Derived from `ongoing_score` and `baseline`:
 
@@ -90,7 +91,7 @@ Gemini Flash receives: the active alerts (with bodies), the timeseries data (inc
 
 **Trend judgment** — Per category: `improving` / `stable` / `worsening`. Two signals:
 
-- **Signal 1 (next-interval projection)**: compares `ongoing_score` vs `projected_score` combined with history shape. This is the default basis.
+- **Signal 1 (next-interval projection)**: compares `ongoing_score` vs `projected_score` combined with history shape, using `baseline.p25`/`mean`/`p75` as reference points (score moving toward p75 → worsening, toward p25 → improving). This is the default basis.
 - **Signal 2 (horizon momentum)**: overrides Signal 1 only when both conditions hold — the `horizon_score` series shows sharp acceleration (not just drift) AND the activity is near (`near_score` is a high fraction of `total_score`). When triggered, the LLM uses bridging language in the narrative.
 
 **Narrative output:**
@@ -147,7 +148,7 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
         "history": [
           {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "horizon_score": 2.5}
         ],
-        "baseline": {"mean": 5.8, "p75": 8.2, "n": 24},
+        "baseline": {"mean": 5.8, "p25": 3.2, "p75": 8.2, "n": 24},
         "window": "24h hourly"
       }
     },

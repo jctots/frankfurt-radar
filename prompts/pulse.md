@@ -35,7 +35,7 @@ Field reference:
   - `total_score`: severity-weighted sum of all upcoming alerts across the full lookahead window
   - `near_score`: portion of `total_score` falling within the next sample interval — high ratio means activity is imminent
 - `history`: past data points at the category's sample interval. Each point has `count`, `score` (ongoing), and `horizon_score` (full-lookahead total at that snapshot). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
-- `baseline`: statistical summary of historical `score` values — `mean` (typical level) and `p75` (75th percentile, busier than 75% of past periods). Present when ≥3 history points exist.
+- `baseline`: statistical summary of historical `score` values — `mean` (typical level), `p25` (25th percentile, quieter than 75% of past periods), and `p75` (75th percentile, busier than 75% of past periods). Present when ≥3 history points exist.
 - `window`: the time range and sample interval used
 
 ## Your role: trend and narrative
@@ -49,11 +49,12 @@ Field reference:
 
 **Signal 1 — Scores + baseline (default)**
 
-Use `baseline.mean` and `baseline.p75` as reference points:
+Use `baseline.mean`, `baseline.p25`, and `baseline.p75` as reference points:
 - Score consistently above p75 and projected to stay there → worsening
-- Score recently dropped from above p75 toward mean → improving
+- Score recently dropped from above p75 toward mean, or from mean toward/below p25 → improving
 - Score rising from near mean toward or above p75 → worsening
 - Score near mean with projected also near mean → stable
+- `p25` is only a meaningful signal for categories with a non-zero floor (transport, roadworks, incidents) — for bursty categories (weather, events) it often collapses to 0 and adds nothing beyond `clear` status; weight it accordingly.
 
 Also compare `projected` vs `ongoing` directly: a significantly lower projection = improving; significantly higher = worsening. Consider the full history shape, not just the last data point.
 

@@ -161,6 +161,7 @@ def api_pulse_methodology_data():
             } if projected else None,
             "baseline": {
                 "mean": baseline_raw.get("mean"),
+                "p25": baseline_raw.get("p25"),
                 "p75": baseline_raw.get("p75"),
             } if baseline_raw else None,
             "history": [h.get("score") if isinstance(h, dict) else h for h in history_raw],

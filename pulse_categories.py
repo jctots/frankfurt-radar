@@ -342,6 +342,7 @@ def build_category_timeseries(
             n = len(sorted_scores)
             baseline = {
                 "mean": round(statistics.mean(scores), 2),
+                "p25": round(sorted_scores[min(int(n * 0.25), n - 1)], 2),
                 "p75": round(sorted_scores[min(int(n * 0.75), n - 1)], 2),
                 "n": n,
             }
