@@ -3,14 +3,21 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from pulse_categories import (
+    BASELINE_LAG_BUCKETS,
     CATEGORY_SOURCES,
     CATEGORY_STATUS_LABELS,
     CATEGORY_WINDOWS,
+    WEIGHTS_VERSION,
     _compute_weight,
     _is_ongoing,
     _is_upcoming,
+    apply_status_hysteresis,
     build_category_timeseries,
     compute_snapshot,
+    compute_status,
+    compute_status_floor,
+    compute_surge,
+    compute_trend,
     count_alerts_by_category,
 )
 
@@ -202,6 +209,8 @@ class TestComputeSnapshot:
                 "projected_count": 0, "projected_score": 0.0,
                 "upcoming_count": 0, "upcoming_score": 0.0,
                 "upcoming_near_score": 0.0,
+                "scheduled_upcoming_score": 0.0,
+                "status_floor": None,
             }
 
     def test_severity_weighting_in_snapshot(self):
@@ -240,6 +249,8 @@ class TestComputeSnapshot:
         assert snap["transport"]["upcoming_score"] == pytest.approx(3.0)
         # near_score = only the one starting within next 1h
         assert snap["transport"]["upcoming_near_score"] == pytest.approx(1.0)
+        # scheduled upcoming = pure future starts within the lookahead (both starters)
+        assert snap["transport"]["scheduled_upcoming_score"] == pytest.approx(2.0)
 
     def test_projected_floor_at_zero(self):
         expiring_time = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -338,7 +349,7 @@ class TestBuildCategoryTimeseries:
         assert "hour" in ts["transport"]["history"][0]
         assert "count" in ts["transport"]["history"][0]
         assert "score" in ts["transport"]["history"][0]
-        assert "horizon_score" in ts["transport"]["history"][0]
+        assert "upcoming_score" in ts["transport"]["history"][0]
         assert "projected_score" not in ts["transport"]["history"][0]
 
     def test_weather_6hourly_aggregation(self):
@@ -450,7 +461,7 @@ class TestHorizonInTimeseries:
         assert "total_score" in ts["transport"]["current"]["horizon"]
         assert "near_score" in ts["transport"]["current"]["horizon"]
 
-    def test_horizon_score_in_history(self):
+    def test_upcoming_score_in_history(self):
         rows = []
         for i in range(6):
             ts = (_NOW - timedelta(hours=5 - i)).strftime("%Y-%m-%dT%H:00:00Z")
@@ -460,6 +471,7 @@ class TestHorizonInTimeseries:
                 "projected_count": 1, "projected_score": 2.0,
                 "upcoming_count": 2, "upcoming_score": 4.0 + i,
                 "upcoming_near_score": 1.0,
+                "scheduled_upcoming_score": 1.0 + i,
             })
 
         def get_fn(cat, since):
@@ -468,16 +480,250 @@ class TestHorizonInTimeseries:
         current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
                          "projected_count": 0, "projected_score": 0.0,
                          "upcoming_count": 2, "upcoming_score": 10.0,
-                         "upcoming_near_score": 3.0}
+                         "upcoming_near_score": 3.0,
+                         "scheduled_upcoming_score": 6.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
-        horizon = ts["transport"]["current"]["horizon"]
-        assert horizon["total_score"] == 10.0
-        assert horizon["near_score"] == 3.0
+        upcoming = ts["transport"]["current"]["upcoming"]
+        assert upcoming["total_score"] == 6.0
+        assert upcoming["near_score"] == 3.0
+        # end-state horizon kept for admin dashboard
+        assert ts["transport"]["current"]["horizon"]["total_score"] == 10.0
         history = ts["transport"]["history"]
         assert len(history) == 6
-        assert "horizon_score" in history[0]
-        assert history[-1]["horizon_score"] > history[0]["horizon_score"]
+        # history upcoming_score is the scheduled series, not the end-state
+        assert history[0]["upcoming_score"] == 1.0
+        assert history[-1]["upcoming_score"] > history[0]["upcoming_score"]
+
+
+class TestComputeStatus:
+    _BASELINE = {"mean": 10.0, "p25": 5.0, "p75": 20.0, "n": 24}
+
+    def test_zero_is_clear(self):
+        assert compute_status(0.0, self._BASELINE) == "clear"
+
+    def test_no_baseline_is_minor(self):
+        assert compute_status(50.0, None) == "minor"
+
+    def test_thresholds(self):
+        assert compute_status(8.0, self._BASELINE) == "minor"
+        assert compute_status(15.0, self._BASELINE) == "moderate"
+        assert compute_status(25.0, self._BASELINE) == "severe"
+
+    def test_skewed_baseline_moderate_band_not_empty(self):
+        # nonzero-only stats can put mean above p75 — min/max guard applies
+        skewed = {"mean": 49.5, "p25": 30.0, "p75": 44.0, "n": 24}
+        assert compute_status(40.0, skewed) == "minor"      # ≤ min(mean, p75)
+        assert compute_status(46.0, skewed) == "moderate"    # between
+        assert compute_status(55.0, skewed) == "severe"      # > max(mean, p75)
+
+    def test_floor_raises_status(self):
+        assert compute_status(1.0, None, floor="moderate") == "moderate"
+        assert compute_status(1.0, self._BASELINE, floor="severe") == "severe"
+
+    def test_floor_does_not_lower_status(self):
+        assert compute_status(25.0, self._BASELINE, floor="moderate") == "severe"
+
+    def test_floor_ignored_when_clear(self):
+        assert compute_status(0.0, self._BASELINE, floor="severe") == "clear"
+
+
+class TestComputeStatusFloor:
+    def test_dwd_extreme_floors_severe(self):
+        alerts = [{"source": "dwd", "severity": 4}]
+        assert compute_status_floor("weather", alerts) == "severe"
+
+    def test_dwd_severe_floors_moderate(self):
+        alerts = [{"source": "dwd", "severity": 3}, {"source": "dwd", "severity": 1}]
+        assert compute_status_floor("weather", alerts) == "moderate"
+
+    def test_dwd_minor_no_floor(self):
+        assert compute_status_floor("weather", [{"source": "dwd", "severity": 2}]) is None
+
+    def test_no_alerts_no_floor(self):
+        assert compute_status_floor("weather", []) is None
+
+    def test_other_categories_no_floor(self):
+        assert compute_status_floor("transport", [{"source": "rmv", "severity": 4}]) is None
+
+
+class TestStatusHysteresis:
+    def test_first_run_takes_raw(self):
+        assert apply_status_hysteresis("moderate", None, 0, True) == ("moderate", 0)
+
+    def test_escalation_immediate(self):
+        assert apply_status_hysteresis("severe", "minor", 0, True) == ("severe", 0)
+
+    def test_same_status_resets_pending(self):
+        assert apply_status_hysteresis("moderate", "moderate", 1, True) == ("moderate", 0)
+
+    def test_deescalation_needs_two_confirmations(self):
+        eff, pending = apply_status_hysteresis("moderate", "severe", 0, True)
+        assert (eff, pending) == ("severe", 1)
+        eff, pending = apply_status_hysteresis("moderate", "severe", pending, True)
+        assert (eff, pending) == ("moderate", 0)
+
+    def test_flapping_damped(self):
+        # July 1 pattern: raw sev→mod→sev→mod — effective should stay severe
+        eff, p = apply_status_hysteresis("moderate", "severe", 0, True)
+        assert eff == "severe"
+        eff, p = apply_status_hysteresis("severe", eff, p, True)
+        assert (eff, p) == ("severe", 0)
+        eff, p = apply_status_hysteresis("moderate", eff, p, True)
+        assert eff == "severe"
+
+    def test_no_advance_no_pending_consumption(self):
+        eff, pending = apply_status_hysteresis("clear", "moderate", 1, False)
+        assert (eff, pending) == ("moderate", 1)
+
+
+class TestComputeSurge:
+    _BASELINE = {"mean": 10.0, "p25": 5.0, "p75": 20.0, "n": 24}
+
+    def test_no_upcoming_no_surge(self):
+        assert compute_surge(0.0, 0.0, self._BASELINE) is False
+
+    def test_large_and_imminent_surges(self):
+        assert compute_surge(20.0, 15.0, self._BASELINE) is True
+
+    def test_large_but_distant_no_surge(self):
+        assert compute_surge(20.0, 2.0, self._BASELINE) is False
+
+    def test_imminent_but_small_no_surge(self):
+        assert compute_surge(5.0, 5.0, self._BASELINE) is False
+
+    def test_no_baseline_requires_imminent_load(self):
+        assert compute_surge(3.0, 2.5, None) is True
+        assert compute_surge(3.0, 1.0, None) is False
+
+
+class TestComputeTrend:
+    def _history(self, scores):
+        return [{"hour": f"h{i}", "count": 1, "score": s, "upcoming_score": 0.0}
+                for i, s in enumerate(scores)]
+
+    def test_empty_history_stable(self):
+        assert compute_trend(5.0, [], False) == "stable"
+
+    def test_flat_is_stable(self):
+        h = self._history([10.0, 10.0, 10.0, 10.0])
+        assert compute_trend(10.0, h, False) == "stable"
+
+    def test_small_noise_is_stable(self):
+        # ±4% flips used to flip the LLM's judgment — dead band absorbs them
+        h = self._history([131.0, 137.0, 131.0, 137.0])
+        assert compute_trend(137.0, h, False) == "stable"
+
+    def test_rising_is_worsening(self):
+        h = self._history([10.0, 10.0, 10.0, 35.0])
+        assert compute_trend(35.0, h, False) == "worsening"
+
+    def test_falling_is_improving(self):
+        h = self._history([30.0, 30.0, 30.0, 10.0])
+        assert compute_trend(10.0, h, False) == "improving"
+
+    def test_surge_escalates_one_step(self):
+        h = self._history([10.0, 10.0, 10.0, 10.0])
+        assert compute_trend(10.0, h, True) == "worsening"
+        falling = self._history([30.0, 30.0, 30.0, 10.0])
+        assert compute_trend(10.0, falling, True) == "stable"
+
+    def test_tiny_scores_use_absolute_band(self):
+        # ref 1.0 with 15% band would flip on 0.2 — absolute band of 1.0 absorbs it
+        h = self._history([1.0, 1.0, 1.0, 1.2])
+        assert compute_trend(1.2, h, False) == "stable"
+
+
+class TestLaggedBaseline:
+    def test_recent_buckets_excluded_from_baseline(self):
+        # 24 hourly rows: 20 quiet (5.0) then 4 elevated (100.0, the "event").
+        # With the 3-bucket lag, the event's last 3 hours must not enter the
+        # baseline — it stays anchored near the quiet level.
+        rows = []
+        for i in range(24):
+            ts = (_NOW - timedelta(hours=23 - i)).strftime("%Y-%m-%dT%H:00:00Z")
+            score = 100.0 if i >= 20 else 5.0
+            rows.append({
+                "timestamp": ts, "category": "transport",
+                "ongoing_count": 3, "ongoing_score": score,
+                "projected_count": 0, "projected_score": 0.0,
+                "upcoming_count": 0, "upcoming_score": 0.0,
+                "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0,
+            })
+
+        def get_fn(cat, since):
+            return rows if cat == "transport" else []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        current["transport"]["ongoing_score"] = 100.0
+        current["transport"]["ongoing_count"] = 30
+
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        baseline = ts["transport"]["baseline"]
+        # pool = 21 rows (24 − 3 lag) = 20 quiet + 1 event hour
+        assert baseline["n"] == 21
+        assert baseline["p75"] == 5.0
+        # so the ongoing event still reads severe instead of normalizing away
+        assert ts["transport"]["current"]["status"] == "severe"
+
+    def test_short_history_no_baseline(self):
+        rows = []
+        for i in range(4):
+            ts = (_NOW - timedelta(hours=3 - i)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "category": "transport",
+                "ongoing_count": 1, "ongoing_score": 5.0,
+                "projected_count": 0, "projected_score": 0.0,
+                "upcoming_count": 0, "upcoming_score": 0.0,
+                "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0,
+            })
+
+        def get_fn(cat, since):
+            return rows if cat == "transport" else []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        # only 1 pool row after lag — not enough for a baseline
+        assert ts["transport"]["baseline"] is None
+
+
+class TestTimeseriesDeterministicFields:
+    def test_trend_and_surge_present(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        for cat in CATEGORY_SOURCES:
+            assert ts[cat]["current"]["trend"] in ("improving", "stable", "worsening")
+            assert ts[cat]["current"]["surge_expected"] in (True, False)
+
+    def test_status_floor_applied_in_timeseries(self):
+        def get_fn(cat, since):
+            return []
+
+        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
+                         "projected_count": 0, "projected_score": 0.0,
+                         "upcoming_count": 0, "upcoming_score": 0.0,
+                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
+                   for cat in CATEGORY_SOURCES}
+        current["weather"] = {**current["weather"], "ongoing_count": 1,
+                              "ongoing_score": 2.0, "status_floor": "severe"}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        # no baseline → would be "minor"; DWD floor forces severe
+        assert ts["weather"]["current"]["status"] == "severe"
 
 
 class TestCategoryConfig:

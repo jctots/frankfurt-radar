@@ -23,49 +23,33 @@ How to use history:
 
 ## Category time-series
 
-The following shows severity-weighted scores per category over each category's natural time window. Use this to judge **trend** and write the narrative. **Status is pre-computed — do not assign or override it.**
+The following shows severity-weighted scores per category over each category's natural time window. **Status and trend are both pre-computed deterministically — do not assign or re-derive them.** Use this data to write the narrative.
 
 {timeseries_json}
 
 Field reference:
-- `current.status`: the **pre-computed status** label for this category (`clear` / `minor` / `moderate` / `severe`), derived deterministically from Layer 1 scores. Receive it as context — you do not set this.
+- `current.status`: the **pre-computed status** label (`clear` / `minor` / `moderate` / `severe`), derived from Layer 1 scores with hysteresis. Receive it as context — you do not set this.
+- `current.trend`: the **pre-computed trend** (`improving` / `stable` / `worsening`), derived from the score history. Receive it as context.
+- `current.surge_expected`: true when significant scheduled activity starts within the next sample interval — use bridging language in the narrative ("calm now, but a storm system arrives tonight").
 - `current.ongoing`: active disruptions right now — count and severity-weighted score
-- `current.projected`: predicted score at the end of the **next sample interval** (1h for Transport, 6h for Weather, 24h for Roadworks/Events). Directly comparable to `ongoing_score` — lower means improving, higher means worsening.
-- `current.horizon` (not present for Incidents):
-  - `total_score`: severity-weighted sum of all upcoming alerts across the full lookahead window
-  - `near_score`: portion of `total_score` falling within the next sample interval — high ratio means activity is imminent
-- `history`: past data points at the category's sample interval. Each point has `count`, `score` (ongoing), and `horizon_score` (full-lookahead total at that snapshot). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
-- `baseline`: statistical summary of historical `score` values — `mean` (typical level), `p25` (25th percentile, quieter than 75% of past periods), and `p75` (75th percentile, busier than 75% of past periods). Present when ≥3 history points exist.
+- `current.projected`: score at the end of the **next sample interval** counting only *scheduled* starts and expiries. For categories without scheduled alerts it equals `ongoing` — that is normal, not a signal.
+- `current.upcoming` (not present for Incidents): scheduled future activity within the lookahead window — `total_score` (all scheduled starts) and `near_score` (the portion starting within the next sample interval).
+- `history`: past data points at the category's sample interval. Each point has `count`, `score` (ongoing), and `upcoming_score` (scheduled future starts seen at that snapshot). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
+- `baseline`: statistical summary of historical `score` values (excluding the most recent hours) — `mean`, `p25`, `p75`. Present when enough history exists.
 - `window`: the time range and sample interval used
 
-## Your role: trend and narrative
+## Your role: narrative
 
-**You do not assign or override `status`.** Your job is:
+**You do not assign `status` or `trend`.** Your job is:
 
-1. **Trend** per category: `improving` / `stable` / `worsening` — **only these three values are valid; never use any other label (e.g. "clear")**
-2. **Title, summary, recommendation**: synthesize across categories
+1. **Title, summary, recommendation**: synthesize across categories
+2. **Optionally**, a trend override — but only in the narrow case below
 
-## How to judge trend
+## Trend override (rare)
 
-**Signal 1 — Scores + baseline (default)**
+The pre-computed trend is derived from scores alone. Alert *content* sometimes carries information the scores cannot see — an alert body announcing "service resumes at 14:30", a storm warning body saying conditions will intensify, an end-date announced for major roadworks.
 
-Use `baseline.mean`, `baseline.p25`, and `baseline.p75` as reference points:
-- Score consistently above p75 and projected to stay there → worsening
-- Score recently dropped from above p75 toward mean, or from mean toward/below p25 → improving
-- Score rising from near mean toward or above p75 → worsening
-- Score near mean with projected also near mean → stable
-- `p25` is only a meaningful signal for categories with a non-zero floor (transport, roadworks, incidents) — for bursty categories (weather, events) it often collapses to 0 and adds nothing beyond `clear` status; weight it accordingly.
-
-Also compare `projected` vs `ongoing` directly: a significantly lower projection = improving; significantly higher = worsening. Consider the full history shape, not just the last data point.
-
-**Signal 2 — Horizon momentum (override only)**
-
-`horizon_score` across history entries shows whether new alerts are being published faster than old ones drop off — a rising sequence = acceleration. This signal overrides Signal 1 ONLY when BOTH conditions hold:
-
-1. **Sharp**: clear acceleration in `horizon_score` across 2–3 recent history entries (doubling or tripling, not a 10–20% drift)
-2. **Near**: `current.horizon.near_score` is a high proportion of `total_score` — activity is imminent, not distant
-
-When both hold, escalate trend and use bridging language: "clearing up today, but a second system is expected tomorrow night." When only one condition holds, mention the upcoming activity briefly in narrative if useful — do not change the trend label.
+ONLY when alert text explicitly states a direction that contradicts the pre-computed trend, you may override it via the `trend_override` output field, giving the category, the corrected trend, and a one-sentence reason quoting the alert content that justifies it. If no alert text explicitly contradicts a pre-computed trend, return an empty list. Never override based on your own reading of the scores.
 
 ## Output format
 
@@ -76,20 +60,14 @@ Produce a JSON object with EXACTLY these fields:
   "summary": "2-3 short sentences. MUST be under 300 characters.",
   "recommendation": "One short actionable sentence. MUST be under 100 characters. If nothing notable: 'No special action needed.'",
   "references": ["alert_id_1", "alert_id_2", "alert_id_3"],
-  "categories": {{
-    "transport": {{"trend": "improving|stable|worsening"}},
-    "weather":   {{"trend": "improving|stable|worsening"}},
-    "roadworks": {{"trend": "improving|stable|worsening"}},
-    "incidents": {{"trend": "improving|stable|worsening"}},
-    "events":    {{"trend": "improving|stable|worsening"}}
-  }}
+  "trend_override": []
 }}
 
 **title**: A high-level headline for the current situation — what a user needs to know at a glance. Informational, not actionable (that's the recommendation). Shown in the alert feed alongside individual alert titles.
 
 **references**: The `alert_id` values of the top 3 alerts that most influenced the summary. Order by significance. Return fewer if fewer than 3 alerts are active.
 
-**categories**: Trend judgment only. You MUST include all 5 categories. Do NOT include `status` — it is pre-computed.
+**trend_override**: Usually an empty list. Each entry, if any: {{"category": "transport", "trend": "improving|stable|worsening", "reason": "alert X states service resumes at 14:30"}}. Maximum 2 entries.
 
 ## Source-specific handling
 

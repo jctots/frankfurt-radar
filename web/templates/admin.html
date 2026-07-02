@@ -718,18 +718,19 @@ function renderCategoryGrid(entries) {
     tbody += `<tr><td><button class="pulse-time-btn" onclick="selectCell(${i}, null)">${t}</button></td>`;
     for (const cat of CAT_ORDER) {
       const l3cat = e.layer_3_output?.categories?.[cat];
+      const l1cur = e.layer_1_deterministic?.timeseries?.[cat]?.current;
       let status, trend;
       if (l3cat) {
         status = l3cat.status || 'clear';
         trend = l3cat.trend || 'stable';
       } else {
-        // No LLM ran this hour — status is the deterministic (rules-based) value;
-        // trend is an LLM judgment call, so it's genuinely unavailable here.
-        status = e.layer_1_deterministic?.timeseries?.[cat]?.current?.status || 'clear';
-        trend = null;
+        // No LLM ran this hour — status and trend are both deterministic
+        // (rules-based) values, so skipped hours have them too.
+        status = l1cur?.status || 'clear';
+        trend = l1cur?.trend || null;
       }
       const icon = trendIcon(trend);
-      const trendLabel = trend || 'not judged (deterministic only)';
+      const trendLabel = trend || 'not recorded';
       const trendSpan = trend ? `<span class="trend ${trend}">${icon}</span>` : '';
       tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trendLabel})">
         ${statusBadge(status)}${trendSpan ? ' ' + trendSpan : ''}
@@ -794,12 +795,13 @@ function selectCell(idx, cat) {
     const cur = ts.current || {};
     const ongoing = cur.ongoing || {};
     const projected = cur.projected || {};
+    const upcoming = cur.upcoming || null;
     const horizon = cur.horizon || null;
     const history = ts.history || [];
     const l3cats = l3.categories || {};
     const l3cat = l3cats[c];
     const status = l3cat ? (l3cat.status || 'clear') : (cur.status || 'clear');
-    const trend = l3cat ? (l3cat.trend || 'stable') : null;
+    const trend = l3cat ? (l3cat.trend || 'stable') : (cur.trend || null);
 
     // Compute baseline stats here so they're available for both score cards and chart
     let bMean = 0, bP25 = 0, bP75 = 0;
@@ -817,7 +819,7 @@ function selectCell(idx, cat) {
     }
 
     body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
-    const trendText = trend ? `${trendIcon(trend)} ${trend}` : 'not judged (deterministic only)';
+    const trendText = trend ? `${trendIcon(trend)} ${trend}` : 'not recorded';
     const trendSpanEl = `<span class="trend ${trend || 'stable'}">${trendText}</span>`;
     if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusBadge(status)} ${trendSpanEl}</div>`;
 
@@ -834,9 +836,16 @@ function selectCell(idx, cat) {
         <div class="score-val">${projected.score ?? '—'}</div>
         <div style="font-size:10px;color:var(--clr-muted)">${projected.count ?? 0} projected</div>
       </div>`;
-    if (horizon) {
+    if (upcoming) {
       body += `<div class="score-item">
-        <div class="score-label">Horizon</div>
+        <div class="score-label">Upcoming (scheduled)</div>
+        <div class="score-val">${upcoming.total_score ?? '—'}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">near: ${upcoming.near_score ?? 0}${cur.surge_expected ? ' · ⚡ surge' : ''}</div>
+      </div>`;
+    } else if (horizon) {
+      // Older debug entries (pre-v0.12) only have the end-state horizon
+      body += `<div class="score-item">
+        <div class="score-label">Horizon (end-state)</div>
         <div class="score-val">${horizon.total_score ?? '—'}</div>
         <div style="font-size:10px;color:var(--clr-muted)">near: ${horizon.near_score ?? 0}</div>
       </div>`;

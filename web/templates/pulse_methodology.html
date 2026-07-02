@@ -171,26 +171,26 @@
       <div class="layer-card">
         <div class="layer-num">Layer 1</div>
         <div class="layer-name">🧮 Deterministic scoring</div>
-        <div class="layer-desc">Active alerts are weighted by severity and service type, summed into a score per category, compared to a historical baseline, and assigned a status label. No AI involved.</div>
+        <div class="layer-desc">Active alerts are weighted by severity and service type, summed into a score per category, compared to a historical baseline, and assigned a status <em>and</em> trend label. Statuses de-escalate with a one-hour confirmation delay so they don't flicker. No AI involved.</div>
         <span class="layer-badge det">No AI</span>
       </div>
       <div class="layer-arrow">→</div>
       <div class="layer-card">
         <div class="layer-num">Layer 2</div>
         <div class="layer-name">🤖 AI synthesis</div>
-        <div class="layer-desc">Gemini Flash receives the computed scores, baseline, alert bodies, and pulse history. Its only job: judge the <em>trend</em> per category and write the summary. It cannot assign or override status.</div>
+        <div class="layer-desc">Gemini Flash receives the computed scores, baseline, alert bodies, and pulse history, and writes the summary and recommendation. It may correct a trend only when alert <em>text</em> says something the scores can't see (e.g. "service resumes at 14:30") — and must log its reason.</div>
         <span class="layer-badge ai">Gemini Flash</span>
       </div>
       <div class="layer-arrow">→</div>
       <div class="layer-card">
         <div class="layer-num">Layer 3</div>
         <div class="layer-name">📤 Final output</div>
-        <div class="layer-desc">Layer 1 status + Layer 2 trend are merged into the pulse card you see on the map. Generation frequency is adaptive — see below.</div>
+        <div class="layer-desc">Layer 1 status + trend (plus any logged AI content-correction) are merged into the pulse card you see on the map. Generation frequency is adaptive — see below.</div>
         <span class="layer-badge out">Adaptive</span>
       </div>
     </div>
     <div class="callout">
-      <strong>Status is never decided by AI.</strong> It is a score that crosses a threshold derived from historical data. The charts below show exactly where today's score sits relative to those thresholds — that is the proof.
+      <strong>Status and trend are never decided by AI.</strong> Status is a score crossing thresholds derived from historical data; trend compares the current score against the recent past with a noise-tolerant dead band. The charts below show exactly where today's score sits relative to those thresholds — that is the proof.
     </div>
   </div>
 
@@ -211,19 +211,24 @@
   <!-- Trend rules -->
   <div class="section">
     <div class="section-eyebrow">📈 How trend is judged</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is the only thing the AI decides. Two signals feed into it — Signal 1 is the default; Signal 2 can override it.</p>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is computed deterministically, just like status. Three rules feed into it, in order:</p>
     <table class="tbl">
-      <thead><tr><th>Signal</th><th>What it looks at</th><th>When it applies</th></tr></thead>
+      <thead><tr><th>Rule</th><th>What it looks at</th><th>When it applies</th></tr></thead>
       <tbody>
         <tr>
-          <td><strong>Signal 1</strong> — next-interval projection</td>
-          <td>Compares the current ongoing score to the projected score at the end of the next sample interval, combined with the shape of recent history</td>
+          <td><strong>Score vs. recent past</strong></td>
+          <td>Compares the current score to the average of the 3 preceding sample intervals, with a ±15% dead band so small fluctuations read as stable</td>
           <td>Default for all categories</td>
         </tr>
         <tr>
-          <td><strong>Signal 2</strong> — horizon momentum</td>
-          <td>Looks at whether the horizon score series shows sharp acceleration <em>and</em> whether near-term activity already accounts for a large share of the total upcoming load</td>
-          <td>Overrides Signal 1 only when both conditions hold; AI uses bridging language ("conditions will worsen significantly later today")</td>
+          <td><strong>Scheduled surge</strong></td>
+          <td>Alerts with known future start times (storm warnings, planned closures, events): when significant scheduled activity is both large relative to the typical level and mostly imminent, the trend escalates one step</td>
+          <td>Escalation only — the AI uses bridging language ("calm now, but a storm system arrives tonight")</td>
+        </tr>
+        <tr>
+          <td><strong>AI content correction</strong></td>
+          <td>Alert <em>text</em> occasionally states a direction the scores can't see — "service resumes at 14:30", "conditions will intensify overnight". The AI may correct the trend for that category, quoting the text as its logged reason</td>
+          <td>Rare; only when alert content explicitly contradicts the computed trend</td>
         </tr>
       </tbody>
     </table>
@@ -239,16 +244,21 @@
   <!-- Threshold table -->
   <div class="section">
     <div class="section-eyebrow">🎯 How status labels are assigned</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. the baseline of the last N snapshots. 100% deterministic.</p>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. a historical baseline. The baseline deliberately excludes the most recent hours, so a disruption that is still happening can't redefine "normal" and hide itself. 100% deterministic.</p>
     <table class="tbl">
       <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
       <tbody>
         <tr><td><span class="status clear"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
-        <tr><td><span class="status minor"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg></span>minor</span></td><td>Score ≤ baseline mean</td><td>Activity at or below the typical level for this category</td></tr>
-        <tr><td><span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span></td><td>Mean &lt; score ≤ p75</td><td>Elevated above normal — worth being aware of</td></tr>
-        <tr><td><span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Score &gt; p75</td><td>Well above the 75th percentile — significant disruption</td></tr>
+        <tr><td><span class="status minor"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg></span>minor</span></td><td>Score at or below the typical level</td><td>Activity at or below the baseline for this category</td></tr>
+        <tr><td><span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span></td><td>Between the typical level and the 75th percentile</td><td>Elevated above normal — worth being aware of</td></tr>
+        <tr><td><span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Above the 75th percentile</td><td>Well above what this category normally looks like</td></tr>
       </tbody>
     </table>
+    <div class="callout" style="margin-top:12px;">
+      <strong>Two safeguards on top of the thresholds.</strong>
+      <em>Weather floor:</em> official DWD warning levels override the baseline — a severe (level 3) warning always shows at least <em>moderate</em>, an extreme (level 4) warning always shows <em>severe</em>, even when recent history is calm.
+      <em>De-escalation delay:</em> a status only steps down after staying lower for a full extra hour, so it can't flicker between labels at a threshold boundary. Escalations always apply immediately.
+    </div>
   </div>
 
   <!-- Alert weights -->

@@ -107,16 +107,18 @@ CREATE TABLE IF NOT EXISTS pulse_daily_summary (
 );
 
 CREATE TABLE IF NOT EXISTS category_snapshots (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp           TEXT NOT NULL,
-    category            TEXT NOT NULL,
-    ongoing_count       INTEGER NOT NULL DEFAULT 0,
-    ongoing_score       REAL NOT NULL DEFAULT 0.0,
-    projected_count     INTEGER NOT NULL DEFAULT 0,
-    projected_score     REAL NOT NULL DEFAULT 0.0,
-    upcoming_count      INTEGER NOT NULL DEFAULT 0,
-    upcoming_score      REAL NOT NULL DEFAULT 0.0,
-    upcoming_near_score REAL NOT NULL DEFAULT 0.0,
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp                TEXT NOT NULL,
+    category                 TEXT NOT NULL,
+    ongoing_count            INTEGER NOT NULL DEFAULT 0,
+    ongoing_score            REAL NOT NULL DEFAULT 0.0,
+    projected_count          INTEGER NOT NULL DEFAULT 0,
+    projected_score          REAL NOT NULL DEFAULT 0.0,
+    upcoming_count           INTEGER NOT NULL DEFAULT 0,
+    upcoming_score           REAL NOT NULL DEFAULT 0.0,
+    upcoming_near_score      REAL NOT NULL DEFAULT 0.0,
+    scheduled_upcoming_score REAL NOT NULL DEFAULT 0.0,
+    weights_version          INTEGER NOT NULL DEFAULT 2,
     UNIQUE(timestamp, category)
 );
 
@@ -267,6 +269,18 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_count INTEGER NOT NULL DEFAULT 0")
                 conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_score REAL NOT NULL DEFAULT 0.0")
                 conn.execute("ALTER TABLE category_snapshots ADD COLUMN upcoming_near_score REAL NOT NULL DEFAULT 0.0")
+        except Exception:
+            pass
+        # v0.12: scheduled upcoming (pure future starts) + weights versioning.
+        # Existing rows are grandfathered as the current version via the column
+        # default; when weights change again, bump WEIGHTS_VERSION in
+        # pulse_categories.py and old-scale rows drop out of baselines.
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(category_snapshots)")]
+            if "scheduled_upcoming_score" not in cols:
+                conn.execute("ALTER TABLE category_snapshots ADD COLUMN scheduled_upcoming_score REAL NOT NULL DEFAULT 0.0")
+            if "weights_version" not in cols:
+                conn.execute("ALTER TABLE category_snapshots ADD COLUMN weights_version INTEGER NOT NULL DEFAULT 2")
         except Exception:
             pass
         for col in ("title_de", "body_de"):
@@ -1179,15 +1193,16 @@ def get_pulses_for_date(date: str) -> list[dict]:
     return [_parse_pulse_row(row) for row in rows]
 
 
-def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
+def store_category_snapshots(timestamp: str, snapshots: dict, weights_version: int = 2) -> None:
     with _conn() as conn:
         for category, data in snapshots.items():
             conn.execute(
                 """INSERT OR REPLACE INTO category_snapshots
                    (timestamp, category, ongoing_count, ongoing_score,
                     projected_count, projected_score,
-                    upcoming_count, upcoming_score, upcoming_near_score)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    upcoming_count, upcoming_score, upcoming_near_score,
+                    scheduled_upcoming_score, weights_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     timestamp,
                     category,
@@ -1198,16 +1213,28 @@ def store_category_snapshots(timestamp: str, snapshots: dict) -> None:
                     data.get("upcoming_count", 0),
                     data.get("upcoming_score", 0.0),
                     data.get("upcoming_near_score", 0.0),
+                    data.get("scheduled_upcoming_score", 0.0),
+                    weights_version,
                 ),
             )
 
 
-def get_category_snapshots(category: str, since: str) -> list[dict]:
+def get_category_snapshots(category: str, since: str, weights_version: int | None = None) -> list[dict]:
+    """Snapshots for a category since a timestamp. When `weights_version` is
+    given, only same-version rows are returned — scores from different weight
+    calibrations are not comparable and would poison baselines and history."""
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM category_snapshots WHERE category = ? AND timestamp >= ? ORDER BY timestamp",
-            (category, since),
-        ).fetchall()
+        if weights_version is not None:
+            rows = conn.execute(
+                "SELECT * FROM category_snapshots WHERE category = ? AND timestamp >= ?"
+                " AND weights_version = ? ORDER BY timestamp",
+                (category, since, weights_version),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM category_snapshots WHERE category = ? AND timestamp >= ? ORDER BY timestamp",
+                (category, since),
+            ).fetchall()
     return [dict(r) for r in rows]
 
 

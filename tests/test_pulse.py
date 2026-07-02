@@ -175,13 +175,7 @@ class TestGeneratePulse:
             "summary": "S1 delays reported",
             "recommendation": "Allow extra time for S-Bahn.",
             "references": ["HIM_1"],
-            "categories": {
-                "transport": {"status": "delays", "trend": "worsening"},
-                "weather": {"status": "clear", "trend": "stable"},
-                "roadworks": {"status": "clear", "trend": "stable"},
-                "incidents": {"status": "clear", "trend": "stable"},
-                "events": {"status": "clear", "trend": "stable"},
-            },
+            "trend_override": [],
         }
         mocker.patch("pulse.db.get_all_active_alerts", return_value=alerts)
         mocker.patch("pulse.db.get_recent_pulses", return_value=[])
@@ -200,8 +194,62 @@ class TestGeneratePulse:
         assert result["summary"] == "S1 delays reported"
         assert result["alert_count"] == 1
         assert result["categories"]["transport"]["status"] in ("clear", "minor", "moderate", "severe")
-        assert result["categories"]["transport"]["trend"] == "worsening"
+        # trend is deterministic now — empty history means stable
+        assert result["categories"]["transport"]["trend"] == "stable"
         assert "HIM_1" in result["references"]
+
+    def _run_with_response(self, mocker, gemini_response):
+        alerts = [
+            {"source": "rmv", "title_en": "Delay", "body_en": "S1", "stale": False,
+             "service": "S-Bahn", "lines": '["S1"]', "severity": 2,
+             "valid_from": "2020-01-01T00:00:00Z", "valid_until": "2099-12-31T23:59:59Z",
+             "published_at": "2020-01-01T00:00:00Z", "url": None, "lat": None, "lon": None,
+             "location_label": None, "image": None, "icon": None, "alert_id": "HIM_1",
+             "cached_at": "2020-01-01T00:00:00Z", "removed_at": None},
+        ]
+        mocker.patch("pulse.db.get_all_active_alerts", return_value=alerts)
+        mocker.patch("pulse.db.get_recent_pulses", return_value=[])
+        mocker.patch("pulse.db.get_recent_daily_summaries", return_value=[])
+        mocker.patch("pulse.db.store_pulse")
+        mocker.patch("pulse.db.store_category_snapshots")
+        mocker.patch("pulse.db.get_category_snapshots", return_value=[])
+        mocker.patch("pulse.load_prompt", return_value=(
+            {"model": "gemini-2.5-flash", "temperature": 0.3},
+            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {timeseries_json}"
+        ))
+        mocker.patch("pulse._call_gemini", return_value=(gemini_response, {}))
+        return generate_pulse({"pulse": {"enabled": True}})
+
+    def test_valid_trend_override_applied(self, mocker):
+        result = self._run_with_response(mocker, {
+            "summary": "S1 back soon", "recommendation": "None.", "references": [],
+            "trend_override": [{"category": "transport", "trend": "improving",
+                                "reason": "alert states service resumes at 14:30"}],
+        })
+        assert result["categories"]["transport"]["trend"] == "improving"
+
+    def test_override_without_reason_rejected(self, mocker):
+        result = self._run_with_response(mocker, {
+            "summary": "S1", "recommendation": "None.", "references": [],
+            "trend_override": [{"category": "transport", "trend": "improving", "reason": ""}],
+        })
+        assert result["categories"]["transport"]["trend"] == "stable"
+
+    def test_override_invalid_category_rejected(self, mocker):
+        result = self._run_with_response(mocker, {
+            "summary": "S1", "recommendation": "None.", "references": [],
+            "trend_override": [{"category": "traffic", "trend": "improving", "reason": "x"}],
+        })
+        assert all(c["trend"] == "stable" for c in result["categories"].values())
+
+    def test_legacy_categories_field_ignored(self, mocker):
+        # Old prompt format on a data volume — LLM still returns categories;
+        # they must be ignored, not crash or leak into the output
+        result = self._run_with_response(mocker, {
+            "summary": "S1", "recommendation": "None.", "references": [],
+            "categories": {"transport": {"trend": "worsening"}},
+        })
+        assert result["categories"]["transport"]["trend"] == "stable"
 
 
 class TestGenerateDailySummary:
@@ -400,3 +448,21 @@ class TestPulseDB:
         assert len(rows) == 1
         assert rows[0]["ongoing_count"] == 7
         assert rows[0]["upcoming_count"] == 2
+
+    def test_weights_version_filter(self):
+        db.store_category_snapshots("2026-06-22T10:00:00Z", {
+            "transport": {"ongoing_count": 3, "ongoing_score": 5.0},
+        }, weights_version=1)
+        db.store_category_snapshots("2026-06-22T11:00:00Z", {
+            "transport": {"ongoing_count": 4, "ongoing_score": 20.0,
+                          "scheduled_upcoming_score": 1.5},
+        }, weights_version=2)
+
+        all_rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z")
+        assert len(all_rows) == 2
+
+        v2_rows = db.get_category_snapshots("transport", "2026-06-22T00:00:00Z", weights_version=2)
+        assert len(v2_rows) == 1
+        assert v2_rows[0]["ongoing_score"] == 20.0
+        assert v2_rows[0]["scheduled_upcoming_score"] == 1.5
+        assert v2_rows[0]["weights_version"] == 2

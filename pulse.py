@@ -14,6 +14,8 @@ import yaml
 import db
 from districts import coords_to_district
 from pulse_categories import (
+    WEIGHTS_VERSION,
+    apply_status_hysteresis,
     build_category_timeseries,
     compute_snapshot,
 )
@@ -278,6 +280,44 @@ def _should_skip_pulse(now: datetime, current_status: dict[str, str]) -> dict | 
     return None
 
 
+_STATUS_STATE_KEY = "pulse_status_state"
+
+
+def _apply_hysteresis(timeseries: dict, snapshot_ts: str) -> None:
+    """Replace each category's raw status with the hysteresis-damped effective
+    status (escalate immediately, de-escalate after 2 consecutive hours).
+    The raw value is kept as `raw_status` for the debug log."""
+    try:
+        state = json.loads(db.get_meta(_STATUS_STATE_KEY) or "{}")
+    except (TypeError, json.JSONDecodeError):
+        state = {}
+    advance = state.get("last_ts") != snapshot_ts
+    cats_state = state.get("categories", {})
+
+    for cat, ts in timeseries.items():
+        raw = ts["current"]["status"]
+        prev = cats_state.get(cat, {})
+        effective, pending = apply_status_hysteresis(
+            raw, prev.get("effective"), prev.get("pending", 0), advance,
+        )
+        ts["current"]["raw_status"] = raw
+        ts["current"]["status"] = effective
+        cats_state[cat] = {"effective": effective, "pending": pending}
+
+    db.set_meta(_STATUS_STATE_KEY, json.dumps({"last_ts": snapshot_ts, "categories": cats_state}))
+
+
+def _llm_timeseries(timeseries: dict) -> dict:
+    """Timeseries payload for the prompt — drops the end-state `horizon`
+    (admin-only: it mostly reflects expiry schedules of current alerts and
+    misled the old Signal 2) and the internal raw_status."""
+    out = {}
+    for cat, ts in timeseries.items():
+        current = {k: v for k, v in ts["current"].items() if k not in ("horizon", "raw_status")}
+        out[cat] = {**ts, "current": current}
+    return out
+
+
 _ALL_CLEAR_PULSE = {
     "summary": "All clear — no active alerts in Frankfurt.",
     "categories": {
@@ -303,11 +343,16 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
 
     snapshot, score_breakdown = compute_snapshot(alerts, now)
     snapshot_ts = now.strftime("%Y-%m-%dT%H:00:00Z")
-    db.store_category_snapshots(snapshot_ts, snapshot)
+    db.store_category_snapshots(snapshot_ts, snapshot, weights_version=WEIGHTS_VERSION)
 
-    # Deterministic status needs no LLM — compute it every hour so a skipped
-    # (calm) hour still has a real status on record, not just the last pulse's.
-    timeseries = build_category_timeseries(db.get_category_snapshots, snapshot, now)
+    # Deterministic status and trend need no LLM — compute them every hour so
+    # a skipped (calm) hour still has real values on record. History and
+    # baselines only use same-version snapshots (see WEIGHTS_VERSION).
+    def _get_snapshots(category: str, since: str) -> list[dict]:
+        return db.get_category_snapshots(category, since, weights_version=WEIGHTS_VERSION)
+
+    timeseries = build_category_timeseries(_get_snapshots, snapshot, now)
+    _apply_hysteresis(timeseries, snapshot_ts)
     current_status = {cat: ts["current"]["status"] for cat, ts in timeseries.items()}
 
     if not force:
@@ -324,6 +369,15 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
 
     if not alerts:
         pulse = dict(_ALL_CLEAR_PULSE)
+        # Respect hysteresis: a category may still be de-escalating even
+        # with zero active alerts.
+        pulse["categories"] = {
+            cat: {
+                "status": timeseries.get(cat, {}).get("current", {}).get("status", "clear"),
+                "trend": timeseries.get(cat, {}).get("current", {}).get("trend", "stable"),
+            }
+            for cat in ("weather", "transport", "roadworks", "incidents", "events")
+        }
         pulse["generated_at"] = generated_at
         pulse["alert_count"] = 0
         db.store_pulse(pulse)
@@ -344,7 +398,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         "alerts_json": alerts_json,
         "stale_summary": stale_summary,
         "history_section": history,
-        "timeseries_json": json.dumps(timeseries, indent=2),
+        "timeseries_json": json.dumps(_llm_timeseries(timeseries), indent=2),
     })
 
     result, usage = _call_gemini(prompt_config, prompt_text)
@@ -355,16 +409,34 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
     valid_ids = {a.get("alert_id") for a in alerts if a.get("alert_id")}
     references = [r for r in references if r in valid_ids][:3]
 
-    # Status is deterministic from Layer 1; LLM provides trend only
+    # Status AND trend are deterministic from Layer 1. The LLM may override a
+    # trend only via an explicit trend_override with a reason — for cases where
+    # alert *content* carries information the scores can't (e.g. "service
+    # resumes at 14:30"). Overrides are validated and logged.
     _VALID_TRENDS = {"stable", "improving", "worsening"}
-    llm_categories = result.get("categories", {})
+    _CATS = ("weather", "transport", "roadworks", "incidents", "events")
+
+    overrides_raw = result.get("trend_override") or []
+    if isinstance(overrides_raw, dict):
+        overrides_raw = [overrides_raw]
+    overrides: dict[str, dict] = {}
+    for o in overrides_raw:
+        if not isinstance(o, dict):
+            continue
+        cat = o.get("category")
+        trend = o.get("trend")
+        reason = (o.get("reason") or "").strip()
+        if cat in _CATS and trend in _VALID_TRENDS and reason:
+            overrides[cat] = {"trend": trend, "reason": reason}
+
     categories = {}
-    for cat in ("weather", "transport", "roadworks", "incidents", "events"):
-        computed_status = timeseries.get(cat, {}).get("current", {}).get("status", "clear")
-        llm_trend = (llm_categories.get(cat) or {}).get("trend", "stable")
-        if llm_trend not in _VALID_TRENDS:
-            llm_trend = "stable"
-        categories[cat] = {"status": computed_status, "trend": llm_trend}
+    for cat in _CATS:
+        current = timeseries.get(cat, {}).get("current", {})
+        computed_status = current.get("status", "clear")
+        trend = current.get("trend", "stable")
+        if cat in overrides:
+            trend = overrides[cat]["trend"]
+        categories[cat] = {"status": computed_status, "trend": trend}
 
     pulse = {
         "generated_at": generated_at,
@@ -395,6 +467,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
             "prompt": prompt_text,
             "response": result,
         },
+        "trend_overrides_applied": overrides,
         "layer_3_output": pulse,
     })
 

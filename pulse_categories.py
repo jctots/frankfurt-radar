@@ -42,6 +42,12 @@ CATEGORY_WINDOWS: dict[str, dict] = {
     "events": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 168},
 }
 
+# Bump whenever _compute_weight or any weight table changes. Snapshots are
+# stored with this version and baselines only compare same-version scores —
+# otherwise every weight calibration poisons the baseline with old-scale
+# history for up to the category's full window (4 weeks for roadworks).
+WEIGHTS_VERSION = 2
+
 SEVERITY_WEIGHTS_DWD: dict[int, float] = {1: 0.5, 2: 1.0, 3: 1.5, 4: 2.0}
 SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5, "Tram": 1.0, "Bus": 0.5}
 SERVICE_WEIGHTS_BAUSTELLEN: dict[str, float] = {"City (Full)": 1.5, "City (Partial)": 0.5}
@@ -50,20 +56,126 @@ WEIGHT_DEFAULT = 1.0
 
 _NO_TEMPORAL_SOURCES = frozenset(("polizei", "strike"))
 
+_STATUS_RANK: dict[str, int] = {"clear": 0, "minor": 1, "moderate": 2, "severe": 3}
 
-def compute_status(ongoing_score: float, baseline: dict | None) -> str:
-    """Return deterministic status label from score and historical baseline."""
+# Exclude the trailing N buckets from baseline statistics so an ongoing
+# episode doesn't absorb itself into the baseline within hours (July 1:
+# p75 jumped 44→131 in ~5h and status flapped severe↔moderate all night).
+BASELINE_LAG_BUCKETS = 3
+
+
+def compute_status(ongoing_score: float, baseline: dict | None, floor: str | None = None) -> str:
+    """Return deterministic status label from score and historical baseline.
+
+    `floor` is a minimum status enforced regardless of baseline — used where
+    a source provides an authoritative absolute severity (DWD warning levels),
+    so e.g. an extreme storm after three calm days can't read "minor" just
+    because the baseline is empty.
+    """
     if ongoing_score <= 0:
         return "clear"
     if baseline is None:
-        return "minor"
-    mean = baseline.get("mean", 0)
-    p75 = baseline.get("p75", 0)
-    if ongoing_score <= mean:
-        return "minor"
-    if ongoing_score <= p75:
+        status = "minor"
+    else:
+        # min/max guard: with nonzero-only stats the mean can exceed p75
+        # (skewed history), which would make the moderate band empty.
+        lo = min(baseline.get("mean", 0), baseline.get("p75", 0))
+        hi = max(baseline.get("mean", 0), baseline.get("p75", 0))
+        if ongoing_score <= lo:
+            status = "minor"
+        elif ongoing_score <= hi:
+            status = "moderate"
+        else:
+            status = "severe"
+    if floor and _STATUS_RANK.get(floor, 0) > _STATUS_RANK[status]:
+        return floor
+    return status
+
+
+def compute_status_floor(category: str, ongoing_alerts: list[dict]) -> str | None:
+    """Absolute status floor from authoritative source severity, if any.
+
+    Only weather has one today: DWD severity 3 (severe) floors the category
+    at "moderate", severity 4 (extreme) at "severe". Other categories have no
+    authoritative absolute scale — their scores are count- and weight-driven,
+    so no floor is derived for them.
+    """
+    if category != "weather":
+        return None
+    max_sev = max((a.get("severity") or 0) for a in ongoing_alerts) if ongoing_alerts else 0
+    if max_sev >= 4:
+        return "severe"
+    if max_sev == 3:
         return "moderate"
-    return "severe"
+    return None
+
+
+def apply_status_hysteresis(
+    raw: str, prev_effective: str | None, pending: int, advance: bool,
+) -> tuple[str, int]:
+    """Damp status de-escalations to stop boundary flapping.
+
+    Escalations (raw >= effective) apply immediately — an alerting system
+    must not delay bad news. De-escalations only apply after the raw status
+    has been below the effective status for 2 consecutive hourly runs.
+    `advance` is False when re-running within the same hour slot (manual
+    /pulse trigger), so repeated runs can't burn through the confirmation.
+
+    Returns (effective_status, new_pending_count).
+    """
+    if prev_effective is None:
+        return raw, 0
+    if _STATUS_RANK.get(raw, 0) >= _STATUS_RANK.get(prev_effective, 0):
+        return raw, 0
+    if not advance:
+        return prev_effective, pending
+    pending += 1
+    if pending >= 2:
+        return raw, 0
+    return prev_effective, pending
+
+
+def compute_surge(upcoming_total: float, upcoming_near: float, baseline: dict | None) -> bool:
+    """Deterministic replacement for the old LLM-judged "Signal 2".
+
+    True when scheduled upcoming load is both significant relative to the
+    typical level AND mostly imminent (starting within the next sample
+    interval). Judged from pure future starts — never from expiry schedules
+    of current alerts, which is what made the old horizon series fire on
+    RMV end-of-service rollovers.
+    """
+    if upcoming_total <= 0:
+        return False
+    if baseline is None:
+        # No typical level to compare against — require a meaningful
+        # imminent load on its own.
+        return upcoming_near >= 2.0
+    if upcoming_total < 1.5 * baseline.get("mean", 0):
+        return False
+    return (upcoming_near / upcoming_total) >= 0.5
+
+
+def compute_trend(current_score: float, history: list[dict], surge: bool) -> str:
+    """Deterministic trend: current score vs. mean of the 3 preceding buckets,
+    with a dead band so ±4% noise doesn't flip the label (the LLM used to
+    flip stable/worsening on exactly that). A surge escalates one step.
+    """
+    # history includes the current bucket last; compare against the 3 before it
+    prior = [h["score"] for h in history[:-1]][-3:]
+    if not prior:
+        trend = "stable"
+    else:
+        ref = statistics.mean(prior)
+        band = max(0.15 * ref, 1.0)
+        if current_score > ref + band:
+            trend = "worsening"
+        elif current_score < ref - band:
+            trend = "improving"
+        else:
+            trend = "stable"
+    if surge:
+        trend = {"improving": "stable", "stable": "worsening"}.get(trend, trend)
+    return trend
 
 
 def _compute_weight(alert: dict) -> float:
@@ -175,7 +287,11 @@ def compute_snapshot(
             "upcoming_count": 0,
             "upcoming_score": 0.0,
             "upcoming_near_score": 0.0,
+            "scheduled_upcoming_score": 0.0,
+            "status_floor": None,
         }
+
+    ongoing_by_cat: dict[str, list[dict]] = {cat: [] for cat in CATEGORY_SOURCES}
 
     near_ends: dict[str, str] = {}
     full_ends: dict[str, str] = {}
@@ -216,6 +332,7 @@ def compute_snapshot(
         if _is_ongoing(alert, now_iso):
             snapshot[cat]["ongoing_count"] += 1
             snapshot[cat]["ongoing_score"] += weight
+            ongoing_by_cat[cat].append(alert)
             breakdown[cat]["ongoing"].append(entry)
             if cat in near_ends and _is_expiring(alert, now_iso, near_ends[cat]):
                 expiring_near[cat]["count"] += 1
@@ -239,11 +356,17 @@ def compute_snapshot(
         projected_score = snapshot[cat]["ongoing_score"] - expiring_near[cat]["score"] + starting_near[cat]["score"]
         snapshot[cat]["projected_count"] = max(0, projected_count)
         snapshot[cat]["projected_score"] = round(max(0.0, projected_score), 2)
+        # End-state estimate over the full lookahead (ongoing − expiring + starting).
+        # Kept for the admin dashboard; NOT sent to the LLM — it mostly reflects the
+        # expiry schedule of current alerts, not upcoming activity.
         horizon_count = snapshot[cat]["ongoing_count"] - expiring_full[cat]["count"] + starting_full[cat]["count"]
         horizon_score = snapshot[cat]["ongoing_score"] - expiring_full[cat]["score"] + starting_full[cat]["score"]
         snapshot[cat]["upcoming_count"] = max(0, horizon_count)
         snapshot[cat]["upcoming_score"] = round(max(0.0, horizon_score), 2)
         snapshot[cat]["upcoming_near_score"] = round(starting_near[cat]["score"], 2)
+        # Pure future starts within the lookahead — the honest "upcoming" series.
+        snapshot[cat]["scheduled_upcoming_score"] = round(starting_full[cat]["score"], 2)
+        snapshot[cat]["status_floor"] = compute_status_floor(cat, ongoing_by_cat[cat])
 
     return snapshot, breakdown
 
@@ -257,7 +380,7 @@ def _aggregate_buckets(
                 "hour": r["timestamp"],
                 "count": r["ongoing_count"],
                 "score": r["ongoing_score"],
-                "horizon_score": round(r.get("upcoming_score", 0.0), 2),
+                "upcoming_score": round(r.get("scheduled_upcoming_score", 0.0) or 0.0, 2),
             }
             for r in rows
         ]
@@ -277,7 +400,7 @@ def _aggregate_buckets(
             }
         buckets[bucket_key]["counts"].append(r["ongoing_count"])
         buckets[bucket_key]["scores"].append(r["ongoing_score"])
-        buckets[bucket_key]["upcoming_scores"].append(r.get("upcoming_score", 0.0))
+        buckets[bucket_key]["upcoming_scores"].append(r.get("scheduled_upcoming_score", 0.0) or 0.0)
 
     label = "date" if interval_hours >= 24 else "period"
     result = []
@@ -287,7 +410,7 @@ def _aggregate_buckets(
             label: key[:10] if interval_hours >= 24 else key,
             "count": max(b["counts"]),
             "score": round(max(b["scores"]), 2),
-            "horizon_score": round(max(b["upcoming_scores"]), 2),
+            "upcoming_score": round(max(b["upcoming_scores"]), 2),
         }
         result.append(entry)
     return result
@@ -331,12 +454,21 @@ def build_category_timeseries(
         }
 
         if window["lookahead_hours"] > 0:
+            current["upcoming"] = {
+                "total_score": snap.get("scheduled_upcoming_score", 0.0),
+                "near_score": snap.get("upcoming_near_score", 0.0),
+            }
+            # End-state estimate — admin dashboard only, excluded from the
+            # LLM payload by pulse.py.
             current["horizon"] = {
                 "total_score": snap.get("upcoming_score", 0.0),
                 "near_score": snap.get("upcoming_near_score", 0.0),
             }
 
-        scores = [h["score"] for h in history if h.get("score", 0) > 0]
+        # Baseline from lagged history: exclude the trailing buckets so an
+        # ongoing episode can't normalize itself away within hours.
+        baseline_pool = history[:-BASELINE_LAG_BUCKETS] if len(history) > BASELINE_LAG_BUCKETS else []
+        scores = [h["score"] for h in baseline_pool if h.get("score", 0) > 0]
         if len(scores) >= 3:
             sorted_scores = sorted(scores)
             n = len(sorted_scores)
@@ -349,7 +481,15 @@ def build_category_timeseries(
         else:
             baseline = None
 
-        current["status"] = compute_status(snap.get("ongoing_score", 0.0), baseline)
+        ongoing_score = snap.get("ongoing_score", 0.0)
+        current["status"] = compute_status(ongoing_score, baseline, snap.get("status_floor"))
+        surge = compute_surge(
+            snap.get("scheduled_upcoming_score", 0.0),
+            snap.get("upcoming_near_score", 0.0),
+            baseline,
+        )
+        current["surge_expected"] = surge
+        current["trend"] = compute_trend(ongoing_score, history, surge)
 
         timeseries[cat] = {
             "current": current,

@@ -156,7 +156,7 @@ All LLM calls use Google Gemini Flash with a shared `GEMINI_API_KEY` and the sam
 | Daily summary | `pulse.py` | `daily_summary.md` | Compresses 24 hourly pulses at 23:00 |
 | Weight review | `web/app.py` | `weight_review.md` | Admin-triggered severity-weight calibration suggestions |
 
-**City Pulse** (`pulse.py` + `pulse_categories.py`) combines deterministic analysis with LLM synthesis: deterministic severity-weighted scoring and status per category, LLM trend judgment and narrative. It runs as a standalone cron job in the poller container; hourly pulses land in `pulse_history` and daily summaries in `pulse_daily_summary`, with the daily digest fed back as multi-day narrative context into future pulses. Extraction health is tracked via `extraction_ok()`, pulse health via `pulse_ok()`. See [analysis.md](analysis.md) for the full methodology.
+**City Pulse** (`pulse.py` + `pulse_categories.py`) combines deterministic analysis with LLM synthesis: severity-weighted scoring, status (with hysteresis and absolute floors), and trend are all computed deterministically per category; the LLM writes the narrative and may correct a trend only via a logged, content-based override. It runs as a standalone cron job in the poller container; hourly pulses land in `pulse_history` and daily summaries in `pulse_daily_summary`, with the daily digest fed back as multi-day narrative context into future pulses. Extraction health is tracked via `extraction_ok()`, pulse health via `pulse_ok()`. See [analysis.md](analysis.md) for the full methodology.
 
 ### 🌧️ Weather radar poller
 

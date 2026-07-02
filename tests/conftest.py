@@ -48,6 +48,7 @@ def clean_db():
         conn.execute("DELETE FROM pulse_daily_summary")
         conn.execute("DELETE FROM meta")
         conn.execute("DELETE FROM translation_variants")
+        conn.execute("DELETE FROM category_snapshots")
     yield
 
 

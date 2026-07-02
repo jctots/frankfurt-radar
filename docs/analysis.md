@@ -56,9 +56,11 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 **Hourly snapshots** — Stored in `category_snapshots` (one row per category per hour):
 
 - `ongoing_score`: severity-weighted sum of active alerts
-- `projected_score`: estimated score at the end of the next sample interval — `ongoing_score − expiring_near + starting_near`. Directly comparable to `ongoing_score`.
-- `upcoming_score`: estimated score at the end of the full lookahead window — `ongoing_score − expiring_full + starting_full`. Symmetric to `projected_score` but over the longer horizon. Together, `ongoing → projected → horizon` gives a directional trend signal.
-- `upcoming_near_score`: score of alerts starting within the next sample interval (the near portion of upcoming alerts)
+- `projected_score`: estimated score at the end of the next sample interval — `ongoing_score − expiring_near + starting_near`. Only *scheduled* starts and expiries move this; for categories whose alerts aren't scheduled (transport, incidents) it usually equals `ongoing_score`.
+- `scheduled_upcoming_score`: severity-weighted sum of alerts with a future `valid_from` inside the lookahead window — pure upcoming activity (storm warnings, planned closures, events). This is the series used for the surge signal.
+- `upcoming_near_score`: the portion of scheduled upcoming activity starting within the next sample interval
+- `upcoming_score`: end-state estimate over the full lookahead (`ongoing − expiring_full + starting_full`). Admin-dashboard only — it mostly reflects the expiry schedule of *current* alerts, so it is not sent to the LLM and drives no signal.
+- `weights_version`: the weight-table version the score was computed under. Baselines and history only compare same-version rows — otherwise every weight calibration would poison the baseline with old-scale scores for up to the category's full window (4 weeks for roadworks). Bump `WEIGHTS_VERSION` in `pulse_categories.py` whenever weights change.
 
 **Per-category time windows:**
 
@@ -70,38 +72,45 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 | Events | Daily | 1 week (7 points) | 1 week |
 | Incidents | Daily | 1 week (7 points) | None |
 
-**Statistical baseline** — Computed from the history window when ≥3 data points exist:
-- `baseline.mean`: average ongoing score — the "typical" level for this category
-- `baseline.p25`: 25th percentile — quieter than 75% of past periods. Trend-only signal (see Layer 2); not used in status thresholds. Collapses to 0 for bursty categories (weather, events) since scores are excluded when zero.
-- `baseline.p75`: 75th percentile — above this is genuinely elevated. Used for both status thresholds and the worsening-trend signal.
+**Statistical baseline** — Computed from nonzero history scores when ≥3 data points exist, with two guards:
 
-**Deterministic status** — Derived from `ongoing_score` and `baseline`:
+- **Lagged window**: the trailing 3 buckets are excluded (`BASELINE_LAG_BUCKETS`), so an ongoing episode can't absorb itself into the baseline within hours and normalize itself away (observed 2026-07-01: p75 jumped 44→131 in ~5h and status flapped severe↔moderate all night).
+- **Version filter**: only same-`weights_version` rows enter the baseline (and the history shown to the LLM).
+
+Fields: `baseline.mean` (typical level), `baseline.p25` (quieter than 75% of past periods), `baseline.p75` (busier than 75% of past periods).
+
+**Deterministic status** — Derived from `ongoing_score` and `baseline`, then passed through two safeguards:
 
 | Status | Condition |
 |--------|-----------|
 | clear | `ongoing_score == 0` |
-| minor | `score ≤ baseline.mean` (or no baseline yet) |
-| moderate | `baseline.mean < score ≤ baseline.p75` |
-| severe | `score > baseline.p75` |
+| minor | `score ≤ min(mean, p75)` (or no baseline yet) |
+| moderate | `min(mean, p75) < score ≤ max(mean, p75)` |
+| severe | `score > max(mean, p75)` |
 
-Status is **not assigned by the LLM**. The LLM receives the computed status as context.
+The `min`/`max` guard prevents an empty moderate band when skewed history puts the mean above p75.
+
+- **Absolute floor** (`compute_status_floor`): where a source has an authoritative severity scale, it overrides the relative baseline — an ongoing DWD severity-3 warning floors weather at `moderate`, severity 4 at `severe`. Without this, an extreme storm after three calm days would read `minor` (no baseline → minor).
+- **Hysteresis** (`apply_status_hysteresis`): escalations apply immediately; de-escalations only after the raw status has been lower for 2 consecutive hourly runs. State is kept in the `meta` table (`pulse_status_state`); re-runs within the same hour don't consume the confirmation. This stops boundary flapping. The pre-hysteresis value is logged as `raw_status`.
+
+**Deterministic trend** (`compute_trend`) — current score vs. the mean of the 3 preceding buckets with a dead band of `max(15%, 1.0)`; above the band → `worsening`, below → `improving`, inside → `stable`.
+
+**Surge signal** (`compute_surge`) — replaces the old LLM-judged "Signal 2". True when `scheduled_upcoming_score ≥ 1.5 × baseline.mean` AND at least half of it starts within the next sample interval (with no baseline: imminent load ≥ 2.0). Judged from pure future starts, never from expiry schedules of current alerts — the old horizon series fired on RMV end-of-service rollovers. A surge escalates the trend one step (improving→stable, stable→worsening) and is passed to the LLM as `surge_expected` for bridging narrative.
+
+Status and trend are **not assigned by the LLM**. The LLM receives both as context.
 
 ### Layer 2 — LLM synthesis
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-Gemini Flash receives: the active alerts (with bodies), the timeseries data (including computed status and baseline), and recent pulse/summary history. Its role is **trend and narrative only** — it does not assign or override status.
-
-**Trend judgment** — Per category: `improving` / `stable` / `worsening`. Two signals:
-
-- **Signal 1 (next-interval projection)**: compares `ongoing_score` vs `projected_score` combined with history shape, using `baseline.p25`/`mean`/`p75` as reference points (score moving toward p75 → worsening, toward p25 → improving). This is the default basis.
-- **Signal 2 (horizon momentum)**: overrides Signal 1 only when both conditions hold — the `horizon_score` series shows sharp acceleration (not just drift) AND the activity is near (`near_score` is a high fraction of `total_score`). When triggered, the LLM uses bridging language in the narrative.
+Gemini Flash receives: the active alerts (with bodies), the timeseries data (including computed status, trend, surge flag, and baseline), and recent pulse/summary history. Its role is **narrative only** — it does not assign status or trend.
 
 **Narrative output:**
 - **Title** (≤40 chars) — glanceable headline
 - **Summary** (≤300 chars) — cross-source synthesis, spatial awareness of Frankfurt districts, no enumeration of specifics users already see
 - **Recommendation** (≤100 chars) — one actionable sentence, practical and calm
 - **References** — up to 3 alert IDs most relevant to the summary
+- **Trend override** (rare) — alert *content* sometimes carries direction the scores can't see ("service resumes at 14:30", "conditions will intensify overnight"). The LLM may correct a category's trend only in that case, and must supply the category, the corrected trend, and a reason quoting the alert content. Overrides are validated (known category, valid trend, non-empty reason) and logged as `trend_overrides_applied` in the debug record.
 
 The LLM's value is interpretation: connecting a police incident to a transit disruption at the same location, recognizing that 6 S-Bahn delays converge on the same corridor, or noting that roadworks have been running for three weeks and are not newsworthy.
 
@@ -109,7 +118,7 @@ Thinking is enabled (`thinkingBudget: 1024`) for spatial reasoning.
 
 ### Layer 3 — Output assembly
 
-`pulse.py` combines Layer 1 status with Layer 2 trend to produce the final pulse:
+`pulse.py` combines Layer 1 status and trend (plus any validated Layer 2 content override) to produce the final pulse:
 
 ```json
 {
@@ -144,12 +153,16 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
       "transport": {
         "current": {
           "status": "minor",
+          "raw_status": "minor",
+          "trend": "stable",
+          "surge_expected": false,
           "ongoing": {"count": 8, "score": 6.5},
           "projected": {"count": 6, "score": 5.0},
-          "horizon": {"total_score": 3.0, "near_score": 1.5}
+          "upcoming": {"total_score": 3.0, "near_score": 1.5},
+          "horizon": {"total_score": 5.5, "near_score": 1.5}
         },
         "history": [
-          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "horizon_score": 2.5}
+          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "upcoming_score": 2.5}
         ],
         "baseline": {"mean": 5.8, "p25": 3.2, "p75": 8.2, "n": 24},
         "window": "24h hourly"
@@ -177,15 +190,10 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
       "summary": "S1 experiencing signal-related delays around Hbf...",
       "recommendation": "Allow extra time on S1; consider U-Bahn alternatives.",
       "references": ["HIM_123"],
-      "categories": {
-        "transport": {"trend": "stable"},
-        "weather":   {"trend": "stable"},
-        "roadworks": {"trend": "stable"},
-        "incidents": {"trend": "stable"},
-        "events":    {"trend": "stable"}
-      }
+      "trend_override": []
     }
   },
+  "trend_overrides_applied": {},
   "layer_3_output": {
     "generated_at": "...",
     "title": "S1 delays + A661 works",
@@ -199,9 +207,9 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
 ```
 
 **Reading the debug log:**
-- **Layer 1**: Were scores correct? Check `score_breakdown` — which alerts contributed, with what weight, and into which bucket. Is `status` correct given `baseline`?
-- **Layer 2**: What did Gemini receive? Did it assign plausible trends? Note the LLM does not output `status` — only `trend` per category.
-- **Layer 3**: Final output merges Layer 1 status + Layer 2 trend.
+- **Layer 1**: Were scores correct? Check `score_breakdown` — which alerts contributed, with what weight, and into which bucket. Is `status` correct given `baseline`? `raw_status` shows the pre-hysteresis value; `trend` and `surge_expected` are deterministic.
+- **Layer 2**: What did Gemini receive, and is the narrative faithful to it? The LLM outputs neither status nor trend — only narrative and, rarely, a `trend_override` with a quoted reason.
+- **Layer 3**: Final output = Layer 1 status + trend, with any validated override applied (see `trend_overrides_applied`).
 
 The admin dashboard (`/admin`) reads these files directly and visualizes all three layers with per-category score charts, breakdown tables, and history.
 
@@ -230,7 +238,8 @@ Deterministic status → Wrong? Record override + reason
 
 - **No alert archive** — Only active alerts are retained; removed alerts are cleared. Pattern analysis ("S1 disrupted 3 times this week") is not possible.
 - **Single geographic scope** — All of Frankfurt is treated as one zone.
-- **Baseline requires history** — `baseline` is absent for new categories or after DB resets; status defaults to `minor` for any non-zero score.
+- **Baseline requires history** — `baseline` is absent for new categories, after DB resets, and for a re-learn period after each `WEIGHTS_VERSION` bump; status defaults to `minor` for any non-zero score (except where an absolute floor applies, e.g. DWD severity).
+- **Status is relative for most categories** — Outside weather's DWD floor, status measures "unusual vs. this category's own history", not absolute impact. A sustained multi-day disruption will still drift toward the baseline once it exceeds the lag window.
 
 ## Future improvements
 
