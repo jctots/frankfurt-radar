@@ -115,12 +115,13 @@
 
   <h3>Application</h3>
   <ul>
-    <li>Administrative endpoints disabled in production</li>
+    <li>Admin dashboard (<code>/admin</code>) and admin API routes protected by token-based session authentication; unavailable unless an admin token is configured</li>
     <li>Security response headers: <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code></li>
     <li>No user input accepted on the public status page</li>
     <li>Bot webhook endpoint validated via <code>X-Telegram-Bot-Api-Secret-Token</code> header</li>
     <li>User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained</li>
-    <li>Admin bot commands (<code>/status</code>, <code>/alerts</code>, <code>/poll</code>) gated by <code>chat_id</code> allowlist</li>
+    <li>Bot messages rate-limited per chat (30 requests/60s, 5-minute cooldown on breach) with a ban list for abusive users</li>
+    <li>Admin bot commands (<code>/status</code>, <code>/alerts</code>, <code>/costs</code>, <code>/poll</code>, <code>/ban</code>) gated by <code>chat_id</code> allowlist</li>
     <li>MCP server: optional Bearer token authentication with two tiers (admin and rate-limited consumer keys); rate-limited keys use a per-key sliding window (60 req/60s) with admin notification on breach</li>
     <li>Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan</li>
   </ul>

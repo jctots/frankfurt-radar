@@ -38,12 +38,13 @@ We will acknowledge your report and keep you updated on progress. Please allow a
 - HSTS enabled (`max-age=31536000`)
 
 **Application**
-- Administrative endpoints disabled in production
+- Admin dashboard (`/admin`) and admin API routes protected by token-based session authentication; unavailable unless an admin token is configured
 - Security response headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
 - No user input accepted on the public status page
 - Bot webhook endpoint validated via `X-Telegram-Bot-Api-Secret-Token` header
 - User input during bot onboarding (e.g. line names) is parsed, stripped, and length-constrained
-- Admin bot commands (`/status`, `/alerts`, `/poll`) gated by `chat_id` allowlist
+- Bot messages rate-limited per chat (30 requests/60s, 5-minute cooldown on breach) with a ban list for abusive users
+- Admin bot commands (`/status`, `/alerts`, `/costs`, `/poll`, `/ban`) gated by `chat_id` allowlist
 - MCP server: optional Bearer token authentication with two tiers (admin and rate-limited consumer keys); rate-limited keys use a per-key sliding window (60 req/60s) with admin notification on breach
 - Periodic security audits: threat model, infrastructure hardening review, OWASP Top 10, dependency CVE scan
 

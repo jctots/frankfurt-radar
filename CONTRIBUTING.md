@@ -7,7 +7,7 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env             # fill in RMV_API_KEY at minimum
-python main.py --mode poll
+python main.py                   # one poll cycle
 ```
 
 Web server:
@@ -18,23 +18,40 @@ pip install -r requirements.txt
 flask --app app run --port 8080
 ```
 
+## ✅ Running tests
+
+Always run pytest from the activated venv — never against the system Python:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## 📁 Project structure
 
-| File | Purpose |
+| File / directory | Purpose |
 |------|---------|
-| `main.py` | Entry point — `--mode poll` or `--mode daily` |
-| `pollers.py` | `BasePoller` + all source pollers (RMV, DWD, Polizei, Autobahn, Baustellen, Events, Sports) |
-| `pipeline.py` | Dedup, filter, translate, notify, cold-start guard |
-| `notifications.py` | Telegram (channel + subscriber DMs) and ntfy backends |
-| `translation.py` | Google Translate and LibreTranslate backends |
-| `db.py` | SQLite helpers (alerts, subscribers, quiet buffer, meta) |
-| `models.py` | `Alert` dataclass |
-| `bot.py` | Telegram bot command handlers and subscriber onboarding |
-| `entrypoint.sh` | Generates crontab dynamically from `config.yaml` |
-| `web/app.py` | Flask API, status page, and radar frame server |
-| `web/templates/` | Status page, legal, privacy, security, radar test |
-| `city_events.yaml` | Static city event definitions |
-| `sports_events.yaml` | Static sports event definitions |
+| `main.py` | Poll entry point — fetch, translate, cache, dedup, hand off to the notifier |
+| `pollers.py` | `BasePoller` + all source pollers (RMV, DWD, Polizei, Feuerwehr, Autobahn, Baustellen, Strike, static events, OpenLigaDB, Ticketmaster) |
+| `pipeline.py` | Deduplication and cold-start guard |
+| `translation.py` | Google Translate and LibreTranslate backends + translation variant cache |
+| `extraction.py` | Gemini Flash extraction — strike dates/locations, strike dedup, police geocoding |
+| `pulse.py` / `pulse_categories.py` | City Pulse — LLM synthesis / deterministic scoring (see [docs/analysis.md](docs/analysis.md)) |
+| `radar.py` | Weather radar frame downloader (DWD WMS) |
+| `trigger.py` | Poller admin API — poll trigger, config read/patch |
+| `notifications.py` | Telegram channel and ntfy send backends |
+| `db.py` | SQLite helpers (alerts, subscribers, pulse, API usage, meta) |
+| `models.py` | `Alert` dataclass + message formatting |
+| `districts.py` | Frankfurt district lookup from coordinates |
+| `notifier/` | Bot webhook server, command handlers, subscriber dispatch, quiet hours |
+| `web/` | Flask status page, JSON API, admin dashboard |
+| `mcp/` | MCP server for AI assistant integration |
+| `prompts/` | Editable LLM prompt templates (YAML frontmatter + body) |
+| `entrypoint.sh` | Seeds the data volume, generates the crontab, starts the trigger API |
+| `city_events.yaml` / `messe_events.yaml` / `sports_events.yaml` | Static event definitions |
+| `tests/` | Pytest suite with fixtures |
+
+For the full picture — containers, data flow, database schema — see [docs/architecture.md](docs/architecture.md).
 
 ## ➕ Adding a new alert source
 
@@ -49,5 +66,6 @@ The rest of the pipeline (translation, caching, deduplication, notification) is 
 ## 🔀 Pull requests
 
 - One logical change per PR
-- Run `python main.py --mode poll` locally and confirm no exceptions before submitting
+- Run `pytest` and confirm the suite passes before submitting
+- Run `python main.py` locally and confirm no exceptions
 - For new pollers: include a sample fixture and note the data source license

@@ -1,6 +1,6 @@
 # 🔒 Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-06-18
+**Last updated:** 2026-07-02
 
 ## 👤 Who we are
 
@@ -64,7 +64,7 @@ Notifications are delivered via Telegram. Telegram Messenger Inc. operates its o
 
 Alert text is translated to English using the Google Cloud Translation API. Google receives the text of public emergency alerts solely to perform the translation. No personal data is included in translation requests. Google's privacy policy applies: [cloud.google.com/translate](https://cloud.google.com/translate).
 
-When City Pulse is enabled, aggregated alert data (titles, descriptions, severity, and timestamps of public alerts) is sent to the Google Gemini API for situational synthesis. No personal data, subscriber information, or chat IDs are included in these requests — only public alert content. Google's Gemini API terms apply: [ai.google.dev/terms](https://ai.google.dev/terms).
+Public alert content is also processed by the Google Gemini API for two purposes: extracting structured data (dates, locations) from public press releases about strikes and police incidents, and — when City Pulse is enabled — synthesizing aggregated alert data (titles, descriptions, severity, and timestamps) into a situational summary. No personal data, subscriber information, or chat IDs are included in these requests — only public alert content. Google's Gemini API terms apply: [ai.google.dev/terms](https://ai.google.dev/terms).
 
 ## 📝 Changes to this policy
 

@@ -6,21 +6,22 @@ City Pulse provides glanceable situational awareness for Frankfurt. It does not 
 
 ## Data sources
 
-Frankfurt Radar collects real-time data from 9 pollers:
+Frankfurt Radar collects real-time data from 10 sources:
 
 | Source | Category | What it provides |
 |--------|----------|------------------|
 | RMV (rmv) | Transport | Transit disruptions: S-Bahn, U-Bahn, tram, bus, regional |
 | DWD (dwd) | Weather | Severe weather warnings with severity levels |
 | Polizei (polizei) | Incidents | Police reports: accidents, closures, events |
+| Feuerwehr (feuerwehr) | Incidents | Fire department active incidents by district |
+| Strike (strike) | Incidents | Strike alerts extracted from press releases |
 | Autobahn (autobahn) | Roadworks | Federal road construction and closures |
 | Baustellen (baustellen) | Roadworks | City road construction |
-| Strike (strike) | Incidents | Strike alerts extracted from press releases |
 | Events (events) | Events | City festivals: concerts, parades, markets |
 | Messe (messe) | Events | Trade fairs at Messe Frankfurt |
 | Sports (sports) | Events | Match days, sports events |
 
-Each poller runs on a cron schedule (typically every 5 minutes). Alerts are cached in `alert_cache` with timestamps, severity, geolocation, and staleness flags.
+The pollers run on a cron schedule (default: every 10 minutes). Alerts are cached in `alert_cache` with timestamps, severity, geolocation, and staleness flags.
 
 ## Analysis pipeline
 
@@ -37,18 +38,20 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 - **Ongoing**: `valid_from ≤ now` AND (`valid_until ≥ now` OR absent) → active disruption
 - **Upcoming**: `valid_from > now` AND within the category's lookahead window → imminent
 - **Excluded**: expired alerts or alerts beyond the lookahead window
-- **No-temporal sources** (polizei, strike — RSS feeds): always counted as ongoing
+- **No-temporal sources** (polizei, strike — RSS feeds): always counted as ongoing. Feuerwehr alerts carry a TTL-based `valid_until`, so they are classified normally.
 
 **Severity weighting** — Each alert contributes a weight derived from its fields:
 
 | Source | Field | Weight mapping |
 |--------|-------|----------------|
 | DWD | `severity` (1–4) | minor=0.5, moderate=1.0, severe=1.5, extreme=2.0 |
-| RMV | `service` | S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=1.0 |
-| Autobahn | `title_en` keyword | "closure"=1.5, else 1.0 |
-| Baustellen | `service` | "City (Full)"=1.5, else 1.0 |
+| RMV | `service` + `lines` | S-Bahn/U-Bahn/Regional=1.5, Tram=1.0, Bus=0.5 — multiplied by affected line count (capped at 4) |
+| Autobahn | `title_en` keyword | "closure"=2.0, else 1.0 |
+| Baustellen | `service` | "City (Full)"=1.5, "City (Partial)"=0.5 |
 | Events/Messe/Sports | — | Fixed 2.0 |
-| Polizei/Strike | — | Default 1.0 |
+| Strike | — | Fixed 1.5 |
+| Feuerwehr | — | Fixed 1.0 |
+| Polizei | — | Fixed 0.5 |
 
 **Hourly snapshots** — Stored in `category_snapshots` (one row per category per hour):
 

@@ -22,6 +22,7 @@ start - Set up personalized alerts
 settings - Edit your alert preferences
 mystatus - View your current settings
 search - Search active alerts by keyword
+pulse - Get the latest City Pulse summary
 help - Usage guide and commands
 stop - Pause notifications
 deletedata - Delete all your data (GDPR)
@@ -37,12 +38,13 @@ Add these to your `.env` file (or however secrets are managed in your deployment
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | Yes | Bot token from BotFather (format: `123456:ABC-DEF...`) |
 | `TELEGRAM_WEBHOOK_SECRET` | Recommended | Arbitrary string used to validate incoming webhook requests via `X-Telegram-Bot-Api-Secret-Token` header. Generate with `openssl rand -hex 32`. |
+| `SUBSCRIBER_CAP` | No | Maximum number of bot subscribers (default: 25). New sign-ups beyond the cap get a friendly at-capacity message. |
 
 These are consumed by the `notifier` container (see `docker-compose.yml`).
 
 ## 3️⃣ Webhook configuration
 
-The notifier container runs an HTTP server on port 8443 (configurable via `WEBHOOK_PORT` env var).
+The notifier container runs an HTTP server on port 8443 (configurable via `WEBHOOK_PORT` env var). The port is internal to the Docker network — it is not published on the host; your reverse proxy reaches it by service name.
 
 ### 🔗 Register the webhook with Telegram
 
@@ -58,7 +60,7 @@ Replace `your-domain.com` with your actual domain. The path must be `/bot/webhoo
 
 ### 🔄 Reverse proxy
 
-The webhook endpoint on the notifier container listens on port 8443. Your reverse proxy (e.g. Caddy, nginx) must forward requests from `https://your-domain.com/bot/webhook` to `notifier:8443`.
+Your reverse proxy (e.g. Caddy, nginx) must forward requests from `https://your-domain.com/bot/webhook` to `notifier:8443` on the Docker network.
 
 Example Caddy snippet:
 
@@ -83,7 +85,7 @@ Expected response: `"url"` matches your webhook URL, `"has_custom_certificate": 
 
 ## 4️⃣ Admin commands
 
-Admin commands (`/status`, `/alerts`, `/visits`, `/poll`, `/ban`, `/unban`) are gated by chat ID. The admin chat ID is read from `config.yaml`:
+Admin commands (`/status`, `/alerts`, `/visits`, `/costs`, `/poll`, `/ban`, `/unban`) are gated by chat ID. The admin chat ID is read from `config.yaml`:
 
 ```yaml
 admin_health_notifier:
@@ -101,12 +103,11 @@ notifier:
   environment:
     - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
     - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+    - POLLER_TRIGGER_URL=http://poller:8888/poll
     - WEBHOOK_PORT=8443
-  ports:
-    - "8443:8443"
 ```
 
-No additional configuration is needed beyond setting the env vars.
+No `ports:` mapping is needed — the webhook endpoint is reached through the reverse proxy on the internal network. No additional configuration is needed beyond setting the env vars.
 
 ## 6️⃣ Testing
 

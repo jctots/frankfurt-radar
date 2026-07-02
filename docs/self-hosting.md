@@ -1,13 +1,14 @@
 # 🏠 Self-Hosting Guide
 
-Frankfurt Radar is designed to be self-hosted via Docker Compose. This guide covers setup, configuration, and Telegram bot deployment.
+Frankfurt Radar is designed to be self-hosted via Docker Compose. This guide covers setup, configuration, the admin dashboard, the Telegram bot, and the MCP server.
 
 ## 📋 Prerequisites
 
 - Docker and Docker Compose
 - An RMV API key ([register at opendata.rmv.de](https://opendata.rmv.de/))
-- A Telegram bot token (if using Telegram notifications) — see [Telegram bot setup](#telegram-bot-setup) below
+- A Telegram bot token (if using Telegram notifications) — see [Telegram bot setup](#-telegram-bot-setup) below
 - A Google Cloud Translation API key (if using Google Translate) — LibreTranslate works without one
+- A Google Gemini API key (if enabling the strike poller, police geocoding, or City Pulse)
 
 ## 🚀 Quick start
 
@@ -18,16 +19,18 @@ cp .env.example .env   # fill in your API keys
 docker compose up -d
 ```
 
-On first start, `config.yaml` is seeded to the `data/` volume. Edit it at `data/config.yaml` — no container rebuild needed for most changes.
+On first start, `config.yaml`, the event YAML files, and the LLM prompt templates are seeded to the `data/` volume. Edit them there — no container rebuild needed for most changes.
 
 ## 🐳 Docker services
 
 | Service | Role | Port | Resources |
 |---------|------|------|-----------|
-| **poller** | Fetches alerts on a cron schedule, translates, writes to DB | — | 0.5 CPU, 256 MB |
-| **notifier** | Telegram bot webhook endpoint, subscriber dispatch | 8443 | 0.25 CPU, 128 MB |
-| **web** | Flask app serving the status page and API | 8080 | 0.5 CPU, 256 MB |
+| **poller** | Fetches alerts + radar frames on a cron schedule, runs City Pulse, writes to DB | 8888 (internal trigger API) | 0.5 CPU, 256 MB |
+| **notifier** | Telegram bot webhook + alert/pulse dispatch to channel and subscribers | 8443 (internal only) | 0.25 CPU, 128 MB |
+| **web** | Flask app serving the status page, API, and admin dashboard | 8080 | 0.5 CPU, 256 MB |
 | **mcp** | MCP server for AI assistant integration | 8811 | 0.25 CPU, 128 MB |
+
+The notifier and trigger ports are reachable only on the internal Docker network — your reverse proxy forwards `/bot/webhook` to `notifier:8443`.
 
 Optional services (enabled via Docker Compose profiles):
 
@@ -58,11 +61,12 @@ Set these in your `.env` file. Only secrets belong here — all other configurat
 | `TELEGRAM_WEBHOOK_SECRET` | Recommended | Validates incoming webhook requests (generate with `openssl rand -hex 32`) |
 | `GOOGLE_TRANSLATE_API_KEY` | If `translator.backend: google` | Google Cloud Translation API key |
 | `LIBRETRANSLATE_API_KEY` | No | Auth key for an external LibreTranslate instance |
-| `GEMINI_API_KEY` | If strike poller or City Pulse enabled | Google Gemini API key (Gemini Flash for strike extraction and City Pulse synthesis) |
+| `GEMINI_API_KEY` | If strike poller, police geocoding, or City Pulse enabled | Google Gemini API key (Gemini Flash) |
 | `TICKETMASTER_API_KEY` | No | Ticketmaster Discovery API key (for Deutsche Bank Park events) |
 | `STADIA_API_KEY` | No | Stadia Maps API key (dark mode map tiles) |
+| `ADMIN_TOKEN` | For admin dashboard | Password for the web admin dashboard at `/admin` |
+| `SUBSCRIBER_CAP` | No | Max bot subscribers (default: 25) |
 | `RADAR_TAG` | No | Container image tag for version pinning |
-| `MCP_PORT` | No | Host port for MCP server (default: 8811) |
 | `MCP_ADMIN_KEY` | No | Admin API key for MCP server (unlimited, no rate limiting) |
 | `MCP_API_KEYS` | No | Comma-separated API keys for MCP consumers (rate-limited) |
 | `BIND_ADDR` | No | Bind address for host port mappings — set to `127.0.0.1` when using Caddy (default: `0.0.0.0`) |
@@ -78,13 +82,13 @@ Production profile variables (only needed with `--profile production`):
 
 ## ⚙️ Configuration reference
 
-`data/config.yaml` is the single non-secret configuration source. Changes to poll schedule or quiet hours require a container restart; all other keys are read fresh on each poll cycle.
+`data/config.yaml` is the single non-secret configuration source. Changing the poll interval requires a container restart (the crontab is generated at startup); all other keys are read fresh on each poll cycle.
 
 ### 🔄 Polling
 
 ```yaml
 polling:
-  interval_minutes: 10       # Poll frequency (1–60 min)
+  interval_minutes: 10       # Poll frequency (1–60 min) — also drives radar frame updates
 ```
 
 ### 📊 Data sources
@@ -109,14 +113,18 @@ police:
   enabled: true
   max_age_hours: 48           # Drop articles older than this (0=no limit)
 
+feuerwehr:
+  enabled: true
+  ttl_hours: 4                # Keep fire alerts active this long after first post
+
 autobahn:
   enabled: true
   roads: [A3, A5, A45, A60, A66, A67, A480, A648, A661]
-  kinds: [closure, warning]   # warning = real-time incidents (can be noisy)
+  kinds: [closure]            # Add "warning" for real-time incidents (noisy in rush hour)
 
 baustellen:
   enabled: true
-  closures: [full]            # full = sperrung:1, partial = sperrung:0
+  closures: [full]            # full = complete closure; add "partial" for lane restrictions
 
 strike:
   enabled: true
@@ -125,6 +133,10 @@ strike:
 events:
   enabled: true
   advance_days: 7             # Show events this many days before start
+
+messe:
+  enabled: true
+  advance_days: 7             # Show trade fairs this many days before start
 
 sports:
   enabled: true
@@ -144,6 +156,30 @@ location:
 translator:
   backend: libretranslate     # "libretranslate" or "google"
   libretranslate_url: http://libretranslate:5000
+  max_chars: 1500             # Hard cap per translate call — cost circuit-breaker
+```
+
+### 🏙️ City Pulse
+
+```yaml
+pulse:
+  enabled: false              # Opt-in — hourly AI summary + daily digest (needs GEMINI_API_KEY)
+```
+
+### 💶 Cost budget
+
+Metered API usage (Gemini tokens, Google Translate characters) is tracked per day and hour. Budget-threshold alerts fire at 50%, 80%, and 100% of the monthly budget.
+
+```yaml
+cost:
+  monthly_budget: 5.00        # EUR
+  usd_to_eur: 0.92
+  gemini:
+    input_per_million: 0.15   # USD per 1M input tokens
+    output_per_million: 0.60
+    thinking_per_million: 3.50
+  google_translate:
+    chars_per_million: 20.00  # USD per 1M characters
 ```
 
 ### 📬 Notifications
@@ -152,11 +188,12 @@ translator:
 notifier:
   backend: telegram                    # "telegram" or "ntfy"
   telegram_channel: "@YourChannel"     # Channel username or numeric ID
-  ntfy_url: http://ntfy               # ntfy server URL (if using ntfy)
+  status_url: https://your-domain.com  # "Details" link target in briefings
+  ntfy_url: http://ntfy                # ntfy server URL (if using ntfy)
   ntfy_topic: frankfurt-radar          # ntfy topic name
-  notify_burst_threshold: 10           # Cold-start guard — skip if ≥ N new alerts on first run
+  notify_burst_threshold: 10           # Cold-start guard — skip if ≥ N new alerts at once
   notify_throttle_every: 10            # Pause 3s after every N notifications (0=disabled)
-  disabled_sources: []                 # Sources to exclude from notifications
+  disabled_sources: []                 # Sources never notified (still polled + shown on site)
 ```
 
 ### 🖥️ Alert display
@@ -178,6 +215,8 @@ admin_health_notifier:
 
 ### 🌍 Web
 
+The shipped `config.yaml` has no `web:` section — add one to `data/config.yaml` to configure the status page:
+
 ```yaml
 web:
   allow_manual_poll: false
@@ -197,10 +236,25 @@ web:
 
 ### 🎉 Static events
 
-Festivals and sports fixtures can be defined in YAML files:
+Festivals, trade fairs, and sports fixtures can be defined in YAML files (seeded to the data volume on first start):
 
 - `data/city_events.yaml` — local events with dates, location (lat/lon), images, and details
+- `data/messe_events.yaml` — trade fairs at Messe Frankfurt
 - `data/sports_events.yaml` — static sports events (supplements OpenLigaDB and Ticketmaster)
+
+## 🛠️ Admin dashboard
+
+The web container serves an operator dashboard at `/admin`, protected by a cookie session — log in with the value of the `ADMIN_TOKEN` env var. It provides:
+
+- **Server status** — poller timing, per-source health, RAM/load
+- **Cost charts** — daily and hourly API spend vs. budget, per service
+- **City Pulse debugging** — all three pulse layers visualized: deterministic scores and breakdowns, the LLM prompt/response, and the final output
+- **Status overrides** — record corrections when a computed pulse status is wrong (feeds the calibration loop, see [analysis.md](analysis.md))
+- **Weight review** — LLM-assisted suggestions for severity weight adjustments based on recorded overrides
+- **Manual triggers** — run a poll or pulse on demand
+- **Bot bans** — block/unblock bot users
+
+If `ADMIN_TOKEN` is not set, admin login is unavailable.
 
 ## 🤖 Telegram bot setup
 
@@ -216,6 +270,7 @@ start - Set up personalized alerts
 settings - Edit your alert preferences
 mystatus - View your current settings
 search - Search active alerts by keyword
+pulse - Get the latest City Pulse summary
 help - Usage guide and commands
 stop - Pause notifications
 deletedata - Delete all your data (GDPR)
@@ -254,7 +309,7 @@ curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 ### 3️⃣ Set the admin chat ID
 
-Admin commands (`/status`, `/alerts`, `/visits`, `/poll`, `/ban`, `/unban`) are gated by chat ID:
+Admin commands (`/status`, `/alerts`, `/visits`, `/costs`, `/poll`, `/ban`, `/unban`) are gated by chat ID:
 
 ```yaml
 admin_health_notifier:
@@ -263,11 +318,11 @@ admin_health_notifier:
 
 Find your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
 
-See [docs/telegram-bot-setup.md](telegram-bot-setup.md) for the full deployment guide.
+See [telegram-bot-setup.md](telegram-bot-setup.md) for the full deployment guide.
 
 ## 🤖 MCP server (AI integration)
 
-The MCP server exposes Frankfurt Radar alerts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/). It provides read-only access to active alerts, search, and system status.
+The MCP server exposes Frankfurt Radar alerts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/). It provides read-only access to active alerts, search, City Pulse, and system status.
 
 The MCP server is included in the default profile — no extra flags needed.
 
@@ -284,6 +339,7 @@ docker compose up -d mcp
 | `get_active_alerts` | List active alerts, optionally filtered by source |
 | `search_alerts` | Keyword search across alert fields |
 | `get_alert_details` | Full details for a single alert by ID |
+| `get_city_pulse` | Latest City Pulse summary, optionally with recent history |
 | `get_system_status` | Last poll time, source health, alert counts |
 | `get_alert_stats` | Summary statistics by source and severity |
 

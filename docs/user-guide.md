@@ -20,7 +20,7 @@ The main page shows all active alerts in a scrollable feed. Each alert shows its
 
 **Filters** — use the filter bar at the top to narrow the feed:
 
-- **Source toggles** — show/hide alerts by source (Transit, Weather, Police, Strikes, Roads, Events, Sports)
+- **Source toggles** — show/hide alerts by source (Transit, Weather, Police, Fire, Strikes, Roads, Festivals, Trade Fairs, Sports)
 - **Service dropdown** — filter transit alerts by service type (S-Bahn, U-Bahn, Tram, Bus, Regional)
 - **Severity dropdown** — filter weather alerts by severity level
 - **Lines popup** — filter by specific transit lines
@@ -29,19 +29,27 @@ The main page shows all active alerts in a scrollable feed. Each alert shows its
 
 Filter selections are saved in your browser and restored on your next visit.
 
+Older, long-running disruptions are collapsed into a **Long-running** accordion, and recently resolved alerts stay visible in a **Cleared** section for a few days.
+
 ### 🗺️ Map
 
 Alerts with location data appear as markers on an interactive map. Markers are clustered when zoomed out — click a cluster to expand. Weather warnings appear as a floating panel (city-wide, no point location).
 
-### 📊 City Pulse
+### 🏙️ City Pulse
 
-The City Pulse overlay appears on the map when you're at the default view (zoom level 12, centered on Frankfurt). It shows an AI-generated situational summary updated every hour, with category trends and an actionable recommendation.
+The City Pulse overlay appears on the map when you're at the default view (zoom level 12, centered on Frankfurt). It shows an AI-generated situational summary updated every hour.
 
 - **Summary** — a concise synthesis of active alerts, highlighting what's new, what's worsening, and how different alerts relate
-- **Trends** — five categories (Weather, Transport, Roadworks, Incidents, Events) shown in a compact grid with directional arrows
+- **Category status** — five categories (Weather, Transport, Roadworks, Incidents, Events), each with a status icon on a calm-to-severe scale
 - **Recommendation** — a proactive suggestion: alternative routes during disruptions, or events worth visiting when conditions are good
 
-The overlay auto-hides when you pan or zoom the map, and reappears when you return to the default view. Close it with the X button — it won't reopen until you navigate away and back. The City Pulse button above the search bar shows category trends at a glance and resets the view when clicked.
+The overlay auto-hides when you pan or zoom the map, and reappears when you return to the default view. Close it with the X button — it won't reopen until you navigate away and back. The City Pulse button above the search bar shows the category statuses at a glance and resets the view when clicked.
+
+Want to know how the pulse is computed? See the [methodology page](https://frankfurt-radar.com/pulse-methodology) — it explains the scoring, statuses, and the role of the AI.
+
+### 🌤️ Weather overlay
+
+A compact weather panel on the map shows Frankfurt's current conditions plus a short daily forecast — temperature high/low and expected rainfall — with details on hover. Data comes from DWD via Bright Sky.
 
 ### 🌧️ Weather radar
 
@@ -77,7 +85,7 @@ If you later set up personalized alerts via the bot, you can leave the channel t
 
 ### ⚙️ Setting up your alerts
 
-The bot walks you through each category using buttons — no typing needed (except for specific line names).
+The bot walks you through each category using buttons — no typing needed (except for line names and keywords).
 
 #### Source selection
 
@@ -86,10 +94,10 @@ Toggle each alert source on or off, then tap **Done**:
 - **Transport** — RMV S-Bahn, U-Bahn, Tram, Bus, Regional disruptions
 - **Weather** — DWD weather warnings
 - **Police** — Frankfurt police press releases
+- **Fire** — Feuerwehr Frankfurt active incidents
 - **Strikes** — labor strike alerts (ver.di Hessen, hessenschau)
-- **Roads** — Autobahn incidents and city road closures
-- **Festivals** — local city festival events
-- **Sports** — Eintracht Frankfurt and Deutsche Bank Park events
+- **Autobahn** / **City Roads** — highway incidents and city road closures
+- **Festivals** / **Trade Fairs** / **Sports** — city events, Messe Frankfurt, Eintracht and Deutsche Bank Park
 
 #### Transport filters
 
@@ -100,9 +108,9 @@ If you enabled Transport, you can narrow by:
 
 #### Road filters
 
-If you enabled Roads:
+If you enabled road sources:
 
-- **Autobahn** — select specific highways (A3, A5, A45, A60, A66, A67, A480, A648, A661)
+- **Autobahn** — select specific highways (A3, A5, A66, A661, A67)
 - **City roads** — full closures only, partial closures only, or both
 
 #### Quiet hours
@@ -112,6 +120,14 @@ Quiet hours buffer alerts overnight and deliver them as a morning briefing when 
 - Choose a preset (e.g. 22:00–07:00) or set custom start/end times
 - Quiet hours use the Europe/Berlin timezone
 - If no alerts arrived during quiet hours, no briefing is sent
+
+#### City Pulse delivery
+
+Choose when to receive the daily AI city summary by DM — **08:00**, **12:00** (default), **18:00**, or **Off**. You can also fetch the latest pulse any time with `/pulse`.
+
+#### Location keywords
+
+Optionally enter keywords like `Gallus` or `Bockenheim` — any alert mentioning them is sent to you **regardless of your source selection**. Useful for keeping an eye on your neighborhood.
 
 ### 💬 How alerts look
 
@@ -154,6 +170,7 @@ Alert status indicators: **🟢** = ongoing, **⌛** = future (with date/time).
 | `/settings` | Same as `/start` — opens the preference wizard. |
 | `/mystatus` | View your current preferences and subscription status. |
 | `/search` | Search active alerts by keyword (e.g. `/search tram 12`). Results are paginated with Previous/Next buttons. |
+| `/pulse` | Get the latest City Pulse summary on demand. |
 | `/help` | Quick reference of commands, preferences, and quiet hours. |
 | `/stop` | Pause alerts. Your preferences are saved — send `/start` to resume. |
 | `/deletedata` | Permanently delete all your data (chat ID, preferences, alert history). Cannot be undone. |
@@ -176,11 +193,11 @@ Yes — follow the @FrankfurtRadar channel for all alerts, or just visit the web
 **Will I get duplicates from the channel and DMs?**
 If you're subscribed to both, yes. After setting up personalized alerts, the bot suggests leaving the channel.
 
-**What happens if I block the bot?**
-Your subscription is deactivated. Your preferences are kept — unblock and send `/start` to resume.
-
 **How often are alerts checked?**
-Every 2 minutes. There may be a short delay between an alert appearing on the website and arriving in your DMs.
+Every few minutes (the default poll interval is 10 minutes). There may be a short delay between an alert appearing on the website and arriving in your DMs.
+
+**The bot says it's at capacity — what does that mean?**
+Sign-ups are capped while the service is in its test phase. Try again later — spots open up as the cap is raised.
 
 **Can I get alerts in German?**
 Not yet — all alerts are translated to English.
