@@ -715,7 +715,7 @@
     #weather-overlay {
       position: absolute; top: 12px; right: 12px; z-index: 1000;
       background: rgba(255,255,255,0.95); color: #1e293b;
-      border-radius: 12px; padding: 14px 16px 12px;
+      border-radius: 12px; padding: 10px 16px 8px;
       max-width: 340px;
       border: 1px solid #e2e8f0;
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
@@ -736,7 +736,7 @@
          overlap. Grows down; overflow scrolls instead of pushing off-screen. */
       #weather-overlay { top: 28px; left: 8px; right: 8px; max-width: none; max-height: calc(100% - 40px); overflow-y: auto; }
     }
-    .wx-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .wx-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .wx-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; flex: 1; color: var(--clr-weather); }
     .wx-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--clr-muted); padding: 0 0 0 8px; line-height: 1; }
     .wx-close:hover { color: var(--clr-text); }
@@ -751,22 +751,22 @@
     .dark .wx-alert-body { color: #b0b8c8; }
     .wx-alert-link { display: inline-flex; align-items: center; margin-top: 8px; padding: 4px 10px; background: #f8fafc; color: #1e293b; border-radius: 5px; font-size: 11px; font-weight: 500; text-decoration: none; border: 1px solid #e2e8f0; }
     .dark .wx-alert-link { background: #1a2332; color: #d1d5db; border-color: #2a3344; }
-    .wx-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 8px; }
+    .wx-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 4px; }
     .dark .wx-section-label { color: #4a5568; }
-    .wx-current { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .wx-current { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 5px; }
     .wx-current-icon { font-size: 32px; line-height: 1; }
     .wx-current-temp { font-size: 26px; font-weight: 700; line-height: 1; }
     .wx-current-left { display: flex; align-items: center; gap: 10px; flex: 1; }
     .wx-current-details { display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--clr-muted); }
     .wx-current-desc { font-size: 12px; font-weight: 600; color: #334155; }
     .dark .wx-current-desc { color: #b0b8c8; }
-    .wx-stats { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; padding-right: 4px; }
+    .wx-stats { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; padding-right: 4px; }
     .wx-stat { display: flex; align-items: center; gap: 4px; font-size: 11px; }
     .wx-stat-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
     .wx-stat-val { font-weight: 600; white-space: nowrap; }
-    .wx-forecast { display: flex; gap: 0; padding-top: 10px; }
+    .wx-forecast { display: flex; gap: 0; padding-top: 3px; }
     .dark .wx-forecast { }
-    .wx-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; }
+    .wx-hour { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 1px 0; }
     .wx-hour-time { font-size: 11px; color: #94a3b8; font-weight: 600; }
     .dark .wx-hour-time { color: #4a5568; }
     .wx-hour-icon { font-size: 22px; line-height: 1; }
@@ -774,7 +774,7 @@
     .wx-hour-rain { font-size: 10px; color: #3b82f6; font-weight: 600; }
     .wx-hour.now { background: #f0f4ff; border-radius: 8px; }
     .dark .wx-hour.now { background: #1e2a3e; }
-    .wx-attr { font-size: 9px; color: #94a3b8; text-align: right; margin-top: 8px; }
+    .wx-attr { font-size: 9px; color: #94a3b8; text-align: right; margin-top: 4px; }
     .wx-attr a { color: #64748b; text-decoration: none; }
     .dark .wx-attr { color: #4a5568; }
     .dark .wx-attr a { color: #8892a4; }
@@ -3569,8 +3569,10 @@ async function init() {
 
   fetchCurrentWeather();
   fetchWeatherForecast();
+  fetchDailyHighLow();
   setInterval(fetchCurrentWeather, 15 * 60 * 1000);
   setInterval(fetchWeatherForecast, 15 * 60 * 1000);
+  setInterval(fetchDailyHighLow, 24 * 3600 * 1000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -3614,6 +3616,8 @@ const WEATHER_DESC = {
 
 let _weatherCurrent = null;
 let _weatherForecast = [];
+let _weatherHigh = null;
+let _weatherLow = null;
 
 async function fetchCurrentWeather() {
   try {
@@ -3640,6 +3644,23 @@ async function fetchWeatherForecast() {
     const r = await fetch(`https://api.brightsky.dev/weather?lat=50.1109&lon=8.6821&date=${d}&last_date=${e}`);
     const data = await r.json();
     _weatherForecast = (data.weather || []).slice(0, 5);
+  } catch { /* non-critical */ }
+}
+
+async function fetchDailyHighLow() {
+  try {
+    const now = new Date();
+    const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 3600000);
+    const d = dayStart.toISOString().slice(0, 13) + ':00';
+    const e = dayEnd.toISOString().slice(0, 13) + ':00';
+    const r = await fetch(`https://api.brightsky.dev/weather?lat=50.1109&lon=8.6821&date=${d}&last_date=${e}`);
+    const data = await r.json();
+    const todays = (data.weather || []).filter(f => f.temperature != null);
+    if (todays.length) {
+      _weatherHigh = Math.round(Math.max(...todays.map(f => f.temperature)));
+      _weatherLow = Math.round(Math.min(...todays.map(f => f.temperature)));
+    }
   } catch { /* non-critical */ }
 }
 
@@ -3684,13 +3705,17 @@ function buildWeatherOverlayHtml(alertObj) {
     const temp = Math.round(w.temperature);
     const humidity = w.relative_humidity != null ? Math.round(w.relative_humidity) : null;
     const wind = w.wind_speed_60 != null ? w.wind_speed_60 : w.wind_speed_10;
+    const wind10 = w.wind_speed_10;
     const windD = w.wind_direction_60 != null ? w.wind_direction_60 : w.wind_direction_10;
-    const cloud = w.cloud_cover != null ? Math.round(w.cloud_cover) : null;
+    const rain = w.precipitation_60 != null ? w.precipitation_60 : w.precipitation_10;
+    const rain10 = w.precipitation_10;
+
+    const dewPoint = w.dew_point != null ? Math.round(w.dew_point) : null;
 
     let statsHtml = '';
-    if (humidity != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">💧</span><span class="wx-stat-val">${humidity}%</span></div>`;
-    if (wind != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">💨</span><span class="wx-stat-val">${Math.round(wind)} m/s ${_windDir(windD)}</span></div>`;
-    if (cloud != null) statsHtml += `<div class="wx-stat"><span class="wx-stat-icon">☁️</span><span class="wx-stat-val">${cloud}%</span></div>`;
+    if (humidity != null) statsHtml += `<div class="wx-stat" title="RH: ${humidity}%${dewPoint != null ? `, Dew Point: ${dewPoint}°C` : ''}"><span class="wx-stat-icon">💧</span><span class="wx-stat-val">${humidity}%</span></div>`;
+    if (wind != null) statsHtml += `<div class="wx-stat" title="${wind10 != null ? `${Math.round(wind10)} m/s ${_windDir(windD)} in last 10 min` : ''}"><span class="wx-stat-icon">💨</span><span class="wx-stat-val">${Math.round(wind)} m/s ${_windDir(windD)}</span></div>`;
+    if (rain != null) statsHtml += `<div class="wx-stat" title="${rain10 != null ? `${rain10.toFixed(1)} mm in last 10 min` : ''}"><span class="wx-stat-icon">🌧️</span><span class="wx-stat-val">${rain.toFixed(1)} mm</span></div>`;
 
     detailsHtml += `<div class="wx-section-label">Current conditions</div>
     <div class="wx-current">
@@ -3699,7 +3724,7 @@ function buildWeatherOverlayHtml(alertObj) {
         <div class="wx-current-temp">${temp}°</div>
         <div class="wx-current-details">
           <span class="wx-current-desc">${esc(desc)}</span>
-          <span>${w.dew_point != null ? `Dew point ${Math.round(w.dew_point)}°C` : ''}</span>
+          <span${_weatherHigh != null && _weatherLow != null ? ` title="Max Temp: ${_weatherHigh}°C, Min Temp: ${_weatherLow}°C"` : ''}>${_weatherHigh != null && _weatherLow != null ? `↑${_weatherHigh}°  ↓${_weatherLow}°` : ''}</span>
         </div>
       </div>
       ${statsHtml ? `<div class="wx-stats">${statsHtml}</div>` : ''}
@@ -3716,12 +3741,14 @@ function buildWeatherOverlayHtml(alertObj) {
       const icon = WEATHER_EMOJI[f.icon] || '🌡️';
       const t = Math.round(f.temperature);
       const rain = f.precipitation_probability;
+      const rainMm = f.precipitation;
+      const rainTitle = `Chance: ${rain}%${rainMm != null ? `, Precipitation: ${rainMm.toFixed(1)} mm` : ''}`;
       const isNow = i === 0;
       detailsHtml += `<div class="wx-hour${isNow ? ' now' : ''}">
         <span class="wx-hour-time">${label}</span>
         <span class="wx-hour-icon">${icon}</span>
         <span class="wx-hour-temp">${t}°</span>
-        ${rain > 0 ? `<span class="wx-hour-rain">${rain}%</span>` : ''}
+        ${rain > 0 ? `<span class="wx-hour-rain" title="${rainTitle}">${rain}%</span>` : ''}
       </div>`;
     });
     detailsHtml += `</div>`;
