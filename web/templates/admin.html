@@ -66,7 +66,7 @@
       font-size: 13px; background: var(--clr-surface); color: var(--clr-text);
     }
 
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
     .kpi { background: var(--clr-surface); border: 1px solid var(--clr-border); border-radius: 10px; padding: 16px; }
     .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-muted); margin-bottom: 4px; }
     .kpi-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
@@ -116,6 +116,10 @@
     .status.minor    { color: #d29922; }
     .status.moderate { color: #f0883e; }
     .status.severe   { color: #f85149; }
+    .trend { font-size: 11px; font-weight: 600; }
+    .trend.worsening { color: #ef4444; }
+    .trend.improving { color: #22c55e; }
+    .trend.stable    { color: var(--clr-muted); }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
@@ -726,8 +730,9 @@ function renderCategoryGrid(entries) {
       }
       const icon = trendIcon(trend);
       const trendLabel = trend || 'not judged (deterministic only)';
+      const trendSpan = trend ? `<span class="trend ${trend}">${icon}</span>` : '';
       tbody += `<td><button class="cell-btn" onclick="selectCell(${i}, '${cat}')" title="${cat}: ${status} (${trendLabel})">
-        ${statusBadge(status)}${icon ? ' ' + icon : ''}
+        ${statusBadge(status)}${trendSpan ? ' ' + trendSpan : ''}
       </button></td>`;
     }
     tbody += '</tr>';
@@ -810,13 +815,12 @@ function selectCell(idx, cat) {
     }
 
     body += `<div style="margin-bottom:${displayCats.length > 1 ? '16px' : '0'}">`;
-    const trendColor = trend === 'worsening' ? '#f85149' : trend === 'improving' ? '#3fb950' : '#7d8590';
-    const trendText = trend ? `${trend} ${trendIcon(trend)}` : 'not judged (deterministic only)';
-    const trendPill = `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${trendColor}22;color:${trendColor};">${trendText}</span>`;
-    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusBadge(status)} ${trendPill}</div>`;
+    const trendText = trend ? `${trendIcon(trend)} ${trend}` : 'not judged (deterministic only)';
+    const trendSpanEl = `<span class="trend ${trend || 'stable'}">${trendText}</span>`;
+    if (!cat) body += `<div style="font-size:12px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);">${c} ${statusBadge(status)} ${trendSpanEl}</div>`;
 
     // Score cards: ongoing / projected / horizon
-    if (cat) body += `<div style="margin-bottom:8px;">${statusBadge(status)} ${trendPill}</div>`;
+    if (cat) body += `<div style="margin-bottom:8px;">${statusBadge(status)} ${trendSpanEl}</div>`;
     body += `<div class="score-grid">
       <div class="score-item">
         <div class="score-label">Ongoing</div>
