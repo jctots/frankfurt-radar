@@ -131,6 +131,12 @@ CREATE TABLE IF NOT EXISTS translation_variants (
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (alert_id, text_hash)
 );
+
+CREATE TABLE IF NOT EXISTS strike_duplicates (
+    alert_id     TEXT PRIMARY KEY,
+    duplicate_of TEXT NOT NULL,
+    resolved_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
 """
 
 
@@ -950,6 +956,52 @@ def clear_expired_alerts() -> None:
         )
         if cur.rowcount:
             log.info("Cleared %d expired alerts", cur.rowcount)
+
+        # Drop duplicate markers whose target strike is no longer active —
+        # a stale marker is harmless (get_strike_duplicate() callers re-check
+        # the target is still active before trusting it) but there's no
+        # reason to keep it once the target is gone.
+        cur = conn.execute(
+            """DELETE FROM strike_duplicates
+               WHERE duplicate_of NOT IN (
+                   SELECT alert_id FROM alert_cache WHERE removed_at IS NULL
+               )"""
+        )
+        if cur.rowcount:
+            log.info("Cleared %d stale strike duplicate markers", cur.rowcount)
+
+
+def get_strike_duplicate(alert_id: str) -> dict | None:
+    """Return the persisted duplicate verdict for alert_id, if any.
+
+    Callers must still confirm `duplicate_of` is currently an active cached
+    strike before skipping — this table isn't cleared until the next
+    clear_expired_alerts() run, so a marker can briefly outlive its target.
+    """
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM strike_duplicates WHERE alert_id = ?", (alert_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def mark_strike_duplicate(alert_id: str, duplicate_of: str) -> None:
+    """Persist that alert_id is a confirmed duplicate of duplicate_of.
+
+    Lets StrikePoller skip re-extracting and re-asking the dedup LLM for the
+    same feed entry every poll once the verdict is known (July 3 cost leak:
+    a strike article judged a duplicate of an already-active strike was
+    never cached, so it re-paid for extraction + dedup every 10 minutes).
+    """
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO strike_duplicates (alert_id, duplicate_of, resolved_at)
+               VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+               ON CONFLICT(alert_id) DO UPDATE SET
+                   duplicate_of = excluded.duplicate_of,
+                   resolved_at = excluded.resolved_at""",
+            (alert_id, duplicate_of),
+        )
 
 
 def get_cached_alert(alert_id: str) -> dict | None:

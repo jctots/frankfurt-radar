@@ -49,6 +49,7 @@ def clean_db():
         conn.execute("DELETE FROM meta")
         conn.execute("DELETE FROM translation_variants")
         conn.execute("DELETE FROM category_snapshots")
+        conn.execute("DELETE FROM strike_duplicates")
     yield
 
 

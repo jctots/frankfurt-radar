@@ -110,7 +110,7 @@ def main() -> None:
     if transport_cfg.get("enabled", True):
         pollers.append(RMVPoller(api_key=api_key, services=services))
     if config.get("police", {}).get("enabled", False):
-        pollers.append(PolizeiPoller())
+        pollers.append(PolizeiPoller(max_age_hours=config["police"].get("max_age_hours", 48)))
     if config.get("weather", {}).get("enabled", False):
         pollers.append(DWDPoller(min_severity=config["weather"].get("min_severity", 1)))
     radius_km = float(config.get("location", {}).get("radius_km", 50.0))

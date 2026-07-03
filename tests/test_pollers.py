@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -160,7 +161,7 @@ class TestPolizeiPoller:
         from pollers import PolizeiPoller
         mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
 
-        alerts = PolizeiPoller().fetch()
+        alerts = PolizeiPoller(max_age_hours=0).fetch()
         # "POL-F: 2026-001 - Frankfurt-Sachsenhausen: Verkehrsunfall" → "Sachsenhausen: Verkehrsunfall"
         assert alerts[0].title == "Sachsenhausen: Verkehrsunfall"
 
@@ -168,7 +169,7 @@ class TestPolizeiPoller:
         from pollers import PolizeiPoller
         mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
 
-        alerts = PolizeiPoller().fetch()
+        alerts = PolizeiPoller(max_age_hours=0).fetch()
         # Presseportal boilerplate should be stripped
         assert "Polizeipräsidium Frankfurt [Newsroom]" not in alerts[0].body
         assert "Original-Content" not in alerts[0].body
@@ -177,7 +178,7 @@ class TestPolizeiPoller:
         from pollers import PolizeiPoller
         mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
 
-        alerts = PolizeiPoller().fetch()
+        alerts = PolizeiPoller(max_age_hours=0).fetch()
         assert alerts[0].published_at is not None
         assert "2026-06-04" in alerts[0].published_at
 
@@ -200,7 +201,7 @@ class TestPolizeiPoller:
         feed.entries = [_Entry()]
         mocker.patch("pollers.feedparser.parse", return_value=feed)
 
-        alerts = PolizeiPoller().fetch()
+        alerts = PolizeiPoller(max_age_hours=0).fetch()
 
         assert len(alerts) == 1
         assert alerts[0].published_at is None
@@ -209,8 +210,29 @@ class TestPolizeiPoller:
         from pollers import PolizeiPoller
         mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
 
-        alerts = PolizeiPoller().fetch()
+        alerts = PolizeiPoller(max_age_hours=0).fetch()
         assert all(a.source == "polizei" for a in alerts)
+
+    def test_stale_entries_skipped_before_extraction(self, mocker):
+        """Regression for the 2026-07-03 cost leak: entries older than
+        max_age_hours must be dropped before the cache lookup/extraction
+        call, not just by main.py's post-hoc filter — otherwise a stale
+        item that lingers in presseportal's feed window pays for a Gemini
+        extraction on every single poll, forever, since it's discarded
+        before ever reaching alert_cache.
+        """
+        from pollers import PolizeiPoller
+
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mock_extract = mocker.patch("extraction.extract_alert_details")
+        mock_cache = mocker.patch("db.get_cached_alert")
+
+        # Fixture entries are dated 2026-06-04, far older than 48h from now.
+        alerts = PolizeiPoller(max_age_hours=48).fetch()
+
+        assert alerts == []
+        mock_extract.assert_not_called()
+        mock_cache.assert_not_called()
 
 
 # ── AutobahnPoller ────────────────────────────────────────────────────────────
@@ -814,6 +836,52 @@ class TestStrikePoller:
         alerts = StrikePoller(feeds=["https://fake1.test/rss", "https://fake2.test/rss"], max_age_days=365).fetch()
         ids = [a.id for a in alerts]
         assert len(ids) == len(set(ids))
+
+    def test_known_duplicate_skips_extraction_on_next_poll(self, mocker):
+        """Regression for the 2026-07-03 cost leak: a strike article judged
+        a duplicate of an already-active strike was never cached (only
+        non-duplicates get appended/persisted), so with no memory of that
+        verdict it re-paid for a full extraction + dedup LLM call every
+        10-minute poll, forever.
+        """
+        import db
+        from pollers import StrikePoller
+
+        entry_id = "https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-001"
+        alert_id = f"strike-{hashlib.sha1(entry_id.encode()).hexdigest()[:16]}"
+        existing_id = "strike-existingtarget00"
+
+        with db._conn() as conn:
+            conn.execute(
+                """INSERT INTO alert_cache
+                   (alert_id, source, title_en, body_en, valid_from, valid_until)
+                   VALUES (?, 'strike', 'Existing strike', 'body', '2099-12-04T00:00:00+00:00', '2099-12-07T00:00:00+00:00')""",
+                (existing_id,),
+            )
+
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mock_extract = mocker.patch("pollers.extract_alert_details")
+        mock_extract.side_effect = lambda *a, **kw: (
+            {"same_event": True} if kw.get("extraction_type") == "strike_dedup"
+            else self._mock_extraction()
+        )
+
+        poller = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365)
+        first = poller.fetch()
+        assert first == []  # dropped as a duplicate
+        assert mock_extract.call_count == 2  # one "strike" extraction + one "strike_dedup"
+
+        marker = db.get_strike_duplicate(alert_id)
+        assert marker is not None
+        assert marker["duplicate_of"] == existing_id
+
+        mock_extract.reset_mock()
+        mock_fetch_page = mocker.patch("pollers._fetch_page_body")
+        second = poller.fetch()
+        assert second == []
+        mock_extract.assert_not_called()
+        mock_fetch_page.assert_not_called()
 
     def test_max_age_filters_old_entries(self, mocker):
         from pollers import StrikePoller

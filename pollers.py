@@ -257,6 +257,10 @@ class RMVPoller(BasePoller):
 
 
 class PolizeiPoller(BasePoller):
+    def __init__(self, max_age_hours: float = 48) -> None:
+        super().__init__()
+        self.max_age_hours = max_age_hours
+
     def fetch(self) -> list[Alert]:
         from db import get_cached_alert
         from extraction import extract_alert_details, police_location_prompt
@@ -266,6 +270,17 @@ class PolizeiPoller(BasePoller):
             log.error("PolizeiPoller: failed to parse feed: %s", feed.bozo_exception)
             self.ok = False
             return []
+
+        # Same cutoff main.py applies post-hoc — checked here too, before the
+        # cache lookup/extraction call, so items older than the cutoff (which
+        # persist in presseportal's fixed-size feed window for days) don't
+        # pay for a Gemini extraction every single poll only to be discarded
+        # by main.py's filter and never cached (July 3: 6 stale items burning
+        # ~6 extraction calls every 10-minute poll, indefinitely).
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=self.max_age_hours)
+            if self.max_age_hours else None
+        )
 
         prompt_config, prompt_template = police_location_prompt()
         alerts = []
@@ -285,6 +300,8 @@ class PolizeiPoller(BasePoller):
                 datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
                 if entry.get("published_parsed") else None
             )
+            if cutoff and published_at and published_at < cutoff.isoformat():
+                continue
 
             lat = lon = location_label = None
             cached = get_cached_alert(alert_id)
@@ -997,12 +1014,13 @@ class StrikePoller(BasePoller):
         return any(loc in lower for loc in self.locations)
 
     def fetch(self) -> list[Alert]:
-        from db import get_active_strikes
+        from db import get_active_strikes, get_strike_duplicate, mark_strike_duplicate
 
         seen_ids: set[str] = set()
         alerts: list[Alert] = []
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.max_age_days)
         cached_strikes = get_active_strikes()
+        active_strike_ids = {s.get("alert_id") for s in cached_strikes}
 
         for feed_url in self.feeds:
             try:
@@ -1072,6 +1090,15 @@ class StrikePoller(BasePoller):
                     ))
                     continue
 
+                # Already resolved as a duplicate of an active strike on a
+                # prior poll — skip the page fetch/extraction/dedup entirely
+                # instead of re-deriving the same verdict every 10 minutes.
+                dup_marker = get_strike_duplicate(alert_id)
+                if dup_marker and dup_marker["duplicate_of"] in active_strike_ids:
+                    log.debug("StrikePoller: skipping known duplicate %s (matches %s)",
+                              entry_id, dup_marker["duplicate_of"])
+                    continue
+
                 link = entry.get("link", "")
                 page_body = _fetch_page_body(link) if link else ""
 
@@ -1129,16 +1156,23 @@ class StrikePoller(BasePoller):
                 )
 
                 existing_to_check = [
-                    {"title_en": a.title, "body_en": a.body, "valid_from": a.valid_from,
-                     "valid_until": a.valid_until, "service": a.service}
+                    {"alert_id": a.id, "title_en": a.title, "body_en": a.body,
+                     "valid_from": a.valid_from, "valid_until": a.valid_until, "service": a.service}
                     for a in alerts
                 ] + [s for s in cached_strikes if s.get("alert_id") != alert_id]
 
                 is_dup = False
                 for existing in existing_to_check:
                     if _is_duplicate_strike(alert, existing):
+                        existing_id = existing.get("alert_id", "batch")
                         log.info("StrikePoller: skipping duplicate strike %s (matches %s)",
-                                 entry_id, existing.get("alert_id", "batch"))
+                                 entry_id, existing_id)
+                        # Only persist a marker against a stable, already-cached
+                        # target — an in-batch match (existing_id == "batch" or
+                        # not yet committed to alert_cache) isn't safe to trust
+                        # on a future poll.
+                        if existing_id in active_strike_ids:
+                            mark_strike_duplicate(alert_id, existing_id)
                         is_dup = True
                         break
                 if not is_dup:
