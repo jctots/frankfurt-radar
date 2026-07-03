@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -270,6 +271,7 @@ class PolizeiPoller(BasePoller):
         alerts = []
         for entry in feed.entries:
             entry_id = entry.get("id") or entry.get("link", "")
+            alert_id = f"polizei-{hashlib.sha1(entry_id.encode()).hexdigest()[:16]}"
             title = re.sub(
                 r"^Frankfurt\s*[-–]\s*", "",
                 re.sub(r"^POL-[A-Z]+:\s*\d+\s*-\s*\d+\s*", "",
@@ -285,7 +287,7 @@ class PolizeiPoller(BasePoller):
             )
 
             lat = lon = location_label = None
-            cached = get_cached_alert(entry_id)
+            cached = get_cached_alert(alert_id)
             if cached is not None:
                 lat = cached.get("lat")
                 lon = cached.get("lon")
@@ -301,7 +303,7 @@ class PolizeiPoller(BasePoller):
                     lat = lon = None
 
             alerts.append(Alert(
-                id=entry_id,
+                id=alert_id,
                 source="polizei",
                 title=title,
                 body=body,
@@ -370,7 +372,7 @@ class FeuerwehrPoller(BasePoller):
             lat, lon = (coords[0], coords[1]) if coords else (None, None)
 
             alerts.append(Alert(
-                id=uri,
+                id=f"feuerwehr-{post_id}",
                 source="feuerwehr",
                 title=f"Fire Department — {location_label}",
                 body=text,
@@ -1020,6 +1022,7 @@ class StrikePoller(BasePoller):
                 entry_id = entry.get("id") or entry.get("link", "")
                 if not entry_id or entry_id in seen_ids:
                     continue
+                alert_id = f"strike-{hashlib.sha1(entry_id.encode()).hexdigest()[:16]}"
 
                 published_at = _parse_strike_timestamp(entry)
                 if published_at:
@@ -1042,7 +1045,7 @@ class StrikePoller(BasePoller):
                 seen_ids.add(entry_id)
 
                 cached_match = next(
-                    (s for s in cached_strikes if s.get("alert_id") == entry_id), None
+                    (s for s in cached_strikes if s.get("alert_id") == alert_id), None
                 )
                 if cached_match:
                     cached_until = cached_match.get("valid_until")
@@ -1054,7 +1057,7 @@ class StrikePoller(BasePoller):
                         except ValueError:
                             pass
                     alerts.append(Alert(
-                        id=entry_id,
+                        id=alert_id,
                         source="strike",
                         title=cached_match.get("title_en", title),
                         body=cached_match.get("body_en", ""),
@@ -1111,7 +1114,7 @@ class StrikePoller(BasePoller):
                     strike_lat = strike_lon = None
 
                 alert = Alert(
-                    id=entry_id,
+                    id=alert_id,
                     source="strike",
                     title=title,
                     body=summary,
@@ -1129,7 +1132,7 @@ class StrikePoller(BasePoller):
                     {"title_en": a.title, "body_en": a.body, "valid_from": a.valid_from,
                      "valid_until": a.valid_until, "service": a.service}
                     for a in alerts
-                ] + [s for s in cached_strikes if s.get("alert_id") != entry_id]
+                ] + [s for s in cached_strikes if s.get("alert_id") != alert_id]
 
                 is_dup = False
                 for existing in existing_to_check:
