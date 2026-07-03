@@ -81,26 +81,30 @@
     .score-val { font-size: 16px; font-weight: 700; }
     .score-val.highlight { color: var(--clr-current); }
 
-    /* ── Bar chart ── */
+    /* ── Score range plot (dot + p25–p75 whisker, zoomed axis) ──
+       Position, not bar length, carries the value here, so a zoomed axis is
+       legitimate (unlike a bar chart, which must start at zero). */
     .chart-wrap { margin-bottom: 6px; }
-    .chart-bars { display: flex; align-items: flex-end; gap: 3px; position: relative; height: 88px; }
-    .bar-grp { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
-    .bar-grp.proj-grp { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
-    .bar { border-radius: 2px 2px 0 0; min-height: 1px; width: 100%; }
-    .bar.ongoing   { background: var(--clr-ongoing); }
-    .bar.current   { background: var(--clr-current); }
-    .bar.projected { background: var(--clr-projected); }
-    .ref-line { position: absolute; left: 0; right: 0; pointer-events: none; }
-    .ref-label { position: absolute; right: 0; font-size: 9px; top: -11px; }
+    .range-plot { display: flex; align-items: stretch; gap: 3px; position: relative; height: 88px; }
+    .range-grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--clr-border); }
+    .range-grid-val { position: absolute; left: -2px; font-size: 9px; color: var(--clr-muted); transform: translateY(-50%); }
+    .range-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .range-col { flex: 1; position: relative; }
+    .range-col.proj-col { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
+    .whisker { position: absolute; left: 50%; width: 3px; transform: translateX(-50%); background: var(--clr-p25); opacity: 0.7; border-radius: 1.5px; }
+    .dot { position: absolute; left: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--clr-surface); box-shadow: 0 0 0 1px rgba(0,0,0,0.08); z-index: 2; }
+    .dot.ongoing   { background: var(--clr-ongoing); }
+    .dot.current   { background: var(--clr-current); width: 13px; height: 13px; }
+    .dot.projected { background: var(--clr-projected); }
+    .mean-tick { position: absolute; left: 50%; width: 16px; height: 2px; transform: translate(-50%, 50%); background: var(--clr-mean); border-radius: 1px; z-index: 1; }
     .chart-xlabels { display: flex; gap: 3px; margin-top: 3px; }
     .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .x-label.is-now  { color: var(--clr-current); font-weight: 700; }
     .x-label.is-proj { color: var(--clr-projected); }
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
     .leg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
-    .leg-line-mean { display: inline-block; width: 14px; border-top: 1px solid var(--clr-mean); vertical-align: middle; margin-right: 4px; }
-    .leg-line-p25  { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-p25); vertical-align: middle; margin-right: 4px; opacity: 0.8; }
-    .leg-line-p75  { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-projected); vertical-align: middle; margin-right: 4px; opacity: 0.8; }
+    .leg-line-mean { display: inline-block; width: 14px; border-top: 2px solid var(--clr-mean); vertical-align: middle; margin-right: 4px; }
+    .leg-line-p25  { display: inline-block; width: 14px; border-top: 2px solid var(--clr-p25); vertical-align: middle; margin-right: 4px; opacity: 0.7; }
 
     /* ── Explain ── */
     .cat-explain { font-size: 12px; color: var(--clr-muted); line-height: 1.6; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--clr-border); }
@@ -374,20 +378,54 @@ const statusBadge = status => `<span class="status ${status}"><span class="statu
 
 const CHART_H = 88;
 
+// Round a raw axis step up to a "nice" 1/2/5×10^n number so gridlines land
+// on readable values instead of arbitrary fractions.
+function niceStep(x) {
+  if (!(x > 0)) return 1;
+  const exp = Math.floor(Math.log10(x));
+  const base = x / Math.pow(10, exp);
+  const niceBase = base <= 1 ? 1 : base <= 2 ? 2 : base <= 5 ? 5 : 10;
+  return niceBase * Math.pow(10, exp);
+}
+
+// Zoomed axis domain for the dot plot. Unlike a bar chart, a dot/line plot
+// encodes value as position, not length, so it's legitimate (and necessary
+// here) to not start at zero — see pulse-axis mockup discussion.
+function computeDomain(values) {
+  const vals = values.filter(v => v != null);
+  if (!vals.length) return { lo: 0, hi: 1, step: 1 };
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi <= 0) return { lo: 0, hi: 1, step: 1 };
+  const range = hi - lo;
+  const pad = range > 0 ? range * 0.15 : Math.max(hi * 0.1, 1);
+  const rawLo = Math.max(0, lo - pad);
+  const rawHi = hi + pad;
+  const step = niceStep((rawHi - rawLo) / 4);
+  return { lo: Math.max(0, Math.floor(rawLo / step) * step), hi: Math.ceil(rawHi / step) * step, step };
+}
+
 function renderChart(cat) {
   const scores = cat.history.map(h => (h && typeof h === 'object') ? h.score : h);
-  const validScores = [...scores, cat.ongoing.score].filter(v => v != null);
-  if (cat.projected) validScores.push(cat.projected.score);
-  const p75val = cat.baseline ? cat.baseline.p75 : 0;
-  const maxScore = Math.max(...validScores, p75val * 1.15, 0.1);
-  const px = v => Math.max(1, Math.round(((v ?? 0) / maxScore) * CHART_H));
-  const bot = v => Math.round(((v ?? 0) / maxScore) * CHART_H);
+  const domainInputs = [...scores, cat.ongoing.score].filter(v => v != null);
+  if (cat.projected) domainInputs.push(cat.projected.score);
+  if (cat.baseline) domainInputs.push(cat.baseline.p25, cat.baseline.mean, cat.baseline.p75);
+  const { lo, hi, step } = computeDomain(domainInputs);
+  const posPct = v => ((v - lo) / (hi - lo)) * 100;
 
-  // Per-bar x-axis labels: derived from each bucket's real timestamp
-  // (period/hour/date), not just first/last — matches admin.html's mini-chart.
-  let bars = '', xlabels = '';
   const hlen = cat.history.length;
+  const totalCols = hlen + (cat.projected ? 1 : 0);
+  const xCenter = i => ((i + 0.5) / totalCols) * 100;
   const nowMs = Date.now();
+
+  let grid = '';
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    grid += `<div class="range-grid-line" style="bottom:${posPct(v)}%"></div><div class="range-grid-val" style="bottom:${posPct(v)}%">${Math.round(v)}</div>`;
+  }
+
+  // Per-dot x-axis labels: derived from each bucket's real timestamp
+  // (period/hour/date), not just first/last — matches admin.html's mini-chart.
+  let cols = '', xlabels = '';
+  const linePts = [];
   cat.history.forEach((entry, i) => {
     const isNow = i === hlen - 1;
     const isObj = entry && typeof entry === 'object';
@@ -404,51 +442,94 @@ function renderChart(cat) {
       else if (diffH < 24) shortLabel = `-${diffH}h`;
       else shortLabel = `-${Math.round(diffH / 24)}d`;
     }
-    const h = px(s);
     const countTitle = count != null ? ` (${count} alerts)` : '';
-    bars    += `<div class="bar-grp"><div class="bar ${isNow ? 'current' : 'ongoing'}" style="height:${h}px" title="score: ${s ?? 0}${countTitle}"></div></div>`;
+    cols    += `<div class="range-col"><div class="dot ${isNow ? 'current' : 'ongoing'}" style="bottom:${posPct(s ?? 0)}%" title="score: ${s ?? 0}${countTitle}"></div></div>`;
     xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${shortLabel}</div>`;
+    if (s != null) linePts.push(`${xCenter(i)},${100 - posPct(s)}`);
   });
+
+  let projLine = '';
   if (cat.projected) {
-    const h = px(cat.projected.score);
-    bars    += `<div class="bar-grp proj-grp"><div class="bar projected" style="height:${h}px" title="projected: ${cat.projected.score}"></div></div>`;
+    const projPct = posPct(cat.projected.score);
+    cols    += `<div class="range-col proj-col"><div class="dot projected" style="bottom:${projPct}%" title="projected: ${cat.projected.score}"></div></div>`;
     xlabels += `<div class="x-label is-proj">next</div>`;
+    if (linePts.length) {
+      const [lastX, lastY] = linePts[linePts.length - 1].split(',');
+      projLine = `<line x1="${lastX}" y1="${lastY}" x2="${xCenter(hlen)}" y2="${100 - projPct}" stroke="var(--clr-projected)" stroke-width="1" stroke-dasharray="3,2" vector-effect="non-scaling-stroke" opacity="0.8" />`;
+    }
   }
 
-  let refs = '';
+  const trendSvg = linePts.length > 1
+    ? `<svg class="range-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline points="${linePts.join(' ')}" fill="none" stroke="var(--clr-ongoing)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.8" />
+        ${projLine}
+      </svg>`
+    : '';
+
+  let markers = '';
   if (cat.baseline) {
-    const p25Bot  = bot(cat.baseline.p25);
-    const meanBot = bot(cat.baseline.mean);
-    const p75Bot  = bot(cat.baseline.p75);
-    refs = `
-    <div class="ref-line" style="bottom:${p25Bot}px;border-top:1px dashed var(--clr-p25);opacity:0.8;">
-      <span class="ref-label" style="color:var(--clr-p25);">p25 ${cat.baseline.p25}</span>
-    </div>
-    <div class="ref-line" style="bottom:${meanBot}px;border-top:1px solid var(--clr-mean);">
-      <span class="ref-label" style="color:var(--clr-mean);">μ ${cat.baseline.mean}</span>
-    </div>
-    <div class="ref-line" style="bottom:${p75Bot}px;border-top:1px dashed var(--clr-projected);opacity:0.8;">
-      <span class="ref-label" style="color:var(--clr-projected);">p75 ${cat.baseline.p75}</span>
-    </div>`;
+    const whiskerBot = posPct(cat.baseline.p25);
+    const whiskerH = posPct(cat.baseline.p75) - posPct(cat.baseline.p25);
+    markers = `<div class="whisker" style="bottom:${whiskerBot}%;height:${whiskerH}%"></div><div class="mean-tick" style="bottom:${posPct(cat.baseline.mean)}%"></div>`;
   }
 
   const projLegend = cat.projected
     ? `<span><span class="leg-dot" style="background:var(--clr-projected)"></span>Projected (next interval)</span>`
     : '';
+  const baselineLegend = cat.baseline
+    ? `<span><span class="leg-line-p25"></span>baseline p25–p75</span><span><span class="leg-line-mean"></span>baseline mean</span>`
+    : '';
 
   return `
     <div class="chart-wrap">
-      <div class="chart-bars">${refs}${bars}</div>
+      <div class="range-plot">${grid}${trendSvg}${markers}${cols}</div>
       <div class="chart-xlabels">${xlabels}</div>
       <div class="chart-legend">
         <span><span class="leg-dot" style="background:var(--clr-current)"></span>Current</span>
         <span><span class="leg-dot" style="background:var(--clr-ongoing)"></span>History (${cat.window})</span>
         ${projLegend}
-        <span><span class="leg-line-p25"></span>baseline p25</span>
-        <span><span class="leg-line-mean"></span>baseline mean</span>
-        <span><span class="leg-line-p75"></span>baseline p75</span>
+        ${baselineLegend}
       </div>
+      <div class="cat-explain">${renderRuleExplain(cat)}</div>
     </div>`;
+}
+
+// Plain-language readout of the deterministic status/trend rule that fired
+// for this category's current score, mirroring pulse_categories.py's
+// compute_status() / compute_trend(). Presentational only — the backend's
+// cat.status / cat.trend remain the source of truth.
+function renderRuleExplain(cat) {
+  const score = cat.ongoing.score ?? 0;
+  let statusLine;
+  if (!cat.baseline) {
+    statusLine = `<strong>Status: ${cat.status.toUpperCase()}</strong> — no historical baseline yet, so status can only rise via an authoritative severity floor (e.g. a DWD warning level), never from the score alone.`;
+  } else if (score <= 0) {
+    statusLine = `<strong>Status: ${cat.status.toUpperCase()}</strong> — score is 0, no active signal.`;
+  } else {
+    const lo = Math.min(cat.baseline.mean, cat.baseline.p75);
+    const hi = Math.max(cat.baseline.mean, cat.baseline.p75);
+    let bracket;
+    if (score <= lo) bracket = `score (${score}) ≤ min(mean, p75) = ${lo}`;
+    else if (score <= hi) bracket = `min(mean, p75) = ${lo} &lt; score (${score}) ≤ max(mean, p75) = ${hi}`;
+    else bracket = `score (${score}) &gt; max(mean, p75) = ${hi}`;
+    statusLine = `<strong>Status: ${cat.status.toUpperCase()}</strong> — ${bracket}.`;
+  }
+
+  const priorScores = cat.history.slice(0, -1).map(h => (h && typeof h === 'object') ? h.score : h).filter(v => v != null).slice(-3);
+  let trendLine;
+  if (!priorScores.length) {
+    trendLine = `<strong>Trend: ${cat.trend.toUpperCase()}</strong> — not enough prior history yet to compare against.`;
+  } else {
+    const ref = priorScores.reduce((a, b) => a + b, 0) / priorScores.length;
+    const band = Math.max(0.15 * ref, 1.0);
+    let cmp;
+    if (score > ref + band) cmp = `score (${score}) &gt; ref + band (${(ref + band).toFixed(1)})`;
+    else if (score < ref - band) cmp = `score (${score}) &lt; ref − band (${(ref - band).toFixed(1)})`;
+    else cmp = `score (${score}) is within ±15% of ref (${ref.toFixed(1)} ± ${band.toFixed(1)})`;
+    trendLine = `<strong>Trend: ${cat.trend.toUpperCase()}</strong> — ref = mean of prior ${priorScores.length} bucket${priorScores.length > 1 ? 's' : ''} (${priorScores.join(', ')}) = ${ref.toFixed(1)}; ${cmp}.`;
+  }
+
+  return `${statusLine}<br>${trendLine}`;
 }
 
 function renderScores(cat) {
@@ -498,7 +579,6 @@ function renderCard(cat) {
       </div>
       ${renderScores(cat)}
       ${renderChart(cat)}
-      ${cat.explain ? `<div class="cat-explain">${cat.explain}</div>` : ''}
     </div>`;
 }
 
