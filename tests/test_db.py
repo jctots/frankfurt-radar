@@ -137,6 +137,46 @@ class TestAlertCache:
         mock_translate.assert_called_once()
 
 
+class TestStrikeDuplicates:
+    def test_mark_and_get_round_trip(self):
+        db.mark_strike_duplicate("strike-a", "strike-b")
+        marker = db.get_strike_duplicate("strike-a")
+        assert marker["alert_id"] == "strike-a"
+        assert marker["duplicate_of"] == "strike-b"
+        assert marker["resolved_at"] is not None
+
+    def test_unknown_alert_id_returns_none(self):
+        assert db.get_strike_duplicate("strike-nonexistent") is None
+
+    def test_survives_cleanup_when_target_only_soft_removed(self, rmv_alert, mocker, config):
+        """Regression for the 2026-07-03 leak: a marker's target being
+        soft-removed (removed_at set, e.g. by an alert_id scheme migration)
+        must NOT make clear_expired_alerts() purge the marker — StrikePoller
+        validates a marker's target via get_active_strikes(), which doesn't
+        filter removed_at either. Using a stricter definition in the cleanup
+        than in the check that trusts the marker meant every marker was
+        deleted in the same poll cycle it was created.
+        """
+        mocker.patch("translation.translate_alert", return_value=("T", "B"))
+        rmv_alert.source = "strike"
+        db.sync_alert_cache([rmv_alert], config)
+        with db._conn() as conn:
+            conn.execute(
+                "UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE alert_id = ?",
+                (rmv_alert.id,),
+            )
+
+        db.mark_strike_duplicate("strike-dup", rmv_alert.id)
+        db.clear_expired_alerts()
+
+        assert db.get_strike_duplicate("strike-dup") is not None
+
+    def test_purged_when_target_fully_gone(self):
+        db.mark_strike_duplicate("strike-dup", "strike-never-cached")
+        db.clear_expired_alerts()
+        assert db.get_strike_duplicate("strike-dup") is None
+
+
 class TestPatchPublishedAt:
     def _insert_cache_row(self, alert_id, source, valid_from, published_at=None):
         with db._conn() as conn:

@@ -957,14 +957,21 @@ def clear_expired_alerts() -> None:
         if cur.rowcount:
             log.info("Cleared %d expired alerts", cur.rowcount)
 
-        # Drop duplicate markers whose target strike is no longer active —
-        # a stale marker is harmless (get_strike_duplicate() callers re-check
-        # the target is still active before trusting it) but there's no
-        # reason to keep it once the target is gone.
+        # Drop duplicate markers whose target row has been purged from
+        # alert_cache entirely. Deliberately NOT filtered on removed_at:
+        # get_active_strikes() (what StrikePoller checks a marker's target
+        # against) doesn't filter removed_at either, so a target that's
+        # merely soft-removed (e.g. orphaned by an alert_id scheme change,
+        # not actually expired) must still count as valid here too — using
+        # a stricter definition in this cleanup than in the check that
+        # trusts the marker caused every marker to be deleted the moment
+        # it was created (2026-07-03: strike_duplicates rows for a target
+        # with removed_at set were purged within the same poll cycle they
+        # were written, so the extraction/dedup cost never actually stopped).
         cur = conn.execute(
             """DELETE FROM strike_duplicates
                WHERE duplicate_of NOT IN (
-                   SELECT alert_id FROM alert_cache WHERE removed_at IS NULL
+                   SELECT alert_id FROM alert_cache
                )"""
         )
         if cur.rowcount:
