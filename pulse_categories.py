@@ -34,18 +34,31 @@ CATEGORY_STATUS_LABELS: dict[str, list[str]] = {
     "events": ["clear", "crowds", "busy", "peak"],
 }
 
+# `surge_lead_hours` is the window used to judge "is this soon enough to warn
+# about now" — deliberately separate from `interval_hours` (which only drives
+# `projected_score`, the next-single-interval estimate). Before this existed,
+# the lead-alert check reused `interval_hours` and collapsed the warning
+# window into the onset itself (see D-transport-surge-lead-window). 0 disables
+# lead-alert detection for categories with no scheduled lookahead.
 CATEGORY_WINDOWS: dict[str, dict] = {
-    "transport": {"interval_hours": 1, "history_hours": 24, "lookahead_hours": 24},
-    "weather": {"interval_hours": 6, "history_hours": 72, "lookahead_hours": 48},
-    "roadworks": {"interval_hours": 24, "history_hours": 672, "lookahead_hours": 168},
-    "incidents": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 0},
-    "events": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 168},
+    "transport": {"interval_hours": 1, "history_hours": 24, "lookahead_hours": 24, "surge_lead_hours": 3},
+    "weather": {"interval_hours": 6, "history_hours": 72, "lookahead_hours": 48, "surge_lead_hours": 12},
+    "roadworks": {"interval_hours": 24, "history_hours": 672, "lookahead_hours": 168, "surge_lead_hours": 72},
+    "incidents": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 0, "surge_lead_hours": 0},
+    "events": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 168, "surge_lead_hours": 72},
 }
 
-# Extra lookback (beyond a category's own lookahead_hours) kept clean for the
-# schedule baseline, so a still-visible scheduled disruption can't absorb
-# itself into its own "typical" before it matters — see _build_schedule_baseline.
-SCHEDULE_BASELINE_POOL_HOURS = 168
+# Extra lookback (beyond a category's own surge_lead_hours) kept clean for the
+# lead baseline, so a still-visible scheduled disruption can't absorb itself
+# into its own "typical" before it matters — see _build_lead_baseline.
+LEAD_BASELINE_POOL_HOURS = 168
+
+# Floor on the moderate band's width, as a fraction of the baseline mean. When
+# a category's history is nearly flat (mean ≈ p75), the raw band collapses to
+# near-zero width and any real increase jumps straight from minor to severe
+# with no moderate step in between (observed 2026-07-05: transport baseline
+# mean≈109.86, p75=109.0 — a <1-point band).
+MIN_MODERATE_BAND_FRACTION = 0.1
 
 # Bump whenever _compute_weight or any weight table changes. Snapshots are
 # stored with this version and baselines only compare same-version scores —
@@ -86,6 +99,9 @@ def compute_status(ongoing_score: float, baseline: dict | None, floor: str | Non
         # (skewed history), which would make the moderate band empty.
         lo = min(baseline.get("mean", 0), baseline.get("p75", 0))
         hi = max(baseline.get("mean", 0), baseline.get("p75", 0))
+        # Floor guard: near-flat history (mean ≈ p75) must still leave a real
+        # moderate band, not a sliver a single new alert always jumps past.
+        hi = max(hi, lo + baseline.get("mean", 0) * MIN_MODERATE_BAND_FRACTION)
         if ongoing_score <= lo:
             status = "minor"
         elif ongoing_score <= hi:
@@ -140,35 +156,45 @@ def apply_status_hysteresis(
     return prev_effective, pending
 
 
-def compute_surge(upcoming_total: float, upcoming_near: float, schedule_baseline: dict | None) -> bool:
+def compute_lead_alert(lead_score: float, lead_baseline: dict | None) -> bool:
     """Deterministic replacement for the old LLM-judged "Signal 2".
 
-    True when scheduled upcoming load is both significant relative to the
-    *typical scheduled load* AND mostly imminent (starting within the next
-    sample interval). Judged from pure future starts — never from expiry
-    schedules of current alerts, which is what made the old horizon series
-    fire on RMV end-of-service rollovers.
+    True when the load scheduled within `surge_lead_hours` is significant
+    relative to what's *typically* scheduled that far ahead. Judged from
+    pure future starts — never from expiry schedules of current alerts,
+    which is what made the old horizon series fire on RMV end-of-service
+    rollovers.
 
-    `schedule_baseline` must be built from scheduled_upcoming_score's own
-    history (see _build_schedule_baseline), not the ongoing-score baseline —
-    the two are different scales, and a single new alert's schedule weight
-    can never clear 1.5x a category's much larger total ongoing load.
+    Deliberately dropped from the original design: a "mostly imminent"
+    ratio test (near/total ≥ 50%) against the full lookahead total. It
+    structurally couldn't fire for categories like transport where several
+    real, independent disruptions are routinely stacked across the
+    lookahead window — any single new item is a minority share of that
+    total almost by construction (observed 2026-07-05: an incoming S8/S9
+    alert was 6 of a 24-point lookahead total, entirely made up of three
+    other unrelated future items, not noise). Comparing the lead-window
+    score against its *own* history (see _build_lead_baseline) sidesteps
+    that: it only asks whether this window's own past shows the arrival
+    was unusual, never what fraction of the whole day it represents.
+
+    `lead_baseline` must be built from the lead-window's own score history
+    (see _build_lead_baseline), not the ongoing-score baseline — the two
+    are different scales, and a single new alert's schedule weight can
+    never clear 1.5x a category's much larger total ongoing load.
     """
-    if upcoming_total <= 0:
+    if lead_score <= 0:
         return False
-    if schedule_baseline is None:
+    if lead_baseline is None:
         # No typical level to compare against — require a meaningful
         # imminent load on its own.
-        return upcoming_near >= 2.0
-    if upcoming_total < 1.5 * schedule_baseline.get("mean", 0):
-        return False
-    return (upcoming_near / upcoming_total) >= 0.5
+        return lead_score >= 2.0
+    return lead_score >= 1.5 * lead_baseline.get("mean", 0)
 
 
-def compute_trend(current_score: float, history: list[dict], surge: bool) -> str:
+def compute_trend(current_score: float, history: list[dict], lead_alert: bool) -> str:
     """Deterministic trend: current score vs. mean of the 3 preceding buckets,
     with a dead band so ±4% noise doesn't flip the label (the LLM used to
-    flip stable/worsening on exactly that). A surge escalates one step.
+    flip stable/worsening on exactly that). A lead alert escalates one step.
     """
     # history includes the current bucket last; compare against the 3 before it
     prior = [h["score"] for h in history[:-1]][-3:]
@@ -183,7 +209,7 @@ def compute_trend(current_score: float, history: list[dict], surge: bool) -> str
             trend = "improving"
         else:
             trend = "stable"
-    if surge:
+    if lead_alert:
         trend = {"improving": "stable", "stable": "worsening"}.get(trend, trend)
     return trend
 
@@ -294,8 +320,9 @@ def compute_snapshot(
             "ongoing_score": 0.0,
             "projected_count": 0,
             "projected_score": 0.0,
-            "upcoming_count": 0,
-            "upcoming_score": 0.0,
+            # DB columns kept as-is (upcoming_near_score / scheduled_upcoming_score)
+            # to avoid a schema migration; what they represent has changed —
+            # see the assignments below and CATEGORY_WINDOWS' surge_lead_hours.
             "upcoming_near_score": 0.0,
             "scheduled_upcoming_score": 0.0,
             "status_floor": None,
@@ -304,6 +331,7 @@ def compute_snapshot(
     ongoing_by_cat: dict[str, list[dict]] = {cat: [] for cat in CATEGORY_SOURCES}
 
     near_ends: dict[str, str] = {}
+    lead_ends: dict[str, str] = {}
     full_ends: dict[str, str] = {}
     for cat, window in CATEGORY_WINDOWS.items():
         if window["lookahead_hours"] > 0:
@@ -311,14 +339,17 @@ def compute_snapshot(
             full = now + timedelta(hours=window["lookahead_hours"])
             near_ends[cat] = near.strftime("%Y-%m-%dT%H:%M:%SZ")
             full_ends[cat] = full.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if window.get("surge_lead_hours", 0) > 0:
+                lead = now + timedelta(hours=window["surge_lead_hours"])
+                lead_ends[cat] = lead.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     expiring_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
-    expiring_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
     starting_near: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
+    starting_lead: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
     starting_full: dict[str, dict] = {cat: {"count": 0, "score": 0.0} for cat in CATEGORY_SOURCES}
 
     breakdown: dict[str, dict] = {
-        cat: {"ongoing": [], "expiring_near": [], "starting_near": [], "starting_full": []}
+        cat: {"ongoing": [], "expiring_near": [], "starting_near": [], "starting_lead": [], "starting_full": []}
         for cat in CATEGORY_SOURCES
     }
 
@@ -348,9 +379,6 @@ def compute_snapshot(
                 expiring_near[cat]["count"] += 1
                 expiring_near[cat]["score"] += weight
                 breakdown[cat]["expiring_near"].append(entry)
-            if cat in full_ends and _is_expiring(alert, now_iso, full_ends[cat]):
-                expiring_full[cat]["count"] += 1
-                expiring_full[cat]["score"] += weight
         elif cat in full_ends and _is_upcoming(alert, now_iso, full_ends[cat]):
             starting_full[cat]["count"] += 1
             starting_full[cat]["score"] += weight
@@ -359,6 +387,10 @@ def compute_snapshot(
                 starting_near[cat]["count"] += 1
                 starting_near[cat]["score"] += weight
                 breakdown[cat]["starting_near"].append(entry)
+            if cat in lead_ends and _is_upcoming(alert, now_iso, lead_ends[cat]):
+                starting_lead[cat]["count"] += 1
+                starting_lead[cat]["score"] += weight
+                breakdown[cat]["starting_lead"].append(entry)
 
     for cat in snapshot:
         snapshot[cat]["ongoing_score"] = round(snapshot[cat]["ongoing_score"], 2)
@@ -366,15 +398,12 @@ def compute_snapshot(
         projected_score = snapshot[cat]["ongoing_score"] - expiring_near[cat]["score"] + starting_near[cat]["score"]
         snapshot[cat]["projected_count"] = max(0, projected_count)
         snapshot[cat]["projected_score"] = round(max(0.0, projected_score), 2)
-        # End-state estimate over the full lookahead (ongoing − expiring + starting).
-        # Kept for the admin dashboard; NOT sent to the LLM — it mostly reflects the
-        # expiry schedule of current alerts, not upcoming activity.
-        horizon_count = snapshot[cat]["ongoing_count"] - expiring_full[cat]["count"] + starting_full[cat]["count"]
-        horizon_score = snapshot[cat]["ongoing_score"] - expiring_full[cat]["score"] + starting_full[cat]["score"]
-        snapshot[cat]["upcoming_count"] = max(0, horizon_count)
-        snapshot[cat]["upcoming_score"] = round(max(0.0, horizon_score), 2)
-        snapshot[cat]["upcoming_near_score"] = round(starting_near[cat]["score"], 2)
-        # Pure future starts within the lookahead — the honest "upcoming" series.
+        # Lead-window score (this column used to hold the interval-scoped
+        # "starting_near" value; it's now scoped to surge_lead_hours instead —
+        # see CATEGORY_WINDOWS — since that's the only thing that ever read it,
+        # the lead-alert check).
+        snapshot[cat]["upcoming_near_score"] = round(starting_lead[cat]["score"], 2)
+        # Pure future starts within the full lookahead — the lookahead score.
         snapshot[cat]["scheduled_upcoming_score"] = round(starting_full[cat]["score"], 2)
         snapshot[cat]["status_floor"] = compute_status_floor(cat, ongoing_by_cat[cat])
 
@@ -390,7 +419,8 @@ def _aggregate_buckets(
                 "hour": r["timestamp"],
                 "count": r["ongoing_count"],
                 "score": r["ongoing_score"],
-                "scheduled_score": round(r.get("scheduled_upcoming_score", 0.0) or 0.0, 2),
+                "lookahead_score": round(r.get("scheduled_upcoming_score", 0.0) or 0.0, 2),
+                "lead_score": round(r.get("upcoming_near_score", 0.0) or 0.0, 2),
             }
             for r in rows
         ]
@@ -406,11 +436,13 @@ def _aggregate_buckets(
             buckets[bucket_key] = {
                 "counts": [],
                 "scores": [],
-                "scheduled_scores": [],
+                "lookahead_scores": [],
+                "lead_scores": [],
             }
         buckets[bucket_key]["counts"].append(r["ongoing_count"])
         buckets[bucket_key]["scores"].append(r["ongoing_score"])
-        buckets[bucket_key]["scheduled_scores"].append(r.get("scheduled_upcoming_score", 0.0) or 0.0)
+        buckets[bucket_key]["lookahead_scores"].append(r.get("scheduled_upcoming_score", 0.0) or 0.0)
+        buckets[bucket_key]["lead_scores"].append(r.get("upcoming_near_score", 0.0) or 0.0)
 
     label = "date" if interval_hours >= 24 else "period"
     result = []
@@ -420,7 +452,8 @@ def _aggregate_buckets(
             label: key[:10] if interval_hours >= 24 else key,
             "count": max(b["counts"]),
             "score": round(max(b["scores"]), 2),
-            "scheduled_score": round(max(b["scheduled_scores"]), 2),
+            "lookahead_score": round(max(b["lookahead_scores"]), 2),
+            "lead_score": round(max(b["lead_scores"]), 2),
         }
         result.append(entry)
     return result
@@ -441,23 +474,23 @@ def _compute_baseline_stats(scores: list[float]) -> dict | None:
     }
 
 
-def _build_schedule_baseline(
-    rows: list[dict], interval_hours: int, lookahead_hours: int,
+def _build_lead_baseline(
+    rows: list[dict], interval_hours: int, surge_lead_hours: int,
 ) -> dict | None:
-    """Baseline for `scheduled_upcoming_score`, built from its own history
-    rather than the ongoing-score baseline (the two are different scales —
-    comparing a single new alert's schedule weight against the category's
-    total noisy ongoing load makes surge structurally unable to fire).
+    """Baseline for the lead score, built from its own history rather than
+    the ongoing-score baseline (the two are different scales — comparing a
+    single new alert's schedule weight against the category's total noisy
+    ongoing load makes the lead alert structurally unable to fire).
 
-    The lag exclusion is sized to the category's own lookahead_hours (not a
-    flat few buckets): a disruption can sit visible in scheduled_upcoming_score
-    for up to a full lookahead window before it starts, so a short exclusion
-    lets it absorb itself into its own "typical" before it ever matters.
+    The lag exclusion is sized to the category's own surge_lead_hours (not a
+    flat few buckets): a disruption can sit visible in the lead score for up
+    to a full lead window before it starts, so a short exclusion lets it
+    absorb itself into its own "typical" before it ever matters.
     """
     buckets = _aggregate_buckets(rows, interval_hours)
-    lag_buckets = max(1, -(-lookahead_hours // max(interval_hours, 1)))  # ceil
+    lag_buckets = max(1, -(-surge_lead_hours // max(interval_hours, 1)))  # ceil
     pool = buckets[:-lag_buckets] if len(buckets) > lag_buckets else []
-    scores = [b["scheduled_score"] for b in pool if b.get("scheduled_score", 0) > 0]
+    scores = [b["lead_score"] for b in pool if b.get("lead_score", 0) > 0]
     return _compute_baseline_stats(scores)
 
 
@@ -499,15 +532,9 @@ def build_category_timeseries(
         }
 
         if window["lookahead_hours"] > 0:
-            current["upcoming"] = {
+            current["lookahead"] = {
                 "total_score": snap.get("scheduled_upcoming_score", 0.0),
-                "near_score": snap.get("upcoming_near_score", 0.0),
-            }
-            # End-state estimate — admin dashboard only, excluded from the
-            # LLM payload by pulse.py.
-            current["horizon"] = {
-                "total_score": snap.get("upcoming_score", 0.0),
-                "near_score": snap.get("upcoming_near_score", 0.0),
+                "lead_score": snap.get("upcoming_near_score", 0.0),
             }
 
         # Baseline from lagged history: exclude the trailing buckets so an
@@ -515,23 +542,19 @@ def build_category_timeseries(
         baseline_pool = history[:-BASELINE_LAG_BUCKETS] if len(history) > BASELINE_LAG_BUCKETS else []
         baseline = _compute_baseline_stats([h["score"] for h in baseline_pool if h.get("score", 0) > 0])
 
-        schedule_baseline = None
-        if window["lookahead_hours"] > 0:
-            schedule_since = now - timedelta(hours=window["lookahead_hours"] + SCHEDULE_BASELINE_POOL_HOURS)
-            schedule_rows = get_snapshots_fn(cat, schedule_since.strftime("%Y-%m-%dT%H:%M:%SZ"))
-            schedule_baseline = _build_schedule_baseline(
-                schedule_rows, window["interval_hours"], window["lookahead_hours"],
+        lead_baseline = None
+        if window.get("surge_lead_hours", 0) > 0:
+            lead_since = now - timedelta(hours=window["surge_lead_hours"] + LEAD_BASELINE_POOL_HOURS)
+            lead_rows = get_snapshots_fn(cat, lead_since.strftime("%Y-%m-%dT%H:%M:%SZ"))
+            lead_baseline = _build_lead_baseline(
+                lead_rows, window["interval_hours"], window["surge_lead_hours"],
             )
 
         ongoing_score = snap.get("ongoing_score", 0.0)
         current["status"] = compute_status(ongoing_score, baseline, snap.get("status_floor"))
-        surge = compute_surge(
-            snap.get("scheduled_upcoming_score", 0.0),
-            snap.get("upcoming_near_score", 0.0),
-            schedule_baseline,
-        )
-        current["surge_expected"] = surge
-        current["trend"] = compute_trend(ongoing_score, history, surge)
+        lead_alert = compute_lead_alert(snap.get("upcoming_near_score", 0.0), lead_baseline)
+        current["lead_alert"] = lead_alert
+        current["trend"] = compute_trend(ongoing_score, history, lead_alert)
 
         timeseries[cat] = {
             "current": current,

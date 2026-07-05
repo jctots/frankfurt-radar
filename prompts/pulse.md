@@ -30,11 +30,11 @@ The following shows severity-weighted scores per category over each category's n
 Field reference:
 - `current.status`: the **pre-computed status** label (`clear` / `minor` / `moderate` / `severe`), derived from Layer 1 scores with hysteresis. Receive it as context — you do not set this.
 - `current.trend`: the **pre-computed trend** (`improving` / `stable` / `worsening`), derived from the score history. Receive it as context.
-- `current.surge_expected`: true when significant scheduled activity starts within the next sample interval — use bridging language in the narrative ("calm now, but a storm system arrives tonight").
+- `current.lead_alert`: true when a scheduled item entered the category's lead window (a few hours to a few days ahead, depending on category) at an unusual level vs. what's typically scheduled that far out — use bridging language in the narrative ("calm now, but a storm system arrives tonight").
 - `current.ongoing`: active disruptions right now — count and severity-weighted score
 - `current.projected`: score at the end of the **next sample interval** counting only *scheduled* starts and expiries. For categories without scheduled alerts it equals `ongoing` — that is normal, not a signal.
-- `current.upcoming` (not present for Incidents): scheduled future activity within the lookahead window — `total_score` (all scheduled starts) and `near_score` (the portion starting within the next sample interval).
-- `history`: past data points at the category's sample interval. Each point has `count`, `score` (ongoing), and `upcoming_score` (scheduled future starts seen at that snapshot). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
+- `current.lookahead` (not present for Incidents): scheduled future activity within the full lookahead window — `total_score` (all scheduled starts across the whole window) and `lead_score` (the portion starting within the shorter lead window that `lead_alert` is judged from).
+- `history`: past data points at the category's sample interval. Each point has `count`, `score` (ongoing), and `lookahead_score` (scheduled future starts seen at that snapshot, across the full lookahead window). Use count and score together: "3 alerts at score 12" = few severe disruptions; "12 alerts at score 12" = many minor ones.
 - `baseline`: statistical summary of historical `score` values (excluding the most recent hours) — `mean`, `p25`, `p75`. Present when enough history exists.
 - `window`: the time range and sample interval used
 

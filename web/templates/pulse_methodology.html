@@ -331,8 +331,8 @@
           <td>Default for all categories</td>
         </tr>
         <tr>
-          <td><strong>Scheduled surge</strong></td>
-          <td>Alerts with known future start times (storm warnings, planned closures, events): when significant scheduled activity is both large relative to the typical level and mostly imminent, the trend escalates one step</td>
+          <td><strong>Lead alert</strong></td>
+          <td>Alerts with known future start times (storm warnings, planned closures, events) that fall within the category's lead window (a few hours to a few days ahead, depending on category) at a level unusual for that window: the trend escalates one step</td>
           <td>Escalation only — the AI uses bridging language ("calm now, but a storm system arrives tonight")</td>
         </tr>
         <tr>
@@ -372,6 +372,15 @@
     <div class="section-eyebrow">🤖 AI narrative &amp; overrides</div>
     <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The one part of the pipeline that isn't deterministic: Gemini's write-up of the numbers above, which alerts it cited, and whether it corrected any category's trend.</p>
     <div id="narrative-block"></div>
+  </div>
+
+  <!-- Feedback -->
+  <div class="section">
+    <div class="section-eyebrow">💬 Feedback</div>
+    <p class="section-lead" style="font-size:13px;">
+      Spotted something off, or have an idea for improving how status, trend, or scoring works?
+      <a href="https://github.com/jctots/frankfurt-radar/issues/new?template=feature_request.md" target="_blank" rel="noopener">Open a suggestion on GitHub</a>.
+    </p>
   </div>
 
   <p class="data-note">Charts load from today's hourly pulse snapshots.</p>
@@ -555,7 +564,12 @@ function renderRuleExplain(cat) {
     trendLine = `<strong>Trend: ${cat.trend.toUpperCase()}</strong> — ref = mean of prior ${priorScores.length} bucket${priorScores.length > 1 ? 's' : ''} (${priorScores.join(', ')}) = ${ref.toFixed(1)}; ${cmp}.`;
   }
 
-  return `${statusLine}<br>${trendLine}`;
+  let leadLine = '';
+  if (cat.lead_alert && cat.lookahead) {
+    leadLine = `<br><strong>Lead alert</strong> — ${cat.lookahead.lead_score} scheduled within the lead window is unusual for that window, so trend was escalated one step (this is the only thing that can push a category from ${cat.trend === 'worsening' ? '"stable" to "worsening"' : 'improving toward stable'} ahead of the scores alone).`;
+  }
+
+  return `${statusLine}<br>${trendLine}${leadLine}`;
 }
 
 function renderScores(cat) {
@@ -563,6 +577,12 @@ function renderScores(cat) {
   const p25  = cat.baseline ? cat.baseline.p25  : '—';
   const mean = cat.baseline ? cat.baseline.mean : '—';
   const p75  = cat.baseline ? cat.baseline.p75  : '—';
+  const lookaheadItem = cat.lookahead ? `
+      <div class="score-item">
+        <div class="score-label">Upcoming (scheduled)</div>
+        <div class="score-val">${cat.lookahead.total_score}</div>
+        <div style="font-size:10px;color:var(--clr-muted)">lead: ${cat.lookahead.lead_score}${cat.lead_alert ? ' · ⚡ lead alert' : ''}</div>
+      </div>` : '';
   return `
     <div class="score-row">
       <div class="score-item">
@@ -577,6 +597,7 @@ function renderScores(cat) {
         <div class="score-label">Projected (next)</div>
         <div class="score-val">${proj}</div>
       </div>
+      ${lookaheadItem}
       <div class="score-item">
         <div class="score-label">Baseline p25</div>
         <div class="score-val">${p25}</div>

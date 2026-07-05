@@ -13,10 +13,10 @@ from pulse_categories import (
     _is_upcoming,
     apply_status_hysteresis,
     build_category_timeseries,
+    compute_lead_alert,
     compute_snapshot,
     compute_status,
     compute_status_floor,
-    compute_surge,
     compute_trend,
     count_alerts_by_category,
 )
@@ -42,6 +42,15 @@ _NOW = datetime(2026, 6, 23, 12, 0, 0, tzinfo=timezone.utc)
 _NOW_ISO = "2026-06-23T12:00:00Z"
 _PAST = "2026-06-23T10:00:00Z"
 _FUTURE = "2026-06-24T10:00:00Z"
+
+
+def _empty_snapshot():
+    return {
+        "ongoing_count": 0, "ongoing_score": 0.0,
+        "projected_count": 0, "projected_score": 0.0,
+        "upcoming_near_score": 0.0,
+        "scheduled_upcoming_score": 0.0,
+    }
 
 
 class TestCountAlertsByCategory:
@@ -173,27 +182,28 @@ class TestComputeSnapshot:
         assert snap["transport"]["ongoing_count"] == 2
         assert snap["transport"]["ongoing_score"] == pytest.approx(2.5)
 
-    def test_upcoming_counted_projected_excludes_distant(self):
-        upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def test_upcoming_counted_but_not_projected(self):
+        upcoming_time = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=upcoming_time, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["ongoing_count"] == 0
-        # +3h is beyond next 1h interval — not in projected
+        # +4h is beyond next 1h interval — not in projected
         assert snap["transport"]["projected_count"] == 0
-        # but within 6h lookahead — counted in upcoming
-        assert snap["transport"]["upcoming_count"] == 1
-        assert snap["transport"]["upcoming_score"] == pytest.approx(1.0)
+        # but within 24h lookahead — counted in the lookahead score
+        assert snap["transport"]["scheduled_upcoming_score"] == pytest.approx(1.0)
+        # +4h is beyond transport's 3h surge_lead_hours window — not yet "lead"
         assert snap["transport"]["upcoming_near_score"] == pytest.approx(0.0)
 
     def test_upcoming_beyond_lookahead_excluded(self):
-        far_future = (_NOW + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        far_future = (_NOW + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=far_future, valid_until="2026-06-25T00:00:00Z"),
         ]
         snap, _ = compute_snapshot(alerts, now=_NOW)
         assert snap["transport"]["projected_count"] == 0
+        assert snap["transport"]["scheduled_upcoming_score"] == 0.0
 
     def test_stale_excluded(self):
         alerts = [_alert("rmv", stale=True, valid_from=_PAST)]
@@ -204,14 +214,7 @@ class TestComputeSnapshot:
         snap, _ = compute_snapshot([], now=_NOW)
         assert set(snap.keys()) == set(CATEGORY_SOURCES.keys())
         for cat_data in snap.values():
-            assert cat_data == {
-                "ongoing_count": 0, "ongoing_score": 0.0,
-                "projected_count": 0, "projected_score": 0.0,
-                "upcoming_count": 0, "upcoming_score": 0.0,
-                "upcoming_near_score": 0.0,
-                "scheduled_upcoming_score": 0.0,
-                "status_floor": None,
-            }
+            assert cat_data == {**_empty_snapshot(), "status_floor": None}
 
     def test_severity_weighting_in_snapshot(self):
         alerts = [
@@ -232,9 +235,6 @@ class TestComputeSnapshot:
         expiring_soon = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
         starting_soon = (_NOW + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
         starting_later = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        # transport's lookahead is 24h; this alert's expiry must stay outside
-        # that window so it isn't counted in expiring_full (unlike _FUTURE,
-        # which is only 22h out and would now fall inside the window).
         beyond_lookahead = (_NOW + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=_PAST, valid_until=expiring_soon, service="S-Bahn"),
@@ -248,13 +248,10 @@ class TestComputeSnapshot:
         # projected uses next 1h only: -1.5 (S-Bahn expiring) +1.0 (starting_soon)
         assert snap["transport"]["projected_count"] == 2
         assert snap["transport"]["projected_score"] == pytest.approx(2.0)
-        # horizon = ongoing(2) - expiring_full(1 S-Bahn) + starting_full(2) = 3, score = 2.5 - 1.5 + 2.0 = 3.0
-        assert snap["transport"]["upcoming_count"] == 3
-        assert snap["transport"]["upcoming_score"] == pytest.approx(3.0)
-        # near_score = only the one starting within next 1h
-        assert snap["transport"]["upcoming_near_score"] == pytest.approx(1.0)
-        # scheduled upcoming = pure future starts within the lookahead (both starters)
+        # lookahead score = pure future starts within the 24h lookahead (both starters)
         assert snap["transport"]["scheduled_upcoming_score"] == pytest.approx(2.0)
+        # lead score (surge_lead_hours=3) = only starting_soon (+45min); starting_later (+4h) is outside it
+        assert snap["transport"]["upcoming_near_score"] == pytest.approx(1.0)
 
     def test_projected_floor_at_zero(self):
         expiring_time = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -265,7 +262,6 @@ class TestComputeSnapshot:
         assert snap["transport"]["ongoing_count"] == 1
         assert snap["transport"]["projected_count"] == 0
         assert snap["transport"]["projected_score"] == 0.0
-        assert snap["transport"]["upcoming_count"] == 0
 
     def test_no_lookahead_category(self):
         upcoming_time = (_NOW + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -291,6 +287,10 @@ class TestComputeSnapshot:
         assert t["expiring_near"][0]["weight"] == 1.5
         assert len(t["starting_near"]) == 1
         assert t["starting_near"][0]["weight"] == 1.0
+        # starting_later (+4h) is within surge_lead_hours=3? no — 4h > 3h, so
+        # only starting_soon (+45min) lands in starting_lead too.
+        assert len(t["starting_lead"]) == 1
+        assert t["starting_lead"][0]["weight"] == 1.0
         assert len(t["starting_full"]) == 2
         for entry in t["ongoing"]:
             assert "alert_id" in entry
@@ -328,8 +328,8 @@ class TestBuildCategoryTimeseries:
                 "timestamp": ts, "category": category,
                 "ongoing_count": 3, "ongoing_score": score,
                 "projected_count": 1, "projected_score": 2.0,
-                "upcoming_count": 1, "upcoming_score": 2.0,
                 "upcoming_near_score": 0.5,
+                "scheduled_upcoming_score": 2.0,
             })
         rows.sort(key=lambda r: r["timestamp"])
         return rows
@@ -342,8 +342,7 @@ class TestBuildCategoryTimeseries:
 
         current = {cat: {"ongoing_count": 3, "ongoing_score": 5.0,
                          "projected_count": 1, "projected_score": 2.0,
-                         "upcoming_count": 1, "upcoming_score": 2.0,
-                         "upcoming_near_score": 0.5}
+                         "upcoming_near_score": 0.5, "scheduled_upcoming_score": 2.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
@@ -353,7 +352,8 @@ class TestBuildCategoryTimeseries:
         assert "hour" in ts["transport"]["history"][0]
         assert "count" in ts["transport"]["history"][0]
         assert "score" in ts["transport"]["history"][0]
-        assert "scheduled_score" in ts["transport"]["history"][0]
+        assert "lookahead_score" in ts["transport"]["history"][0]
+        assert "lead_score" in ts["transport"]["history"][0]
         assert "projected_score" not in ts["transport"]["history"][0]
 
     def test_weather_6hourly_aggregation(self):
@@ -362,11 +362,7 @@ class TestBuildCategoryTimeseries:
         def get_fn(cat, since):
             return snapshots.get(cat, [])
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
         assert ts["weather"]["window"] == "72h 6h"
@@ -379,11 +375,7 @@ class TestBuildCategoryTimeseries:
         def get_fn(cat, since):
             return snapshots.get(cat, [])
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
 
         assert "4w" in ts["roadworks"]["window"]
@@ -393,11 +385,7 @@ class TestBuildCategoryTimeseries:
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert set(ts.keys()) == set(CATEGORY_SOURCES.keys())
 
@@ -408,64 +396,48 @@ class TestBuildCategoryTimeseries:
         current = {
             "transport": {"ongoing_count": 5, "ongoing_score": 8.5,
                           "projected_count": 2, "projected_score": 3.0,
-                          "upcoming_count": 3, "upcoming_score": 4.5,
-                          "upcoming_near_score": 1.5},
+                          "upcoming_near_score": 1.5, "scheduled_upcoming_score": 4.5},
         }
         for cat in CATEGORY_SOURCES:
             if cat not in current:
-                current[cat] = {"ongoing_count": 0, "ongoing_score": 0.0,
-                                "projected_count": 0, "projected_score": 0.0,
-                                "upcoming_count": 0, "upcoming_score": 0.0,
-                                "upcoming_near_score": 0.0}
+                current[cat] = _empty_snapshot()
 
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["current"]["ongoing"]["count"] == 5
         assert ts["transport"]["current"]["ongoing"]["score"] == 8.5
         assert ts["transport"]["current"]["projected"]["count"] == 2
-        assert ts["transport"]["current"]["horizon"]["total_score"] == 4.5
-        assert ts["transport"]["current"]["horizon"]["near_score"] == 1.5
+        assert ts["transport"]["current"]["lookahead"]["total_score"] == 4.5
+        assert ts["transport"]["current"]["lookahead"]["lead_score"] == 1.5
 
     def test_empty_history(self):
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         assert ts["transport"]["history"] == []
 
 
-class TestHorizonInTimeseries:
-    def test_incidents_has_no_horizon(self):
+class TestLookaheadInTimeseries:
+    def test_incidents_has_no_lookahead(self):
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
-        assert "horizon" not in ts["incidents"]["current"]
+        assert "lookahead" not in ts["incidents"]["current"]
 
-    def test_transport_has_horizon(self):
+    def test_transport_has_lookahead(self):
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
-        assert "horizon" in ts["transport"]["current"]
-        assert "total_score" in ts["transport"]["current"]["horizon"]
-        assert "near_score" in ts["transport"]["current"]["horizon"]
+        assert "lookahead" in ts["transport"]["current"]
+        assert "total_score" in ts["transport"]["current"]["lookahead"]
+        assert "lead_score" in ts["transport"]["current"]["lookahead"]
 
-    def test_upcoming_score_in_history(self):
+    def test_lookahead_score_in_history(self):
         rows = []
         for i in range(6):
             ts = (_NOW - timedelta(hours=5 - i)).strftime("%Y-%m-%dT%H:00:00Z")
@@ -473,7 +445,6 @@ class TestHorizonInTimeseries:
                 "timestamp": ts, "category": "transport",
                 "ongoing_count": 3, "ongoing_score": 5.0,
                 "projected_count": 1, "projected_score": 2.0,
-                "upcoming_count": 2, "upcoming_score": 4.0 + i,
                 "upcoming_near_score": 1.0,
                 "scheduled_upcoming_score": 1.0 + i,
             })
@@ -481,70 +452,68 @@ class TestHorizonInTimeseries:
         def get_fn(cat, since):
             return rows if cat == "transport" else []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 2, "upcoming_score": 10.0,
-                         "upcoming_near_score": 3.0,
-                         "scheduled_upcoming_score": 6.0}
+        current = {cat: {**_empty_snapshot(), "upcoming_near_score": 3.0, "scheduled_upcoming_score": 6.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
-        upcoming = ts["transport"]["current"]["upcoming"]
-        assert upcoming["total_score"] == 6.0
-        assert upcoming["near_score"] == 3.0
-        # end-state horizon kept for admin dashboard
-        assert ts["transport"]["current"]["horizon"]["total_score"] == 10.0
+        lookahead = ts["transport"]["current"]["lookahead"]
+        assert lookahead["total_score"] == 6.0
+        assert lookahead["lead_score"] == 3.0
         history = ts["transport"]["history"]
         assert len(history) == 6
-        # history's scheduled_score is the scheduled series, not the end-state
-        assert history[0]["scheduled_score"] == 1.0
-        assert history[-1]["scheduled_score"] > history[0]["scheduled_score"]
+        assert history[0]["lookahead_score"] == 1.0
+        assert history[-1]["lookahead_score"] > history[0]["lookahead_score"]
+        assert history[0]["lead_score"] == 1.0
 
 
-class TestScheduleBaseline:
-    """Regression coverage for the schedule-baseline rebase: surge used to
-    compare scheduled_upcoming_score against the ongoing-score baseline,
-    which for high-baseload categories (transport, roadworks) made a single
-    new alert's schedule weight structurally unable to clear 1.5x mean. The
-    baseline must instead be built from scheduled_upcoming_score's own
-    history, with a lag wide enough that a disruption sitting visible for
-    most of the lookahead window can't absorb itself into its own baseline.
+class TestLeadBaseline:
+    """Regression coverage for the lead-baseline design: the lead-alert
+    signal used to reuse interval_hours as its "imminent" window, which
+    collapsed the warning window into the onset itself for fixed-clock-time
+    disruptions (observed 2026-07-05, S8/S9 nighttime cancellation). It also
+    used to compare against the ongoing-score baseline, which for
+    high-baseload categories (transport, roadworks) made a single new
+    alert's schedule weight structurally unable to clear 1.5x mean. The
+    lead score now has its own dedicated surge_lead_hours window, with a
+    baseline built from its own history, lag-excluded by surge_lead_hours
+    (not the full lookahead) so a disruption visible for its whole lead
+    window can't absorb itself into its own baseline.
     """
 
     def test_lag_excludes_recent_self_absorption(self):
-        from pulse_categories import _build_schedule_baseline
+        from pulse_categories import _build_lead_baseline
 
         rows = []
-        for h in range(40, 0, -1):  # oldest first
-            if h <= 10:
-                score = 4.5  # a disruption became visible 10h ago and is still scheduled
-            elif h in (28, 32, 36):
-                score = 3.0  # genuine older, pre-disruption scheduled activity
+        for h in range(10, 0, -1):  # oldest first
+            if h <= 2:
+                score = 4.5  # a disruption entered the lead window 2h ago and is still there
+            elif h in (5, 7, 9):
+                score = 3.0  # genuine older, pre-disruption lead activity
             else:
                 score = 0.0
             ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
             rows.append({"timestamp": ts, "ongoing_count": 0, "ongoing_score": 0.0,
-                         "scheduled_upcoming_score": score})
+                         "upcoming_near_score": score})
 
-        baseline = _build_schedule_baseline(rows, interval_hours=1, lookahead_hours=24)
-        # lag = ceil(24/1) = 24 buckets excluded from the tail, so none of the
-        # recently-elevated (h<=10) buckets can reach the baseline.
+        baseline = _build_lead_baseline(rows, interval_hours=1, surge_lead_hours=3)
+        # lag = ceil(3/1) = 3 buckets excluded from the tail, so the
+        # recently-elevated (h<=2) buckets can't reach the baseline.
         assert baseline is not None
         assert baseline["mean"] == pytest.approx(3.0)
         assert baseline["n"] == 3
 
-    def test_surge_fires_against_own_baseline_despite_huge_ongoing_load(self):
+    def test_lead_alert_fires_against_own_baseline_despite_huge_ongoing_load(self):
         # Transport-shaped data: ongoing load is huge (~120, many chronic
-        # disruptions) but the newly-scheduled alert (6.0) is large and
-        # imminent relative to its OWN quiet schedule history. Under the old
-        # design (compared against the ongoing baseline) this could never
-        # surge; against the schedule baseline it should.
+        # disruptions) but the newly-scheduled alert (6.0) is large relative
+        # to its OWN quiet lead-window history. Comparing against the
+        # ongoing baseline could never fire; against the lead baseline it
+        # should.
         rows = []
-        for h in range(40, 0, -1):
-            score = 3.0 if h in (28, 32, 36) else 0.0
+        for h in range(10, 0, -1):
+            score = 1.0 if h in (5, 7, 9) else 0.0
             ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
             rows.append({
                 "timestamp": ts, "ongoing_count": 30, "ongoing_score": 120.0,
-                "scheduled_upcoming_score": score,
+                "upcoming_near_score": score,
             })
 
         def get_fn(cat, since):
@@ -552,12 +521,38 @@ class TestScheduleBaseline:
 
         current = {cat: {"ongoing_count": 30, "ongoing_score": 120.0,
                          "projected_count": 30, "projected_score": 120.0,
-                         "upcoming_count": 30, "upcoming_score": 120.0,
-                         "upcoming_near_score": 5.0,
-                         "scheduled_upcoming_score": 6.0}
+                         "upcoming_near_score": 6.0, "scheduled_upcoming_score": 24.0}
                    for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
-        assert ts["transport"]["current"]["surge_expected"] is True
+        assert ts["transport"]["current"]["lead_alert"] is True
+
+    def test_s8_s9_lead_alert_fires_hours_before_onset(self):
+        """Replays the 2026-07-05 S8/S9 nighttime-cancellation scenario: the
+        alert's own weight (6.0) enters transport's 3h lead window well
+        before its 21:30 valid_from. Quiet lead-window history (no prior
+        lead activity) means no baseline yet, so the no-baseline absolute
+        floor (>= 2.0) applies — and 6.0 clears it, firing a lead alert
+        (and therefore a `worsening` trend) hours before the disruption
+        starts, instead of only at the moment status jumps to severe.
+        """
+        rows = []
+        for h in range(10, 0, -1):
+            ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "ongoing_count": 32, "ongoing_score": 109.0,
+                "upcoming_near_score": 0.0,
+            })
+
+        def get_fn(cat, since):
+            return rows if cat == "transport" else []
+
+        current = {cat: {"ongoing_count": 32, "ongoing_score": 109.0,
+                         "projected_count": 32, "projected_score": 109.0,
+                         "upcoming_near_score": 6.0, "scheduled_upcoming_score": 18.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert ts["transport"]["current"]["lead_alert"] is True
+        assert ts["transport"]["current"]["trend"] == "worsening"
 
 
 class TestComputeStatus:
@@ -577,9 +572,19 @@ class TestComputeStatus:
     def test_skewed_baseline_moderate_band_not_empty(self):
         # nonzero-only stats can put mean above p75 — min/max guard applies
         skewed = {"mean": 49.5, "p25": 30.0, "p75": 44.0, "n": 24}
-        assert compute_status(40.0, skewed) == "minor"      # ≤ min(mean, p75)
+        assert compute_status(40.0, skewed) == "minor"      # <= min(mean, p75)
         assert compute_status(46.0, skewed) == "moderate"    # between
         assert compute_status(55.0, skewed) == "severe"      # > max(mean, p75)
+
+    def test_flat_baseline_still_has_moderate_band(self):
+        # mean ~= p75 (near-zero natural variance, e.g. transport 2026-07-05:
+        # mean=109.86, p75=109.0) — the raw band is <1 point wide; the
+        # minimum-band-width floor must still leave room for "moderate".
+        flat = {"mean": 109.86, "p25": 109.0, "p75": 109.0, "n": 21}
+        min_hi = 109.0 + 109.86 * 0.1  # lo + mean * MIN_MODERATE_BAND_FRACTION
+        assert compute_status(109.0, flat) == "minor"
+        assert compute_status(min_hi - 0.01, flat) == "moderate"
+        assert compute_status(min_hi + 0.01, flat) == "severe"
 
     def test_floor_raises_status(self):
         assert compute_status(1.0, None, floor="moderate") == "moderate"
@@ -628,7 +633,7 @@ class TestStatusHysteresis:
         assert (eff, pending) == ("moderate", 0)
 
     def test_flapping_damped(self):
-        # July 1 pattern: raw sev→mod→sev→mod — effective should stay severe
+        # July 1 pattern: raw sev->mod->sev->mod — effective should stay severe
         eff, p = apply_status_hysteresis("moderate", "severe", 0, True)
         assert eff == "severe"
         eff, p = apply_status_hysteresis("severe", eff, p, True)
@@ -641,29 +646,26 @@ class TestStatusHysteresis:
         assert (eff, pending) == ("moderate", 1)
 
 
-class TestComputeSurge:
+class TestComputeLeadAlert:
     _BASELINE = {"mean": 10.0, "p25": 5.0, "p75": 20.0, "n": 24}
 
-    def test_no_upcoming_no_surge(self):
-        assert compute_surge(0.0, 0.0, self._BASELINE) is False
+    def test_no_lead_score_no_alert(self):
+        assert compute_lead_alert(0.0, self._BASELINE) is False
 
-    def test_large_and_imminent_surges(self):
-        assert compute_surge(20.0, 15.0, self._BASELINE) is True
+    def test_large_vs_own_baseline_alerts(self):
+        assert compute_lead_alert(20.0, self._BASELINE) is True
 
-    def test_large_but_distant_no_surge(self):
-        assert compute_surge(20.0, 2.0, self._BASELINE) is False
+    def test_small_vs_own_baseline_no_alert(self):
+        assert compute_lead_alert(5.0, self._BASELINE) is False
 
-    def test_imminent_but_small_no_surge(self):
-        assert compute_surge(5.0, 5.0, self._BASELINE) is False
-
-    def test_no_baseline_requires_imminent_load(self):
-        assert compute_surge(3.0, 2.5, None) is True
-        assert compute_surge(3.0, 1.0, None) is False
+    def test_no_baseline_requires_absolute_floor(self):
+        assert compute_lead_alert(2.5, None) is True
+        assert compute_lead_alert(1.0, None) is False
 
 
 class TestComputeTrend:
     def _history(self, scores):
-        return [{"hour": f"h{i}", "count": 1, "score": s, "scheduled_score": 0.0}
+        return [{"hour": f"h{i}", "count": 1, "score": s, "lookahead_score": 0.0}
                 for i, s in enumerate(scores)]
 
     def test_empty_history_stable(self):
@@ -674,7 +676,7 @@ class TestComputeTrend:
         assert compute_trend(10.0, h, False) == "stable"
 
     def test_small_noise_is_stable(self):
-        # ±4% flips used to flip the LLM's judgment — dead band absorbs them
+        # +-4% flips used to flip the LLM's judgment — dead band absorbs them
         h = self._history([131.0, 137.0, 131.0, 137.0])
         assert compute_trend(137.0, h, False) == "stable"
 
@@ -686,7 +688,7 @@ class TestComputeTrend:
         h = self._history([30.0, 30.0, 30.0, 10.0])
         assert compute_trend(10.0, h, False) == "improving"
 
-    def test_surge_escalates_one_step(self):
+    def test_lead_alert_escalates_one_step(self):
         h = self._history([10.0, 10.0, 10.0, 10.0])
         assert compute_trend(10.0, h, True) == "worsening"
         falling = self._history([30.0, 30.0, 30.0, 10.0])
@@ -711,24 +713,19 @@ class TestLaggedBaseline:
                 "timestamp": ts, "category": "transport",
                 "ongoing_count": 3, "ongoing_score": score,
                 "projected_count": 0, "projected_score": 0.0,
-                "upcoming_count": 0, "upcoming_score": 0.0,
                 "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0,
             })
 
         def get_fn(cat, since):
             return rows if cat == "transport" else []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         current["transport"]["ongoing_score"] = 100.0
         current["transport"]["ongoing_count"] = 30
 
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         baseline = ts["transport"]["baseline"]
-        # pool = 21 rows (24 − 3 lag) = 20 quiet + 1 event hour
+        # pool = 21 rows (24 - 3 lag) = 20 quiet + 1 event hour
         assert baseline["n"] == 21
         assert baseline["p75"] == 5.0
         # so the ongoing event still reads severe instead of normalizing away
@@ -742,47 +739,34 @@ class TestLaggedBaseline:
                 "timestamp": ts, "category": "transport",
                 "ongoing_count": 1, "ongoing_score": 5.0,
                 "projected_count": 0, "projected_score": 0.0,
-                "upcoming_count": 0, "upcoming_score": 0.0,
                 "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0,
             })
 
         def get_fn(cat, since):
             return rows if cat == "transport" else []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         # only 1 pool row after lag — not enough for a baseline
         assert ts["transport"]["baseline"] is None
 
 
 class TestTimeseriesDeterministicFields:
-    def test_trend_and_surge_present(self):
+    def test_trend_and_lead_alert_present(self):
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
         for cat in CATEGORY_SOURCES:
             assert ts[cat]["current"]["trend"] in ("improving", "stable", "worsening")
-            assert ts[cat]["current"]["surge_expected"] in (True, False)
+            assert ts[cat]["current"]["lead_alert"] in (True, False)
 
     def test_status_floor_applied_in_timeseries(self):
         def get_fn(cat, since):
             return []
 
-        current = {cat: {"ongoing_count": 0, "ongoing_score": 0.0,
-                         "projected_count": 0, "projected_score": 0.0,
-                         "upcoming_count": 0, "upcoming_score": 0.0,
-                         "upcoming_near_score": 0.0, "scheduled_upcoming_score": 0.0}
-                   for cat in CATEGORY_SOURCES}
+        current = {cat: _empty_snapshot() for cat in CATEGORY_SOURCES}
         current["weather"] = {**current["weather"], "ongoing_count": 1,
                               "ongoing_score": 2.0, "status_floor": "severe"}
         ts = build_category_timeseries(get_fn, current, now=_NOW)
@@ -804,3 +788,13 @@ class TestCategoryConfig:
             assert "interval_hours" in w
             assert "history_hours" in w
             assert "lookahead_hours" in w
+            assert "surge_lead_hours" in w
+
+    def test_surge_lead_hours_shorter_than_lookahead(self):
+        # surge_lead_hours is meant as a narrower "is this soon" window than
+        # the full lookahead — it should never be wider.
+        for cat, w in CATEGORY_WINDOWS.items():
+            if w["lookahead_hours"] > 0:
+                assert 0 < w["surge_lead_hours"] <= w["lookahead_hours"]
+            else:
+                assert w["surge_lead_hours"] == 0

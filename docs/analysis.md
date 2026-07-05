@@ -57,20 +57,31 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 
 - `ongoing_score`: severity-weighted sum of active alerts
 - `projected_score`: estimated score at the end of the next sample interval — `ongoing_score − expiring_near + starting_near`. Only *scheduled* starts and expiries move this; for categories whose alerts aren't scheduled (transport, incidents) it usually equals `ongoing_score`.
-- `scheduled_upcoming_score`: severity-weighted sum of alerts with a future `valid_from` inside the lookahead window — pure upcoming activity (storm warnings, planned closures, events). This is the series used for the surge signal.
-- `upcoming_near_score`: the portion of scheduled upcoming activity starting within the next sample interval
-- `upcoming_score`: end-state estimate over the full lookahead (`ongoing − expiring_full + starting_full`). Admin-dashboard only — it mostly reflects the expiry schedule of *current* alerts, so it is not sent to the LLM and drives no signal.
+- `scheduled_upcoming_score` (DB column; exposed as `lookahead.total_score`): severity-weighted sum of alerts with a future `valid_from` inside the full lookahead window — pure upcoming activity (storm warnings, planned closures, events). Reporting/context only — sent to the LLM and shown on the admin dashboard, but does not drive `status`, `projected_score`, or the lead alert on its own.
+- `upcoming_near_score` (DB column; exposed as `lookahead.lead_score`): the portion of scheduled upcoming activity starting within the category's `surge_lead_hours` window (not the sample interval — see below). This is what the lead-alert check reads.
 - `weights_version`: the weight-table version the score was computed under. Baselines and history only compare same-version rows — otherwise every weight calibration would poison the baseline with old-scale scores for up to the category's full window (4 weeks for roadworks). Bump `WEIGHTS_VERSION` in `pulse_categories.py` whenever weights change.
+
+Two DB columns predate this design (`upcoming_count`/`upcoming_score` — an end-state estimate over the full lookahead) and are no longer computed; they're kept in the schema only to avoid a migration and always read as `0`.
+
+**Three time windows, three separate jobs** — do not conflate them:
+
+| Window | Answers | Feeds |
+|---|---|---|
+| `interval_hours` | "What will the score be at the end of the next single interval?" | `projected_score` |
+| `surge_lead_hours` | "Is a scheduled item soon enough, and unusual enough, to warn about now?" | the lead-alert check → `trend` escalation |
+| `lookahead_hours` | "What's scheduled today, for reporting and LLM context?" | `scheduled_upcoming_score`, admin dashboard, LLM payload |
+
+`surge_lead_hours` used to not exist — the lead-alert check reused `interval_hours`, which collapsed the warning window into the moment of onset itself for any alert with a fixed future start time (observed 2026-07-05: an S8/S9 nighttime cancellation announced two days ahead only became visible to the lead check at the same hour it went active, giving zero lead time). It is now a distinct, wider window.
 
 **Per-category time windows:**
 
-| Category | Sample interval | History depth | Lookahead |
-|----------|----------------|---------------|-----------|
-| Transport | 1h | 24h (24 points) | 24h |
-| Weather | 6h | 3 days (12 points) | 48h |
-| Roadworks | Daily | 4 weeks (28 points) | 1 week |
-| Events | Daily | 1 week (7 points) | 1 week |
-| Incidents | Daily | 1 week (7 points) | None |
+| Category | Sample interval | History depth | Lookahead | Surge lead |
+|----------|----------------|---------------|-----------|-----------|
+| Transport | 1h | 24h (24 points) | 24h | 3h |
+| Weather | 6h | 3 days (12 points) | 48h | 12h |
+| Roadworks | Daily | 4 weeks (28 points) | 1 week | 3 days |
+| Events | Daily | 1 week (7 points) | 1 week | 3 days |
+| Incidents | Daily | 1 week (7 points) | None | None |
 
 **Statistical baseline** — Computed from nonzero history scores when ≥3 data points exist, with two guards:
 
@@ -88,7 +99,7 @@ Fields: `baseline.mean` (typical level), `baseline.p25` (quieter than 75% of pas
 | moderate | `min(mean, p75) < score ≤ max(mean, p75)` |
 | severe | `score > max(mean, p75)` |
 
-The `min`/`max` guard prevents an empty moderate band when skewed history puts the mean above p75.
+The `min`/`max` guard prevents an empty moderate band when skewed history puts the mean above p75. A second guard floors the band's width at `MIN_MODERATE_BAND_FRACTION` (10%) of the mean — a category with near-flat history (mean ≈ p75, e.g. transport 2026-07-05: mean=109.86, p75=109.0, under 1 point of natural room) would otherwise jump straight from `minor` to `severe` on any real increase, with no `moderate` step to show a graduated warning.
 
 - **Absolute floor** (`compute_status_floor`): where a source has an authoritative severity scale, it overrides the relative baseline — an ongoing DWD severity-3 warning floors weather at `moderate`, severity 4 at `severe`. Without this, an extreme storm after three calm days would read `minor` (no baseline → minor).
 - **Hysteresis** (`apply_status_hysteresis`): escalations apply immediately; de-escalations only after the raw status has been lower for 2 consecutive hourly runs. State is kept in the `meta` table (`pulse_status_state`); re-runs within the same hour don't consume the confirmation. This stops boundary flapping. The pre-hysteresis value is logged as `raw_status`.
@@ -96,9 +107,11 @@ The `min`/`max` guard prevents an empty moderate band when skewed history puts t
 
 **Deterministic trend** (`compute_trend`) — current score vs. the mean of the 3 preceding buckets with a dead band of `max(15%, 1.0)`; above the band → `worsening`, below → `improving`, inside → `stable`.
 
-**Surge signal** (`compute_surge`) — a fully deterministic escalation check. True when `scheduled_upcoming_score ≥ 1.5 × schedule_baseline.mean` AND at least half of that scheduled load starts within the next sample interval (with no baseline yet: imminent load ≥ 2.0). Judged from pure future starts only, never from expiry schedules of current alerts — an alert ending on its normal schedule (e.g. a nightly RMV replacement service finishing at 03:00) must never register as a surge on its own. A surge escalates the trend one step (improving→stable, stable→worsening) and is passed to the LLM as `surge_expected` for bridging narrative.
+**Lead-alert signal** (`compute_lead_alert`) — a fully deterministic escalation check, scoped to the category's `surge_lead_hours` window (see the window table above), not the sample interval. True when `upcoming_near_score ≥ 1.5 × lead_baseline.mean` (with no baseline yet: an absolute floor of `≥ 2.0`). Judged from pure future starts only, never from expiry schedules of current alerts — an alert ending on its normal schedule (e.g. a nightly RMV replacement service finishing at 03:00) must never register as a lead alert on its own. A lead alert escalates the trend one step (improving→stable, stable→worsening) and is passed to the LLM as `lead_alert` for bridging narrative.
 
-`schedule_baseline` (`_build_schedule_baseline`) is built from `scheduled_upcoming_score`'s own history — a separate series from the `ongoing_score` baseline used for status. High-baseload categories (transport, roadworks) can carry an ongoing baseline in the hundreds, driven by dozens of already-known chronic disruptions; a single new alert's schedule weight is only ever a few points, so it's compared against the *scheduled-load* baseline instead, which sits at a matching scale. This baseline is drawn from an independent, wider lookback window (`lookahead_hours + SCHEDULE_BASELINE_POOL_HOURS`, currently 168h) with a lag exclusion sized to the category's own `lookahead_hours` — wide enough that a disruption sitting visible for most of the lookahead window can't absorb itself into its own "typical" before it's evaluated. This window is independent of `history_hours` (the ongoing/status baseline's window), so it has no effect on status thresholds.
+The design deliberately does **not** compare the lead-window score against the full `scheduled_upcoming_score` total (a "what fraction of today's scheduled load is imminent" ratio) — an earlier version did, and it was structurally unable to fire for categories like transport where several independent disruptions are routinely stacked across the day: any single new item is a minority share of that total almost by construction (observed 2026-07-05: an incoming S8/S9 alert was 6 of a 24-point lookahead total, the rest being three unrelated future items, not noise). Comparing the lead-window score against its own history instead sidesteps that.
+
+`lead_baseline` (`_build_lead_baseline`) is built from `upcoming_near_score`'s own history — a separate series from the `ongoing_score` baseline used for status. High-baseload categories (transport, roadworks) can carry an ongoing baseline in the hundreds, driven by dozens of already-known chronic disruptions; a single new alert's schedule weight is only ever a few points, so it's compared against the *lead-window* baseline instead, which sits at a matching scale. This baseline is drawn from an independent, wider lookback window (`surge_lead_hours + LEAD_BASELINE_POOL_HOURS`, currently 168h) with a lag exclusion sized to the category's own `surge_lead_hours` — wide enough that a disruption sitting visible for the whole lead window can't absorb itself into its own "typical" before it's evaluated. This window is independent of `history_hours` (the ongoing/status baseline's window) and of `lookahead_hours`, so it has no effect on status thresholds or the reported lookahead total.
 
 Status and trend are **not assigned by the LLM**. The LLM receives both as context.
 
@@ -106,7 +119,7 @@ Status and trend are **not assigned by the LLM**. The LLM receives both as conte
 
 **Module:** `pulse.py` | **Prompt:** `prompts/pulse.md`
 
-Gemini Flash receives: the active alerts (with bodies), the timeseries data (including computed status, trend, surge flag, and baseline), and recent pulse/summary history. Its role is **narrative only** — it does not assign status or trend.
+Gemini Flash receives: the active alerts (with bodies), the timeseries data (including computed status, trend, lead-alert flag, and baseline), and recent pulse/summary history. Its role is **narrative only** — it does not assign status or trend.
 
 **Narrative output:**
 - **Title** (≤40 chars) — glanceable headline
@@ -158,14 +171,13 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
           "status": "minor",
           "raw_status": "minor",
           "trend": "stable",
-          "surge_expected": false,
+          "lead_alert": false,
           "ongoing": {"count": 8, "score": 6.5},
           "projected": {"count": 6, "score": 5.0},
-          "upcoming": {"total_score": 3.0, "near_score": 1.5},
-          "horizon": {"total_score": 5.5, "near_score": 1.5}
+          "lookahead": {"total_score": 3.0, "lead_score": 1.5}
         },
         "history": [
-          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "scheduled_score": 2.5}
+          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "lookahead_score": 2.5, "lead_score": 1.0}
         ],
         "baseline": {"mean": 5.8, "p25": 3.2, "p75": 8.2, "n": 24},
         "window": "24h hourly"
@@ -178,6 +190,7 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
         ],
         "expiring_near": [],
         "starting_near": [],
+        "starting_lead": [],
         "starting_full": []
       }
     },
@@ -210,7 +223,7 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
 ```
 
 **Reading the debug log:**
-- **Layer 1**: Were scores correct? Check `score_breakdown` — which alerts contributed, with what weight, and into which bucket. Is `status` correct given `baseline`? `raw_status` shows the pre-hysteresis value; `trend` and `surge_expected` are deterministic.
+- **Layer 1**: Were scores correct? Check `score_breakdown` — which alerts contributed, with what weight, and into which bucket. Is `status` correct given `baseline`? `raw_status` shows the pre-hysteresis value; `trend` and `lead_alert` are deterministic.
 - **Layer 2**: What did Gemini receive, and is the narrative faithful to it? The LLM outputs neither status nor trend — only narrative and, rarely, a `trend_override` with a quoted reason.
 - **Layer 3**: Final output = Layer 1 status + trend, with any validated override applied (see `trend_overrides_applied`).
 
@@ -249,3 +262,7 @@ Deterministic status → Wrong? Record override + reason
 - **Alert archive** — Persist alert lifecycle for historical pattern detection and recurrence analysis
 - **Geographic clustering** — Detect when multiple alerts converge on the same area
 - **Subscriber-personalized pulse** — Generate pulse variants filtered by subscriber preferences
+
+## Feedback
+
+Have a suggestion for improving the scoring, weights, or methodology? [Open an issue on GitHub](https://github.com/jctots/frankfurt-radar/issues/new?template=feature_request.md).

@@ -320,12 +320,10 @@ def _apply_hysteresis(timeseries: dict, snapshot_ts: str) -> None:
 
 
 def _llm_timeseries(timeseries: dict) -> dict:
-    """Timeseries payload for the prompt — drops the end-state `horizon`
-    (admin-only: it mostly reflects expiry schedules of current alerts and
-    misled the old Signal 2) and the internal raw_status."""
+    """Timeseries payload for the prompt — drops the internal raw_status."""
     out = {}
     for cat, ts in timeseries.items():
-        current = {k: v for k, v in ts["current"].items() if k not in ("horizon", "raw_status")}
+        current = {k: v for k, v in ts["current"].items() if k not in ("raw_status",)}
         out[cat] = {**ts, "current": current}
     return out
 
