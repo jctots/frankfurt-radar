@@ -81,9 +81,11 @@
     .score-val { font-size: 16px; font-weight: 700; }
     .score-val.highlight { color: var(--clr-current); }
 
-    /* ── Score range plot (dot + p25–p75 whisker, zoomed axis) ──
+    /* ── Score range plot (dot + p25–p75 baseline band, zoomed axis) ──
        Position, not bar length, carries the value here, so a zoomed axis is
-       legitimate (unlike a bar chart, which must start at zero). */
+       legitimate (unlike a bar chart, which must start at zero). The
+       baseline band is a translucent full-width fill (not a thin whisker)
+       so "inside vs. outside the typical range" reads at a glance. */
     .chart-wrap { margin-bottom: 6px; }
     .range-plot { display: flex; align-items: stretch; gap: 3px; position: relative; height: 88px; }
     .range-grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--clr-border); }
@@ -91,20 +93,20 @@
     .range-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
     .range-col { flex: 1; position: relative; }
     .range-col.proj-col { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
-    .whisker { position: absolute; left: 50%; width: 3px; transform: translateX(-50%); background: var(--clr-p25); opacity: 0.7; border-radius: 1.5px; }
+    .baseline-band { position: absolute; left: 0; right: 0; background: var(--clr-p25); opacity: 0.14; border-radius: 3px; z-index: 0; }
     .dot { position: absolute; left: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--clr-surface); box-shadow: 0 0 0 1px rgba(0,0,0,0.08); z-index: 2; }
     .dot.ongoing   { background: var(--clr-ongoing); }
     .dot.current   { background: var(--clr-current); width: 13px; height: 13px; }
     .dot.projected { background: var(--clr-projected); }
-    .mean-tick { position: absolute; left: 50%; width: 16px; height: 2px; transform: translate(-50%, 50%); background: var(--clr-mean); border-radius: 1px; z-index: 1; }
+    .mean-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--clr-mean); opacity: 0.9; z-index: 1; }
     .chart-xlabels { display: flex; gap: 3px; margin-top: 3px; }
     .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .x-label.is-now  { color: var(--clr-current); font-weight: 700; }
     .x-label.is-proj { color: var(--clr-projected); }
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
     .leg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
-    .leg-line-mean { display: inline-block; width: 14px; border-top: 2px solid var(--clr-mean); vertical-align: middle; margin-right: 4px; }
-    .leg-line-p25  { display: inline-block; width: 14px; border-top: 2px solid var(--clr-p25); vertical-align: middle; margin-right: 4px; opacity: 0.7; }
+    .leg-line-mean { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-mean); vertical-align: middle; margin-right: 4px; }
+    .leg-band  { display: inline-block; width: 10px; height: 10px; background: var(--clr-p25); opacity: 0.4; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 
     /* ── Explain ── */
     .cat-explain { font-size: 12px; color: var(--clr-muted); line-height: 1.6; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--clr-border); }
@@ -477,16 +479,16 @@ function renderChart(cat) {
 
   let markers = '';
   if (cat.baseline) {
-    const whiskerBot = posPct(cat.baseline.p25);
-    const whiskerH = posPct(cat.baseline.p75) - posPct(cat.baseline.p25);
-    markers = `<div class="whisker" style="bottom:${whiskerBot}%;height:${whiskerH}%"></div><div class="mean-tick" style="bottom:${posPct(cat.baseline.mean)}%"></div>`;
+    const bandBot = posPct(cat.baseline.p25);
+    const bandH = posPct(cat.baseline.p75) - posPct(cat.baseline.p25);
+    markers = `<div class="baseline-band" style="bottom:${bandBot}%;height:${bandH}%"></div><div class="mean-line" style="bottom:${posPct(cat.baseline.mean)}%"></div>`;
   }
 
   const projLegend = cat.projected
     ? `<span><span class="leg-dot" style="background:var(--clr-projected)"></span>Projected (next interval)</span>`
     : '';
   const baselineLegend = cat.baseline
-    ? `<span><span class="leg-line-p25"></span>baseline p25–p75</span><span><span class="leg-line-mean"></span>baseline mean</span>`
+    ? `<span><span class="leg-band"></span>typical range (p25–p75)</span><span><span class="leg-line-mean"></span>baseline mean</span>`
     : '';
 
   return `

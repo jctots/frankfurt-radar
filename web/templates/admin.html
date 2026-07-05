@@ -213,9 +213,11 @@
     .score-label { font-size: 10px; color: var(--clr-muted); }
     .score-val { font-size: 16px; font-weight: 700; }
 
-    /* ── Mini history range plot (dot + p25–p75 whisker, zoomed axis) ──
+    /* ── Mini history range plot (dot + p25–p75 baseline band, zoomed axis) ──
        Position, not bar length, carries the value here, so a zoomed axis is
-       legitimate (unlike a bar chart, which must start at zero). ── */
+       legitimate (unlike a bar chart, which must start at zero). The
+       baseline band is a translucent full-width fill (not a thin whisker)
+       so "inside vs. outside the typical range" reads at a glance. ── */
     .mini-chart { margin-top: 8px; }
     .mini-range { display: flex; align-items: stretch; gap: 3px; height: 64px; position: relative; }
     .mini-grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--clr-border); }
@@ -223,8 +225,8 @@
     .mini-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
     .mini-col { flex: 1; min-width: 0; position: relative; }
     .mini-col.projected-col { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
-    .mini-whisker { position: absolute; left: 50%; width: 3px; transform: translateX(-50%); background: #3fb950; opacity: 0.7; border-radius: 1.5px; }
-    .mini-mean-tick { position: absolute; left: 50%; width: 16px; height: 2px; transform: translate(-50%, 50%); background: var(--clr-muted); border-radius: 1px; z-index: 1; }
+    .mini-baseline-band { position: absolute; left: 0; right: 0; background: #3fb950; opacity: 0.14; border-radius: 3px; z-index: 0; }
+    .mini-mean-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--clr-muted); opacity: 0.9; z-index: 1; }
     .mini-dot { position: absolute; left: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--clr-surface); box-shadow: 0 0 0 1px rgba(0,0,0,0.2); z-index: 2; }
     .mini-dot.ongoing   { background: #58a6ff; }
     .mini-dot.current   { background: #58a6ff; width: 13px; height: 13px; }
@@ -944,11 +946,11 @@ function selectCell(idx, cat) {
 
       let markers = '';
       if (bP25 > 0 || bP75 > 0) {
-        const whiskerBot = posPct(bP25);
-        const whiskerH = posPct(bP75) - posPct(bP25);
-        markers = `<div class="mini-whisker" style="bottom:${whiskerBot}%;height:${whiskerH}%"></div>`;
+        const bandBot = posPct(bP25);
+        const bandH = posPct(bP75) - posPct(bP25);
+        markers = `<div class="mini-baseline-band" style="bottom:${bandBot}%;height:${bandH}%"></div>`;
       }
-      if (bMean > 0) markers += `<div class="mini-mean-tick" style="bottom:${posPct(bMean)}%"></div>`;
+      if (bMean > 0) markers += `<div class="mini-mean-line" style="bottom:${posPct(bMean)}%"></div>`;
 
       body += `<div class="mini-chart">
         <div class="mini-range">${grid}${trendSvg}${markers}${cols}</div>
