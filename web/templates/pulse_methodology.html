@@ -112,6 +112,16 @@
     .cat-explain { font-size: 12px; color: var(--clr-muted); line-height: 1.6; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--clr-border); }
     .cat-explain strong { color: var(--clr-text); }
 
+    /* ── Cited-alert refs (same visual language as the map's pulse overlay) ── */
+    .pulse-refs-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-muted); margin-bottom: 4px; }
+    .pulse-refs { list-style: none; padding: 0; margin: 0 0 6px; }
+    .pulse-ref { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.4; padding: 3px 0; text-decoration: none; color: var(--clr-text); transition: color 0.15s; }
+    .pulse-ref:hover { color: var(--clr-current); }
+    .pulse-ref-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+    .pulse-ref-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pulse-ref-arrow { font-size: 11px; color: var(--clr-muted); flex-shrink: 0; transition: color 0.15s; }
+    .pulse-ref:hover .pulse-ref-arrow { color: var(--clr-current); }
+
     /* ── Threshold table ── */
     .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     .tbl th { text-align: left; color: var(--clr-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 10px 8px; border-bottom: 1px solid var(--clr-border); }
@@ -379,6 +389,11 @@ const CAT_META = {
   incidents: { name: 'Incidents', icon: '🚨', window: '1 week · daily' },
 };
 
+const SOURCE_EMOJI = {
+  rmv: '🚇', dwd: '⛈️', polizei: '🚨', autobahn: '⚠️', baustellen: '🛑',
+  events: '🎉', messe: '🎪', sports: '⚽', strike: '🪧', feuerwehr: '🔥',
+};
+
 const STATUS_ICON_SVG = {
   clear:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   minor:    '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg>',
@@ -604,11 +619,17 @@ const fmtPulseTime = iso => {
 
 const escapeHtml = s => (s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function renderNarrative(data) {
+function renderNarrative(data, alertsById) {
   const refs = data.references || [];
-  const refsHtml = refs.length
-    ? refs.map(id => `<a href="/alert/${encodeURIComponent(id)}" target="_blank" rel="noopener">${escapeHtml(id)}</a>`).join(', ')
-    : '<em>none cited</em>';
+  const refItems = refs.map(id => {
+    const a = alertsById.get(id);
+    const icon = a ? (SOURCE_EMOJI[a.source] || '📋') : '📋';
+    const title = a ? escapeHtml(a.title) : id;
+    return `<a class="pulse-ref" href="/alert/${encodeURIComponent(id)}" target="_blank" rel="noopener"><span class="pulse-ref-icon">${icon}</span><span class="pulse-ref-title">${title}</span><span class="pulse-ref-arrow">›</span></a>`;
+  }).join('');
+  const refsHtml = refItems
+    ? `<div class="pulse-refs-label">Alerts cited by the AI (up to 3 — not the full ${data.alert_count ?? '—'}-alert input behind the scores)</div><div class="pulse-refs">${refItems}</div>`
+    : `<p style="font-size:12px;color:var(--clr-muted);margin-bottom:16px;"><strong>Alerts cited by the AI:</strong> none</p>`;
 
   const overrides = data.trend_overrides || {};
   const overrideRows = ['weather', 'transport', 'roadworks', 'incidents', 'events'].map(cat => {
@@ -624,7 +645,7 @@ function renderNarrative(data) {
       <p style="font-size:14px;font-weight:700;margin-bottom:6px;">${escapeHtml(data.title)}</p>
       <p style="font-size:13px;line-height:1.6;margin-bottom:10px;">${escapeHtml(data.summary)}</p>
       <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;"><strong>Recommendation:</strong> ${escapeHtml(data.recommendation) || '—'}</p>
-      <p style="font-size:12px;color:var(--clr-muted);margin-bottom:16px;"><strong>Alerts cited by the AI</strong> (up to 3 — not the full ${data.alert_count ?? '—'}-alert input behind the scores): ${refsHtml}</p>
+      ${refsHtml}
       <table class="tbl">
         <thead><tr><th>Category</th><th>Trend override</th><th>Reason (quoted from alert text)</th></tr></thead>
         <tbody>${overrideRows}</tbody>
@@ -632,7 +653,7 @@ function renderNarrative(data) {
     </div>`;
 }
 
-function renderFromData(data) {
+function renderFromData(data, alertsById) {
   document.getElementById('snapshot-meta').innerHTML =
     `Pulse generated <strong>${fmtPulseTime(data.generated_at)}</strong> · ${data.alert_count} active alerts · <span class="snap-note">scores below are for this snapshot only</span>`;
 
@@ -645,15 +666,18 @@ function renderFromData(data) {
     return merged;
   });
   document.getElementById('cat-cards').innerHTML = cats.map(renderCard).join('');
-  renderNarrative(data);
+  renderNarrative(data, alertsById);
 }
 
-fetch('/api/pulse-methodology-data')
-  .then(r => {
-    if (!r.ok) throw new Error('no data');
-    return r.json();
+Promise.all([
+  fetch('/api/pulse-methodology-data').then(r => { if (!r.ok) throw new Error('no data'); return r.json(); }),
+  fetch('/api/status').then(r => r.ok ? r.json() : { alerts: [], removed_alerts: [] }).catch(() => ({ alerts: [], removed_alerts: [] })),
+])
+  .then(([data, status]) => {
+    const alertsById = new Map();
+    for (const a of [...(status.alerts || []), ...(status.removed_alerts || [])]) alertsById.set(a.id, a);
+    renderFromData(data, alertsById);
   })
-  .then(renderFromData)
   .catch(() => {
     document.getElementById('snapshot-meta').textContent = 'No pulse data available for today yet.';
     document.getElementById('cat-cards').innerHTML = '';
