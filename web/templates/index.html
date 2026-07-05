@@ -2682,12 +2682,19 @@ function _initPulseSwipe() {
 
     const toggle = el.querySelector('.pulse-disclaimer-toggle');
     const collapsible = el.querySelector('.pulse-collapsible');
+    const expanded = !!(collapsible && collapsible.classList.contains('open'));
+    // Expanded content can grow taller than the overlay and scroll. A
+    // vertical touch gesture there is far more likely a scroll attempt
+    // than a dismiss swipe, so don't close in that case.
+    const scrollable = el.scrollHeight > el.clientHeight + 1;
 
     if (dy < 0) {
-      if (toggle && collapsible && !collapsible.classList.contains('open')) {
+      if (toggle && collapsible && !expanded) {
         toggle.classList.add('open');
         collapsible.classList.add('open');
         _track('pulse_details_toggle');
+      } else if (expanded && scrollable) {
+        return;
       } else {
         _closePulseSwipe('up');
       }
@@ -3829,11 +3836,18 @@ function _initWeatherSwipe() {
 
     const toggle = el.querySelector('.wx-details-toggle');
     const details = el.querySelector('.wx-details');
+    const expanded = !!(details && details.classList.contains('open'));
+    // Expanded content can grow taller than the overlay and scroll. A
+    // vertical touch gesture there is far more likely a scroll attempt
+    // than a dismiss swipe, so don't close in that case.
+    const scrollable = el.scrollHeight > el.clientHeight + 1;
 
     if (dy > 0) {
-      if (toggle && details && !details.classList.contains('open')) {
+      if (toggle && details && !expanded) {
         details.classList.add('open');
         toggle.textContent = 'Hide conditions ▴';
+      } else if (expanded && scrollable) {
+        return;
       } else {
         _closeWeatherSwipe('down');
       }
