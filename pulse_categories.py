@@ -35,12 +35,17 @@ CATEGORY_STATUS_LABELS: dict[str, list[str]] = {
 }
 
 CATEGORY_WINDOWS: dict[str, dict] = {
-    "transport": {"interval_hours": 1, "history_hours": 24, "lookahead_hours": 6},
+    "transport": {"interval_hours": 1, "history_hours": 24, "lookahead_hours": 24},
     "weather": {"interval_hours": 6, "history_hours": 72, "lookahead_hours": 48},
     "roadworks": {"interval_hours": 24, "history_hours": 672, "lookahead_hours": 168},
     "incidents": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 0},
     "events": {"interval_hours": 24, "history_hours": 168, "lookahead_hours": 168},
 }
+
+# Extra lookback (beyond a category's own lookahead_hours) kept clean for the
+# schedule baseline, so a still-visible scheduled disruption can't absorb
+# itself into its own "typical" before it matters — see _build_schedule_baseline.
+SCHEDULE_BASELINE_POOL_HOURS = 168
 
 # Bump whenever _compute_weight or any weight table changes. Snapshots are
 # stored with this version and baselines only compare same-version scores —
@@ -135,22 +140,27 @@ def apply_status_hysteresis(
     return prev_effective, pending
 
 
-def compute_surge(upcoming_total: float, upcoming_near: float, baseline: dict | None) -> bool:
+def compute_surge(upcoming_total: float, upcoming_near: float, schedule_baseline: dict | None) -> bool:
     """Deterministic replacement for the old LLM-judged "Signal 2".
 
     True when scheduled upcoming load is both significant relative to the
-    typical level AND mostly imminent (starting within the next sample
-    interval). Judged from pure future starts — never from expiry schedules
-    of current alerts, which is what made the old horizon series fire on
-    RMV end-of-service rollovers.
+    *typical scheduled load* AND mostly imminent (starting within the next
+    sample interval). Judged from pure future starts — never from expiry
+    schedules of current alerts, which is what made the old horizon series
+    fire on RMV end-of-service rollovers.
+
+    `schedule_baseline` must be built from scheduled_upcoming_score's own
+    history (see _build_schedule_baseline), not the ongoing-score baseline —
+    the two are different scales, and a single new alert's schedule weight
+    can never clear 1.5x a category's much larger total ongoing load.
     """
     if upcoming_total <= 0:
         return False
-    if baseline is None:
+    if schedule_baseline is None:
         # No typical level to compare against — require a meaningful
         # imminent load on its own.
         return upcoming_near >= 2.0
-    if upcoming_total < 1.5 * baseline.get("mean", 0):
+    if upcoming_total < 1.5 * schedule_baseline.get("mean", 0):
         return False
     return (upcoming_near / upcoming_total) >= 0.5
 
@@ -380,7 +390,7 @@ def _aggregate_buckets(
                 "hour": r["timestamp"],
                 "count": r["ongoing_count"],
                 "score": r["ongoing_score"],
-                "upcoming_score": round(r.get("scheduled_upcoming_score", 0.0) or 0.0, 2),
+                "scheduled_score": round(r.get("scheduled_upcoming_score", 0.0) or 0.0, 2),
             }
             for r in rows
         ]
@@ -396,11 +406,11 @@ def _aggregate_buckets(
             buckets[bucket_key] = {
                 "counts": [],
                 "scores": [],
-                "upcoming_scores": [],
+                "scheduled_scores": [],
             }
         buckets[bucket_key]["counts"].append(r["ongoing_count"])
         buckets[bucket_key]["scores"].append(r["ongoing_score"])
-        buckets[bucket_key]["upcoming_scores"].append(r.get("scheduled_upcoming_score", 0.0) or 0.0)
+        buckets[bucket_key]["scheduled_scores"].append(r.get("scheduled_upcoming_score", 0.0) or 0.0)
 
     label = "date" if interval_hours >= 24 else "period"
     result = []
@@ -410,10 +420,45 @@ def _aggregate_buckets(
             label: key[:10] if interval_hours >= 24 else key,
             "count": max(b["counts"]),
             "score": round(max(b["scores"]), 2),
-            "upcoming_score": round(max(b["upcoming_scores"]), 2),
+            "scheduled_score": round(max(b["scheduled_scores"]), 2),
         }
         result.append(entry)
     return result
+
+
+def _compute_baseline_stats(scores: list[float]) -> dict | None:
+    """Mean/p25/p75 baseline from a pool of positive scores, or None if
+    there aren't enough samples (< 3) to be meaningful."""
+    if len(scores) < 3:
+        return None
+    sorted_scores = sorted(scores)
+    n = len(sorted_scores)
+    return {
+        "mean": round(statistics.mean(scores), 2),
+        "p25": round(sorted_scores[min(int(n * 0.25), n - 1)], 2),
+        "p75": round(sorted_scores[min(int(n * 0.75), n - 1)], 2),
+        "n": n,
+    }
+
+
+def _build_schedule_baseline(
+    rows: list[dict], interval_hours: int, lookahead_hours: int,
+) -> dict | None:
+    """Baseline for `scheduled_upcoming_score`, built from its own history
+    rather than the ongoing-score baseline (the two are different scales —
+    comparing a single new alert's schedule weight against the category's
+    total noisy ongoing load makes surge structurally unable to fire).
+
+    The lag exclusion is sized to the category's own lookahead_hours (not a
+    flat few buckets): a disruption can sit visible in scheduled_upcoming_score
+    for up to a full lookahead window before it starts, so a short exclusion
+    lets it absorb itself into its own "typical" before it ever matters.
+    """
+    buckets = _aggregate_buckets(rows, interval_hours)
+    lag_buckets = max(1, -(-lookahead_hours // max(interval_hours, 1)))  # ceil
+    pool = buckets[:-lag_buckets] if len(buckets) > lag_buckets else []
+    scores = [b["scheduled_score"] for b in pool if b.get("scheduled_score", 0) > 0]
+    return _compute_baseline_stats(scores)
 
 
 def build_category_timeseries(
@@ -468,25 +513,22 @@ def build_category_timeseries(
         # Baseline from lagged history: exclude the trailing buckets so an
         # ongoing episode can't normalize itself away within hours.
         baseline_pool = history[:-BASELINE_LAG_BUCKETS] if len(history) > BASELINE_LAG_BUCKETS else []
-        scores = [h["score"] for h in baseline_pool if h.get("score", 0) > 0]
-        if len(scores) >= 3:
-            sorted_scores = sorted(scores)
-            n = len(sorted_scores)
-            baseline = {
-                "mean": round(statistics.mean(scores), 2),
-                "p25": round(sorted_scores[min(int(n * 0.25), n - 1)], 2),
-                "p75": round(sorted_scores[min(int(n * 0.75), n - 1)], 2),
-                "n": n,
-            }
-        else:
-            baseline = None
+        baseline = _compute_baseline_stats([h["score"] for h in baseline_pool if h.get("score", 0) > 0])
+
+        schedule_baseline = None
+        if window["lookahead_hours"] > 0:
+            schedule_since = now - timedelta(hours=window["lookahead_hours"] + SCHEDULE_BASELINE_POOL_HOURS)
+            schedule_rows = get_snapshots_fn(cat, schedule_since.strftime("%Y-%m-%dT%H:%M:%SZ"))
+            schedule_baseline = _build_schedule_baseline(
+                schedule_rows, window["interval_hours"], window["lookahead_hours"],
+            )
 
         ongoing_score = snap.get("ongoing_score", 0.0)
         current["status"] = compute_status(ongoing_score, baseline, snap.get("status_floor"))
         surge = compute_surge(
             snap.get("scheduled_upcoming_score", 0.0),
             snap.get("upcoming_near_score", 0.0),
-            baseline,
+            schedule_baseline,
         )
         current["surge_expected"] = surge
         current["trend"] = compute_trend(ongoing_score, history, surge)

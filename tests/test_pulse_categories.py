@@ -232,9 +232,13 @@ class TestComputeSnapshot:
         expiring_soon = (_NOW + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
         starting_soon = (_NOW + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
         starting_later = (_NOW + timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # transport's lookahead is 24h; this alert's expiry must stay outside
+        # that window so it isn't counted in expiring_full (unlike _FUTURE,
+        # which is only 22h out and would now fall inside the window).
+        beyond_lookahead = (_NOW + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M:%SZ")
         alerts = [
             _alert("rmv", valid_from=_PAST, valid_until=expiring_soon, service="S-Bahn"),
-            _alert("rmv", valid_from=_PAST, valid_until=_FUTURE),
+            _alert("rmv", valid_from=_PAST, valid_until=beyond_lookahead),
             _alert("rmv", valid_from=starting_soon, valid_until="2026-06-25T00:00:00Z"),
             _alert("rmv", valid_from=starting_later, valid_until="2026-06-25T00:00:00Z"),
         ]
@@ -349,7 +353,7 @@ class TestBuildCategoryTimeseries:
         assert "hour" in ts["transport"]["history"][0]
         assert "count" in ts["transport"]["history"][0]
         assert "score" in ts["transport"]["history"][0]
-        assert "upcoming_score" in ts["transport"]["history"][0]
+        assert "scheduled_score" in ts["transport"]["history"][0]
         assert "projected_score" not in ts["transport"]["history"][0]
 
     def test_weather_6hourly_aggregation(self):
@@ -491,9 +495,69 @@ class TestHorizonInTimeseries:
         assert ts["transport"]["current"]["horizon"]["total_score"] == 10.0
         history = ts["transport"]["history"]
         assert len(history) == 6
-        # history upcoming_score is the scheduled series, not the end-state
-        assert history[0]["upcoming_score"] == 1.0
-        assert history[-1]["upcoming_score"] > history[0]["upcoming_score"]
+        # history's scheduled_score is the scheduled series, not the end-state
+        assert history[0]["scheduled_score"] == 1.0
+        assert history[-1]["scheduled_score"] > history[0]["scheduled_score"]
+
+
+class TestScheduleBaseline:
+    """Regression coverage for the schedule-baseline rebase: surge used to
+    compare scheduled_upcoming_score against the ongoing-score baseline,
+    which for high-baseload categories (transport, roadworks) made a single
+    new alert's schedule weight structurally unable to clear 1.5x mean. The
+    baseline must instead be built from scheduled_upcoming_score's own
+    history, with a lag wide enough that a disruption sitting visible for
+    most of the lookahead window can't absorb itself into its own baseline.
+    """
+
+    def test_lag_excludes_recent_self_absorption(self):
+        from pulse_categories import _build_schedule_baseline
+
+        rows = []
+        for h in range(40, 0, -1):  # oldest first
+            if h <= 10:
+                score = 4.5  # a disruption became visible 10h ago and is still scheduled
+            elif h in (28, 32, 36):
+                score = 3.0  # genuine older, pre-disruption scheduled activity
+            else:
+                score = 0.0
+            ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({"timestamp": ts, "ongoing_count": 0, "ongoing_score": 0.0,
+                         "scheduled_upcoming_score": score})
+
+        baseline = _build_schedule_baseline(rows, interval_hours=1, lookahead_hours=24)
+        # lag = ceil(24/1) = 24 buckets excluded from the tail, so none of the
+        # recently-elevated (h<=10) buckets can reach the baseline.
+        assert baseline is not None
+        assert baseline["mean"] == pytest.approx(3.0)
+        assert baseline["n"] == 3
+
+    def test_surge_fires_against_own_baseline_despite_huge_ongoing_load(self):
+        # Transport-shaped data: ongoing load is huge (~120, many chronic
+        # disruptions) but the newly-scheduled alert (6.0) is large and
+        # imminent relative to its OWN quiet schedule history. Under the old
+        # design (compared against the ongoing baseline) this could never
+        # surge; against the schedule baseline it should.
+        rows = []
+        for h in range(40, 0, -1):
+            score = 3.0 if h in (28, 32, 36) else 0.0
+            ts = (_NOW - timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
+            rows.append({
+                "timestamp": ts, "ongoing_count": 30, "ongoing_score": 120.0,
+                "scheduled_upcoming_score": score,
+            })
+
+        def get_fn(cat, since):
+            return rows if cat == "transport" else []
+
+        current = {cat: {"ongoing_count": 30, "ongoing_score": 120.0,
+                         "projected_count": 30, "projected_score": 120.0,
+                         "upcoming_count": 30, "upcoming_score": 120.0,
+                         "upcoming_near_score": 5.0,
+                         "scheduled_upcoming_score": 6.0}
+                   for cat in CATEGORY_SOURCES}
+        ts = build_category_timeseries(get_fn, current, now=_NOW)
+        assert ts["transport"]["current"]["surge_expected"] is True
 
 
 class TestComputeStatus:
@@ -599,7 +663,7 @@ class TestComputeSurge:
 
 class TestComputeTrend:
     def _history(self, scores):
-        return [{"hour": f"h{i}", "count": 1, "score": s, "upcoming_score": 0.0}
+        return [{"hour": f"h{i}", "count": 1, "score": s, "scheduled_score": 0.0}
                 for i, s in enumerate(scores)]
 
     def test_empty_history_stable(self):

@@ -66,7 +66,7 @@ Computes severity-weighted scores, stores hourly snapshots, and derives the stat
 
 | Category | Sample interval | History depth | Lookahead |
 |----------|----------------|---------------|-----------|
-| Transport | 1h | 24h (24 points) | 6h |
+| Transport | 1h | 24h (24 points) | 24h |
 | Weather | 6h | 3 days (12 points) | 48h |
 | Roadworks | Daily | 4 weeks (28 points) | 1 week |
 | Events | Daily | 1 week (7 points) | 1 week |
@@ -96,7 +96,9 @@ The `min`/`max` guard prevents an empty moderate band when skewed history puts t
 
 **Deterministic trend** (`compute_trend`) — current score vs. the mean of the 3 preceding buckets with a dead band of `max(15%, 1.0)`; above the band → `worsening`, below → `improving`, inside → `stable`.
 
-**Surge signal** (`compute_surge`) — replaces the old LLM-judged "Signal 2". True when `scheduled_upcoming_score ≥ 1.5 × baseline.mean` AND at least half of it starts within the next sample interval (with no baseline: imminent load ≥ 2.0). Judged from pure future starts, never from expiry schedules of current alerts — the old horizon series fired on RMV end-of-service rollovers. A surge escalates the trend one step (improving→stable, stable→worsening) and is passed to the LLM as `surge_expected` for bridging narrative.
+**Surge signal** (`compute_surge`) — a fully deterministic escalation check. True when `scheduled_upcoming_score ≥ 1.5 × schedule_baseline.mean` AND at least half of that scheduled load starts within the next sample interval (with no baseline yet: imminent load ≥ 2.0). Judged from pure future starts only, never from expiry schedules of current alerts — an alert ending on its normal schedule (e.g. a nightly RMV replacement service finishing at 03:00) must never register as a surge on its own. A surge escalates the trend one step (improving→stable, stable→worsening) and is passed to the LLM as `surge_expected` for bridging narrative.
+
+`schedule_baseline` (`_build_schedule_baseline`) is built from `scheduled_upcoming_score`'s own history — a separate series from the `ongoing_score` baseline used for status. High-baseload categories (transport, roadworks) can carry an ongoing baseline in the hundreds, driven by dozens of already-known chronic disruptions; a single new alert's schedule weight is only ever a few points, so it's compared against the *scheduled-load* baseline instead, which sits at a matching scale. This baseline is drawn from an independent, wider lookback window (`lookahead_hours + SCHEDULE_BASELINE_POOL_HOURS`, currently 168h) with a lag exclusion sized to the category's own `lookahead_hours` — wide enough that a disruption sitting visible for most of the lookahead window can't absorb itself into its own "typical" before it's evaluated. This window is independent of `history_hours` (the ongoing/status baseline's window), so it has no effect on status thresholds.
 
 Status and trend are **not assigned by the LLM**. The LLM receives both as context.
 
@@ -163,7 +165,7 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
           "horizon": {"total_score": 5.5, "near_score": 1.5}
         },
         "history": [
-          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "upcoming_score": 2.5}
+          {"hour": "2026-06-30T09:00:00Z", "count": 7, "score": 6.0, "scheduled_score": 2.5}
         ],
         "baseline": {"mean": 5.8, "p25": 3.2, "p75": 8.2, "n": 24},
         "window": "24h hourly"
