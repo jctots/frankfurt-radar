@@ -92,6 +92,7 @@ The `min`/`max` guard prevents an empty moderate band when skewed history puts t
 
 - **Absolute floor** (`compute_status_floor`): where a source has an authoritative severity scale, it overrides the relative baseline — an ongoing DWD severity-3 warning floors weather at `moderate`, severity 4 at `severe`. Without this, an extreme storm after three calm days would read `minor` (no baseline → minor).
 - **Hysteresis** (`apply_status_hysteresis`): escalations apply immediately; de-escalations only after the raw status has been lower for 2 consecutive hourly runs. State is kept in the `meta` table (`pulse_status_state`); re-runs within the same hour don't consume the confirmation. This stops boundary flapping. The pre-hysteresis value is logged as `raw_status`.
+- **Skip guard** (`_should_skip_pulse`): the calm-interval skip (see [pulse_methodology.html](../web/templates/pulse_methodology.html)) is cancelled not only when a fast category (transport/weather) is currently moderate/severe, but also when its effective status just changed from the last *published* pulse — e.g. the hour hysteresis confirms a de-escalation. Otherwise the published pulse's narrative would keep describing a status (and severity) that no longer holds until the next scheduled interval elapses.
 
 **Deterministic trend** (`compute_trend`) — current score vs. the mean of the 3 preceding buckets with a dead band of `max(15%, 1.0)`; above the band → `worsening`, below → `improving`, inside → `stable`.
 

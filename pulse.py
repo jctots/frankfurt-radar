@@ -246,9 +246,13 @@ def _should_skip_pulse(now: datetime, current_status: dict[str, str]) -> dict | 
     """Return skip info dict if pulse should be skipped, None otherwise.
 
     `current_status` is this hour's freshly computed deterministic status per
-    category (no LLM involved) — used for the elevated check so a category
-    that turns severe during a "calm" gap is caught immediately, rather than
-    waiting on the next scheduled LLM pulse to notice.
+    category (no LLM involved) — used for two checks: catching a category
+    that turns severe during a "calm" gap immediately (`elevated`), and
+    catching a category whose *effective* status just moved off the last
+    stored pulse's value (`changed`) — e.g. hysteresis confirming a
+    de-escalation. Either case needs a fresh LLM narrative to match the new
+    status; carrying the old pulse's text forward under a new status/trend
+    would describe conditions that no longer hold.
     """
     last = db.get_latest_pulse()
     if not last:
@@ -256,6 +260,14 @@ def _should_skip_pulse(now: datetime, current_status: dict[str, str]) -> dict | 
 
     elevated = any(current_status.get(cat) in _LEVEL_2_PLUS for cat in _FAST_CATEGORIES)
     if elevated:
+        return None
+
+    last_categories = last.get("categories", {})
+    changed = any(
+        current_status.get(cat) != last_categories.get(cat, {}).get("status")
+        for cat in _FAST_CATEGORIES
+    )
+    if changed:
         return None
 
     berlin = now.astimezone(ZoneInfo("Europe/Berlin"))

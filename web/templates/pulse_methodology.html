@@ -206,6 +206,7 @@
       <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
       <tbody>
         <tr><td>Transport or weather is <span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span> or <span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Every hour — always runs</td></tr>
+        <tr><td>Transport or weather status just changed from the last published pulse (e.g. hysteresis confirms a de-escalation)</td><td>Runs immediately, even inside the calm interval — so the summary text is never left describing a status that no longer holds</td></tr>
         <tr><td>All calm — daytime (06:00–22:59 Frankfurt)</td><td>At most every 2 hours</td></tr>
         <tr><td>All calm — nighttime (23:00–05:59 Frankfurt)</td><td>At most every 3 hours</td></tr>
       </tbody>
