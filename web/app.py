@@ -171,6 +171,11 @@ def api_pulse_methodology_data():
         "generated_at": entry.get("generated_at"),
         "alert_count": layer3.get("alert_count"),
         "categories": categories,
+        "title": layer3.get("title"),
+        "summary": layer3.get("summary"),
+        "recommendation": layer3.get("recommendation"),
+        "references": layer3.get("references") or [],
+        "trend_overrides": entry.get("trend_overrides_applied") or {},
     })
 
 

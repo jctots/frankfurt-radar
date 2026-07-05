@@ -31,7 +31,7 @@
     /* ── Layout ── */
     .page { max-width: 900px; margin: 0 auto; padding: 36px 20px 80px; }
     .section { margin-bottom: 52px; }
-    .section-eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--clr-muted); margin-bottom: 10px; }
+    .section-eyebrow { font-size: 19px; font-weight: 700; letter-spacing: 0.01em; color: var(--clr-text); margin-bottom: 12px; }
     .section-lead { font-size: 15px; line-height: 1.75; color: var(--clr-text); max-width: 680px; }
 
     /* ── Status: icon + colored text (clear/minor/moderate/severe) ──
@@ -198,74 +198,6 @@
     </div>
   </div>
 
-  <!-- Generation frequency -->
-  <div class="section">
-    <div class="section-eyebrow">⏱️ When is pulse generated?</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The pulse runs on a schedule but skips when conditions are calm, to avoid unnecessary AI calls.</p>
-    <table class="tbl">
-      <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
-      <tbody>
-        <tr><td>Transport or weather is <span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span> or <span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Every hour — always runs</td></tr>
-        <tr><td>Transport or weather status just changed from the last published pulse (e.g. hysteresis confirms a de-escalation)</td><td>Runs immediately, even inside the calm interval — so the summary text is never left describing a status that no longer holds</td></tr>
-        <tr><td>All calm — daytime (06:00–22:59 Frankfurt)</td><td>At most every 2 hours</td></tr>
-        <tr><td>All calm — nighttime (23:00–05:59 Frankfurt)</td><td>At most every 3 hours</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Trend rules -->
-  <div class="section">
-    <div class="section-eyebrow">📈 How trend is judged</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is computed deterministically, just like status. Three rules feed into it, in order:</p>
-    <table class="tbl">
-      <thead><tr><th>Rule</th><th>What it looks at</th><th>When it applies</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><strong>Score vs. recent past</strong></td>
-          <td>Compares the current score to the average of the 3 preceding sample intervals, with a ±15% dead band so small fluctuations read as stable</td>
-          <td>Default for all categories</td>
-        </tr>
-        <tr>
-          <td><strong>Scheduled surge</strong></td>
-          <td>Alerts with known future start times (storm warnings, planned closures, events): when significant scheduled activity is both large relative to the typical level and mostly imminent, the trend escalates one step</td>
-          <td>Escalation only — the AI uses bridging language ("calm now, but a storm system arrives tonight")</td>
-        </tr>
-        <tr>
-          <td><strong>AI content correction</strong></td>
-          <td>Alert <em>text</em> occasionally states a direction the scores can't see — "service resumes at 14:30", "conditions will intensify overnight". The AI may correct the trend for that category, quoting the text as its logged reason</td>
-          <td>Rare; only when alert content explicitly contradicts the computed trend</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Category evidence -->
-  <div class="section">
-    <div class="section-eyebrow">📊 Score evidence</div>
-    <p class="snapshot-meta" id="snapshot-meta"></p>
-    <div class="cat-cards" id="cat-cards"></div>
-  </div>
-
-  <!-- Threshold table -->
-  <div class="section">
-    <div class="section-eyebrow">🎯 How status labels are assigned</div>
-    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. a historical baseline. The baseline deliberately excludes the most recent hours, so a disruption that is still happening can't redefine "normal" and hide itself. 100% deterministic.</p>
-    <table class="tbl">
-      <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
-      <tbody>
-        <tr><td><span class="status clear"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
-        <tr><td><span class="status minor"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg></span>minor</span></td><td>Score at or below the typical level</td><td>Activity at or below the baseline for this category</td></tr>
-        <tr><td><span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span></td><td>Between the typical level and the 75th percentile</td><td>Elevated above normal — worth being aware of</td></tr>
-        <tr><td><span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Above the 75th percentile</td><td>Well above what this category normally looks like</td></tr>
-      </tbody>
-    </table>
-    <div class="callout" style="margin-top:12px;">
-      <strong>Two safeguards on top of the thresholds.</strong>
-      <em>Weather floor:</em> official DWD warning levels override the baseline — a severe (level 3) warning always shows at least <em>moderate</em>, an extreme (level 4) warning always shows <em>severe</em>, even when recent history is calm.
-      <em>De-escalation delay:</em> a status only steps down after staying lower for a full extra hour, so it can't flicker between labels at a threshold boundary. Escalations always apply immediately.
-    </div>
-  </div>
-
   <!-- Alert weights -->
   <div class="section">
     <div class="section-eyebrow">⚖️ Alert severity weights</div>
@@ -352,6 +284,82 @@
         </tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- Threshold table -->
+  <div class="section">
+    <div class="section-eyebrow">🎯 How status labels are assigned</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Computed from the score vs. a historical baseline. The baseline deliberately excludes the most recent hours, so a disruption that is still happening can't redefine "normal" and hide itself. 100% deterministic.</p>
+    <table class="tbl">
+      <thead><tr><th>Status</th><th>Condition</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status clear"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>clear</span></td><td>Score = 0</td><td>No active alerts</td></tr>
+        <tr><td><span class="status minor"><span class="status-icon"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg></span>minor</span></td><td>Score at or below the typical level</td><td>Activity at or below the baseline for this category</td></tr>
+        <tr><td><span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span></td><td>Between the typical level and the 75th percentile</td><td>Elevated above normal — worth being aware of</td></tr>
+        <tr><td><span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Above the 75th percentile</td><td>Well above what this category normally looks like</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:12px;">
+      <strong>Two safeguards on top of the thresholds.</strong>
+      <em>Weather floor:</em> official DWD warning levels override the baseline — a severe (level 3) warning always shows at least <em>moderate</em>, an extreme (level 4) warning always shows <em>severe</em>, even when recent history is calm.
+      <em>De-escalation delay:</em> a status only steps down after staying lower for a full extra hour, so it can't flicker between labels at a threshold boundary. Escalations always apply immediately.
+    </div>
+  </div>
+
+  <!-- Trend rules -->
+  <div class="section">
+    <div class="section-eyebrow">📈 How trend is judged</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Trend is computed deterministically, just like status. Three rules feed into it, in order:</p>
+    <table class="tbl">
+      <thead><tr><th>Rule</th><th>What it looks at</th><th>When it applies</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Score vs. recent past</strong></td>
+          <td>Compares the current score to the average of the 3 preceding sample intervals, with a ±15% dead band so small fluctuations read as stable</td>
+          <td>Default for all categories</td>
+        </tr>
+        <tr>
+          <td><strong>Scheduled surge</strong></td>
+          <td>Alerts with known future start times (storm warnings, planned closures, events): when significant scheduled activity is both large relative to the typical level and mostly imminent, the trend escalates one step</td>
+          <td>Escalation only — the AI uses bridging language ("calm now, but a storm system arrives tonight")</td>
+        </tr>
+        <tr>
+          <td><strong>AI content correction</strong></td>
+          <td>Alert <em>text</em> occasionally states a direction the scores can't see — "service resumes at 14:30", "conditions will intensify overnight". The AI may correct the trend for that category, quoting the text as its logged reason</td>
+          <td>Rare; only when alert content explicitly contradicts the computed trend</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Generation frequency -->
+  <div class="section">
+    <div class="section-eyebrow">⏱️ When is pulse generated?</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The pulse runs on a schedule but skips when conditions are calm, to avoid unnecessary AI calls.</p>
+    <table class="tbl">
+      <thead><tr><th>Condition</th><th>Frequency</th></tr></thead>
+      <tbody>
+        <tr><td>Transport or weather is <span class="status moderate"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 15,13.5 1,13.5"/></svg></span>moderate</span> or <span class="status severe"><span class="status-icon"><svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg></span>severe</span></td><td>Every hour — always runs</td></tr>
+        <tr><td>Transport or weather status just changed from the last published pulse (e.g. hysteresis confirms a de-escalation)</td><td>Runs immediately, even inside the calm interval — so the summary text is never left describing a status that no longer holds</td></tr>
+        <tr><td>All calm — daytime (06:00–22:59 Frankfurt)</td><td>At most every 2 hours</td></tr>
+        <tr><td>All calm — nighttime (23:00–05:59 Frankfurt)</td><td>At most every 3 hours</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Category evidence -->
+  <div class="section">
+    <div class="section-eyebrow">📊 Score evidence</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">Today's live numbers, run through the rules above — the proof that status and trend are exactly what the tables say they are, not a black box.</p>
+    <p class="snapshot-meta" id="snapshot-meta"></p>
+    <div class="cat-cards" id="cat-cards"></div>
+  </div>
+
+  <!-- Narrative & overrides -->
+  <div class="section">
+    <div class="section-eyebrow">🤖 AI narrative &amp; overrides</div>
+    <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;">The one part of the pipeline that isn't deterministic: Gemini's write-up of the numbers above, which alerts it cited, and whether it corrected any category's trend.</p>
+    <div id="narrative-block"></div>
   </div>
 
   <p class="data-note">Charts load from today's hourly pulse snapshots.</p>
@@ -592,6 +600,36 @@ const fmtPulseTime = iso => {
   } catch { return iso; }
 };
 
+const escapeHtml = s => (s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function renderNarrative(data) {
+  const refs = data.references || [];
+  const refsHtml = refs.length
+    ? refs.map(id => `<a href="/alert/${encodeURIComponent(id)}" target="_blank" rel="noopener">${escapeHtml(id)}</a>`).join(', ')
+    : '<em>none cited</em>';
+
+  const overrides = data.trend_overrides || {};
+  const overrideRows = ['weather', 'transport', 'roadworks', 'incidents', 'events'].map(cat => {
+    const m = CAT_META[cat];
+    const o = overrides[cat];
+    return o
+      ? `<tr><td>${m.icon} ${m.name}</td><td>Overridden → <strong>${escapeHtml(o.trend)}</strong></td><td>${escapeHtml(o.reason)}</td></tr>`
+      : `<tr><td>${m.icon} ${m.name}</td><td>No override — trend stayed deterministic</td><td>—</td></tr>`;
+  }).join('');
+
+  document.getElementById('narrative-block').innerHTML = `
+    <div class="cat-card">
+      <p style="font-size:14px;font-weight:700;margin-bottom:6px;">${escapeHtml(data.title)}</p>
+      <p style="font-size:13px;line-height:1.6;margin-bottom:10px;">${escapeHtml(data.summary)}</p>
+      <p style="font-size:13px;color:var(--clr-muted);margin-bottom:14px;"><strong>Recommendation:</strong> ${escapeHtml(data.recommendation) || '—'}</p>
+      <p style="font-size:12px;color:var(--clr-muted);margin-bottom:16px;"><strong>Alerts cited by the AI</strong> (up to 3 — not the full ${data.alert_count ?? '—'}-alert input behind the scores): ${refsHtml}</p>
+      <table class="tbl">
+        <thead><tr><th>Category</th><th>Trend override</th><th>Reason (quoted from alert text)</th></tr></thead>
+        <tbody>${overrideRows}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderFromData(data) {
   document.getElementById('snapshot-meta').innerHTML =
     `Pulse generated <strong>${fmtPulseTime(data.generated_at)}</strong> · ${data.alert_count} active alerts · <span class="snap-note">scores below are for this snapshot only</span>`;
@@ -605,6 +643,7 @@ function renderFromData(data) {
     return merged;
   });
   document.getElementById('cat-cards').innerHTML = cats.map(renderCard).join('');
+  renderNarrative(data);
 }
 
 fetch('/api/pulse-methodology-data')
@@ -616,6 +655,7 @@ fetch('/api/pulse-methodology-data')
   .catch(() => {
     document.getElementById('snapshot-meta').textContent = 'No pulse data available for today yet.';
     document.getElementById('cat-cards').innerHTML = '';
+    document.getElementById('narrative-block').innerHTML = '';
   });
 </script>
 </body>
