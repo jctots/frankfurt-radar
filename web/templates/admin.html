@@ -59,7 +59,8 @@
 
     main { max-width: 1100px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 
-    .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+    .controls-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .controls label { font-weight: 600; font-size: 13px; }
     .controls input[type="date"] {
       padding: 6px 10px; border: 1px solid var(--clr-border); border-radius: 6px;
@@ -147,7 +148,42 @@
     .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .status-dot.up { background: var(--clr-ok); }
     .status-dot.down { background: var(--clr-danger); }
-    .status-meta { margin-top: 12px; font-size: 12px; color: var(--clr-muted); display: flex; gap: 20px; flex-wrap: wrap; }
+    .status-meta {
+      margin-top: 12px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--clr-border);
+      font-size: 12px; color: var(--clr-muted); display: flex; gap: 20px; flex-wrap: wrap;
+    }
+    .status-meta b { color: var(--clr-text); font-weight: 600; }
+
+    /* ── Health chart (24h CPU/RAM + failure/recovery/restart events) ── */
+    .chart-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chart-head .subtitle { font-size: 12px; color: var(--clr-muted); }
+    .range-btns { display: flex; gap: 6px; }
+    .range-btn {
+      background: var(--clr-surface2); border: 1px solid var(--clr-border); color: var(--clr-muted);
+      border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+    }
+    .range-btn.active { color: var(--clr-text); border-color: var(--clr-accent); background: rgba(88,166,255,0.1); }
+    .legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 12px; color: var(--clr-muted); flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend .swatch { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+    .legend .swatch.dot { width: 9px; height: 9px; border-radius: 50%; }
+    .chart-wrap { position: relative; }
+    .health-event-marker {
+      position: absolute; top: 0; bottom: 22px; width: 0; border-left: 1.5px dashed var(--clr-danger);
+      pointer-events: auto; cursor: pointer;
+    }
+    .health-event-marker.recovery { border-left-color: var(--clr-ok); }
+    .health-event-marker.restart { border-left-color: var(--clr-accent); }
+    .health-event-marker::after {
+      content: ''; position: absolute; bottom: -4px; left: -4px; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--clr-danger); box-shadow: 0 0 0 2px var(--clr-surface);
+    }
+    .health-event-marker.recovery::after { background: var(--clr-ok); }
+    .health-event-marker.restart::after { background: var(--clr-accent); }
+    .health-event-marker[title]:hover { border-left-width: 2px; }
+    .table-toggle { font-size: 12px; color: var(--clr-accent); cursor: pointer; background: none; border: none; padding: 0; margin-top: 12px; }
+    #health-event-table { display: none; margin-top: 8px; max-height: 220px; overflow-y: auto; }
+    #health-event-table.open { display: block; }
 
     .ban-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
     .ban-input-row input {
@@ -274,8 +310,16 @@
 
 <main>
   <div class="controls">
-    <label>Date:</label>
-    <input type="date" id="date-picker">
+    <div class="controls-left">
+      <label>Date:</label>
+      <input type="date" id="date-picker">
+    </div>
+    <div class="controls-left">
+      <button class="btn btn-primary btn-sm" id="btn-poll" onclick="forcePoll()" title="Triggers a full poller cycle">Force Poll</button>
+      <span id="poll-result"></span>
+      <button class="btn btn-primary btn-sm" id="btn-pulse" onclick="forcePulse()" title="Generates a new city pulse (bypasses adaptive frequency)">Force Pulse</button>
+      <span id="pulse-result"></span>
+    </div>
   </div>
 
   <!-- KPIs -->
@@ -365,28 +409,36 @@
     </div>
   </div>
 
-  <!-- Server Status + Actions -->
-  <div class="grid-2">
-    <div class="card">
-      <h2>🖥️ Server Status</h2>
-      <div class="status-grid" id="status-grid"></div>
-      <div class="status-meta" id="status-meta"></div>
-    </div>
-    <div class="card">
-      <h2>⚡ Actions</h2>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-primary" id="btn-poll" onclick="forcePoll()">Force Poll</button>
-          <span id="poll-result"></span>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <button class="btn btn-primary" id="btn-pulse" onclick="forcePulse()">Force Pulse</button>
-          <span id="pulse-result"></span>
-        </div>
-        <div style="border-top: 1px solid var(--clr-border); padding-top:12px; font-size:12px; color:var(--clr-muted);">
-          Poll triggers a full poller cycle. Pulse generates a new city pulse (bypasses adaptive frequency).
-        </div>
+  <!-- Server Status -->
+  <div class="card">
+    <h2>🖥️ Server Status</h2>
+    <div class="status-grid" id="status-grid"></div>
+    <div class="status-meta" id="status-meta"></div>
+
+    <div class="chart-head">
+      <div class="subtitle" id="health-chart-subtitle">CPU load and RAM usage, last 24h, sampled every minute · dashed markers = poller failures, recoveries, and restarts</div>
+      <div class="range-btns" id="health-range-btns">
+        <button class="range-btn" data-hours="6">6h</button>
+        <button class="range-btn active" data-hours="24">24h</button>
+        <button class="range-btn" data-hours="168">7d</button>
       </div>
+    </div>
+    <div class="legend" id="health-legend">
+      <div class="legend-item"><span class="swatch" style="background:var(--clr-accent)"></span> CPU load</div>
+      <div class="legend-item"><span class="swatch" style="background:#d2a8ff"></span> RAM usage</div>
+      <div class="legend-item"><span class="swatch dot" style="background:var(--clr-danger)"></span> Failure</div>
+      <div class="legend-item"><span class="swatch dot" style="background:var(--clr-ok)"></span> Recovery</div>
+      <div class="legend-item"><span class="swatch dot" style="background:var(--clr-accent)"></span> Restart</div>
+    </div>
+    <div class="chart-wrap" id="health-chart-wrap">
+      <canvas id="health-chart" height="220"></canvas>
+    </div>
+    <button class="table-toggle" id="health-table-toggle">Show as table ▾</button>
+    <div id="health-event-table">
+      <table class="log-table">
+        <thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>
+        <tbody id="health-event-tbody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -424,6 +476,7 @@
   </div>
 </main>
 
+<script src="/static/vendor/chart.umd.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const utcToBerlin = iso => {
@@ -1100,12 +1153,142 @@ async function loadServerStatus() {
     const parts = [];
     if (data.last_polled) {
       const age = Math.round((Date.now() - new Date(data.last_polled).getTime()) / 60000);
-      parts.push(`Last poll: ${age} min ago`);
+      parts.push(`Last poll: <b>${age} min ago</b>`);
     }
-    if (data.subscribers) parts.push(`Subscribers: ${data.subscribers.active}/${data.subscribers.total} active`);
-    meta.textContent = parts.join(' · ');
+    if (data.uptime_seconds != null) parts.push(`Uptime: <b>${formatUptime(data.uptime_seconds)}</b>`);
+    if (data.subscribers) parts.push(`Subscribers: <b>${data.subscribers.active}/${data.subscribers.total}</b> active`);
+    meta.innerHTML = parts.join(' · ');
   } catch {}
 }
+
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+}
+
+// ── Health chart (24h CPU/RAM + failure/recovery/restart events) ─────────────
+
+let healthChart = null;
+let healthChartHours = 24;
+
+async function loadHealthChart(hours = healthChartHours) {
+  healthChartHours = hours;
+  try {
+    const res = await fetch(`/api/admin/metrics-history?hours=${hours}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderHealthChart(data.metrics || [], data.events || [], hours);
+  } catch {}
+}
+
+function renderHealthChart(metrics, events, hours) {
+  const labels = metrics.map(m => m.timestamp);
+  const cpuData = metrics.map(m => m.cpu_pct);
+  const ramData = metrics.map(m => m.ram_pct);
+
+  const ctx = $('#health-chart').getContext('2d');
+  if (healthChart) healthChart.destroy();
+  healthChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'CPU load', data: cpuData, borderColor: '#58a6ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.15 },
+        { label: 'RAM usage', data: ramData, borderColor: '#d2a8ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.15 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: {
+            color: '#7d8590', maxTicksLimit: hours > 48 ? 7 : 8,
+            callback: (val, idx) => {
+              const d = new Date(labels[idx]);
+              return hours > 48
+                ? d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
+                : d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+            },
+          },
+          grid: { color: '#21262d' },
+        },
+        y: {
+          min: 0, max: 100,
+          ticks: { color: '#7d8590', callback: v => v + '%' },
+          grid: { color: '#21262d' },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#010409', borderColor: '#30363d', borderWidth: 1,
+          callbacks: { title: items => utcToBerlin(items[0].label) },
+        },
+      },
+    },
+  });
+
+  renderHealthEventMarkers(events, labels);
+  renderHealthEventTable(events);
+}
+
+function renderHealthEventMarkers(events, labels) {
+  const wrap = $('#health-chart-wrap');
+  wrap.querySelectorAll('.health-event-marker').forEach(el => el.remove());
+  if (!healthChart || !labels.length) return;
+
+  const xScale = healthChart.scales.x;
+  events.forEach(ev => {
+    // Snap to the nearest sampled timestamp so the marker sits on the chart's own x scale.
+    let nearestIdx = 0, nearestDiff = Infinity;
+    const evTime = new Date(ev.timestamp).getTime();
+    labels.forEach((l, i) => {
+      const diff = Math.abs(new Date(l).getTime() - evTime);
+      if (diff < nearestDiff) { nearestDiff = diff; nearestIdx = i; }
+    });
+    const x = xScale.getPixelForValue(nearestIdx);
+    const marker = document.createElement('div');
+    marker.className = `health-event-marker ${ev.event_type}`;
+    marker.style.left = `${x}px`;
+    marker.title = `${utcToBerlin(ev.timestamp)} · ${ev.detail}`;
+    wrap.appendChild(marker);
+  });
+}
+
+function renderHealthEventTable(events) {
+  const tbody = $('#health-event-tbody');
+  if (!events.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="note">No events in this range</td></tr>';
+    return;
+  }
+  tbody.innerHTML = events.map(ev => `
+    <tr>
+      <td>${utcToBerlin(ev.timestamp)}</td>
+      <td>${ev.event_type} (${ev.source})</td>
+      <td class="note">${ev.detail}</td>
+    </tr>
+  `).join('');
+}
+
+$('#health-range-btns').addEventListener('click', e => {
+  const btn = e.target.closest('.range-btn');
+  if (!btn) return;
+  $('#health-range-btns').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadHealthChart(parseInt(btn.dataset.hours, 10));
+});
+
+$('#health-table-toggle').addEventListener('click', function () {
+  const t = $('#health-event-table');
+  t.classList.toggle('open');
+  this.textContent = t.classList.contains('open') ? 'Hide table ▴' : 'Show as table ▾';
+});
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -1339,6 +1522,7 @@ async function runWeightReview() {
 
 loadData();
 loadServerStatus();
+loadHealthChart();
 loadBans();
 loadOverrides();
 </script>

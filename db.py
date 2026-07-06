@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS strike_duplicates (
     duplicate_of TEXT NOT NULL,
     resolved_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+CREATE TABLE IF NOT EXISTS system_metrics_history (
+    timestamp TEXT NOT NULL PRIMARY KEY,
+    cpu_pct   REAL NOT NULL,
+    ram_pct   REAL NOT NULL,
+    load1     REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS event_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    event_type TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    detail     TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -1400,6 +1415,50 @@ def get_days_with_usage(month: str) -> int:
             (month + "-%",),
         ).fetchone()
     return row["cnt"] if row else 0
+
+
+# ── system health history ────────────────────────────────────────────────────
+
+_METRICS_RETENTION_DAYS = 7
+
+
+def record_metrics_sample(cpu_pct: float, ram_pct: float, load1: float) -> None:
+    with _conn() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO system_metrics_history (timestamp, cpu_pct, ram_pct, load1)
+               VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?, ?)""",
+            (cpu_pct, ram_pct, load1),
+        )
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_METRICS_RETENTION_DAYS)).isoformat()
+        conn.execute("DELETE FROM system_metrics_history WHERE timestamp < ?", (cutoff,))
+
+
+def record_event(event_type: str, source: str, detail: str = "") -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO event_log (event_type, source, detail) VALUES (?, ?, ?)",
+            (event_type, source, detail),
+        )
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_METRICS_RETENTION_DAYS)).isoformat()
+        conn.execute("DELETE FROM event_log WHERE timestamp < ?", (cutoff,))
+
+
+def get_metrics_history(since: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT timestamp, cpu_pct, ram_pct, load1 FROM system_metrics_history WHERE timestamp >= ? ORDER BY timestamp",
+            (since,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_events_since(since: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT timestamp, event_type, source, detail FROM event_log WHERE timestamp >= ? ORDER BY timestamp",
+            (since,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:

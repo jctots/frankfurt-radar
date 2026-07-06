@@ -484,10 +484,33 @@ def api_admin_server_status():
         for k, v in health.items()
     }
 
+    boot_time_raw = get_meta("metrics_last_boot_time")
+    uptime_seconds = None
+    if boot_time_raw:
+        try:
+            uptime_seconds = (datetime.now(timezone.utc) - datetime.fromtimestamp(float(boot_time_raw), tz=timezone.utc)).total_seconds()
+        except ValueError:
+            pass
+
     return jsonify({
         "components": components,
         "last_polled": last_polled,
         "subscribers": counts,
+        "uptime_seconds": uptime_seconds,
+    })
+
+
+@app.route("/api/admin/metrics-history")
+@_admin_required
+def api_admin_metrics_history():
+    from db import get_events_since, get_metrics_history
+
+    hours = int(request.args.get("hours", 24))
+    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return jsonify({
+        "metrics": get_metrics_history(since),
+        "events": get_events_since(since),
     })
 
 

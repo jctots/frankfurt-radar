@@ -34,6 +34,8 @@ job_block = "\n".join([
     f"# Poll every {interval_min} min, 24/7",
     f"{poll_minutes} * * * * root cd /app && python main.py --mode poll >> /proc/1/fd/1 2>&1",
     f"{poll_minutes} * * * * root cd /app && python radar.py >> /proc/1/fd/1 2>&1",
+    "# System health sample -- every minute, for the admin 24h chart",
+    "* * * * * root cd /app && python metrics_sample.py >> /proc/1/fd/1 2>&1",
     "# City Pulse -- hourly situational summary",
     "0 * * * * root cd /app && python pulse.py >> /proc/1/fd/1 2>&1",
     "# City Pulse -- daily summary at 23:00 Frankfurt time",

@@ -21,6 +21,15 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+# Maps poller class name -> short source label used in config/health reporting.
+# Shared with metrics_sample.py so failure/recovery events use the same names.
+POLLER_SOURCE_LABELS = {
+    "RMVPoller": "rmv", "PolizeiPoller": "polizei", "DWDPoller": "dwd",
+    "AutobahnPoller": "autobahn", "BaustellenPoller": "baustellen",
+    "StrikePoller": "strike", "FeuerwehrPoller": "feuerwehr",
+    "OpenLigaPoller": "sports", "TicketmasterPoller": "sports",
+}
+
 CONFIG_FILE  = Path(os.getenv("DATA_DIR", "data")) / "config.yaml"
 EVENTS_FILE  = Path(os.getenv("DATA_DIR", "data")) / "city_events.yaml"
 MESSE_FILE   = Path(os.getenv("DATA_DIR", "data")) / "messe_events.yaml"
@@ -186,18 +195,12 @@ def main() -> None:
     all_alerts = [a for _, alerts in fetched for a in alerts]
 
     # Collect per-source health; static pollers (no network) are always ok.
-    _POLLER_SOURCE = {
-        "RMVPoller": "rmv", "PolizeiPoller": "polizei", "DWDPoller": "dwd",
-        "AutobahnPoller": "autobahn", "BaustellenPoller": "baustellen",
-        "StrikePoller": "strike", "FeuerwehrPoller": "feuerwehr",
-        "OpenLigaPoller": "sports", "TicketmasterPoller": "sports",
-    }
     source_health = {type(p).__name__: p.ok for p, _ in fetched}
     set_meta("source_health", json.dumps(source_health))
     failed_sources = {
-        _POLLER_SOURCE[type(p).__name__]
+        POLLER_SOURCE_LABELS[type(p).__name__]
         for p, _ in fetched
-        if not p.ok and type(p).__name__ in _POLLER_SOURCE
+        if not p.ok and type(p).__name__ in POLLER_SOURCE_LABELS
     }
 
     max_age = config.get("police", {}).get("max_age_hours", 48)
