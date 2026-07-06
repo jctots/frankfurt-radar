@@ -1023,6 +1023,7 @@ function selectCell(idx, cat) {
     // whole `body` string is inserted into the DOM (see pendingCharts loop
     // below), since a canvas needs to exist in the document first.
     if (history.length) {
+      const histScores = history.map(h => h.score || 0);
       const chartId = `mini-chart-${c}`;
       pendingCharts.push({
         id: chartId, history,
