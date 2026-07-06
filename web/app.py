@@ -150,6 +150,7 @@ def api_pulse_methodology_data():
         history_raw = ts.get("history") or []
         cat_out = categories_out.get(cat) or {}
         projected = current.get("projected")
+        lookahead_raw = current.get("lookahead")
         categories[cat] = {
             "status": cat_out.get("status"),
             "trend": cat_out.get("trend"),
@@ -167,6 +168,11 @@ def api_pulse_methodology_data():
                 "p75": baseline_raw.get("p75"),
             } if baseline_raw else None,
             "history": history_raw,
+            "lookahead": {
+                "total_score": lookahead_raw.get("total_score"),
+                "lead_score": lookahead_raw.get("lead_score"),
+            } if lookahead_raw else None,
+            "lead_alert": bool(current.get("lead_alert")),
         }
 
     recent_pulses = get_recent_pulses(1)
