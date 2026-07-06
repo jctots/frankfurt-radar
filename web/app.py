@@ -129,6 +129,8 @@ def pulse_methodology():
 
 @app.route("/api/pulse-methodology-data")
 def api_pulse_methodology_data():
+    from db import get_recent_daily_summaries, get_recent_pulses
+
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entries = _read_jsonl(DATA_DIR / "pulse_debug" / f"{today}.jsonl")
     real_entries = [e for e in entries if not e.get("skipped") and e.get("layer_1_deterministic")]
@@ -167,6 +169,11 @@ def api_pulse_methodology_data():
             "history": history_raw,
         }
 
+    recent_pulses = get_recent_pulses(1)
+    last_pulse = recent_pulses[0] if recent_pulses else None
+    recent_daily = get_recent_daily_summaries(1)
+    last_daily = recent_daily[0] if recent_daily else None
+
     return jsonify({
         "generated_at": entry.get("generated_at"),
         "alert_count": layer3.get("alert_count"),
@@ -176,6 +183,8 @@ def api_pulse_methodology_data():
         "recommendation": layer3.get("recommendation"),
         "references": layer3.get("references") or [],
         "trend_overrides": entry.get("trend_overrides_applied") or {},
+        "last_pulse": {"generated_at": last_pulse["generated_at"], "summary": last_pulse["summary"]} if last_pulse else None,
+        "last_daily_summary": {"date": last_daily["date"], "summary": last_daily["summary"]} if last_daily else None,
     })
 
 
