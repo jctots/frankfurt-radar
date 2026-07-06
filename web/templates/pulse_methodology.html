@@ -81,28 +81,15 @@
     .score-val { font-size: 16px; font-weight: 700; }
     .score-val.highlight { color: var(--clr-current); }
 
-    /* ── Score range plot (dot + p25–p75 baseline band, zoomed axis) ──
+    /* ── Score chart (Chart.js — dot/line + p25–p75 baseline band, zoomed axis) ──
        Position, not bar length, carries the value here, so a zoomed axis is
        legitimate (unlike a bar chart, which must start at zero). The
        baseline band is a translucent full-width fill (not a thin whisker)
-       so "inside vs. outside the typical range" reads at a glance. */
+       so "inside vs. outside the typical range" reads at a glance. Same
+       library and encoding as the admin health chart and admin pulse-detail
+       mini-chart, for a consistent charting approach across the app. */
     .chart-wrap { margin-bottom: 6px; }
-    .range-plot { display: flex; align-items: stretch; gap: 3px; position: relative; height: 88px; }
-    .range-grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--clr-border); }
-    .range-grid-val { position: absolute; left: -2px; font-size: 9px; color: var(--clr-muted); transform: translateY(-50%); }
-    .range-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-    .range-col { flex: 1; position: relative; }
-    .range-col.proj-col { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
-    .baseline-band { position: absolute; left: 0; right: 0; background: var(--clr-p25); opacity: 0.14; border-radius: 3px; z-index: 0; }
-    .dot { position: absolute; left: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--clr-surface); box-shadow: 0 0 0 1px rgba(0,0,0,0.08); z-index: 2; }
-    .dot.ongoing   { background: var(--clr-ongoing); }
-    .dot.current   { background: var(--clr-current); width: 13px; height: 13px; }
-    .dot.projected { background: var(--clr-projected); }
-    .mean-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--clr-mean); opacity: 0.9; z-index: 1; }
-    .chart-xlabels { display: flex; gap: 3px; margin-top: 3px; }
-    .x-label { flex: 1; font-size: 9px; color: var(--clr-muted); text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .x-label.is-now  { color: var(--clr-current); font-weight: 700; }
-    .x-label.is-proj { color: var(--clr-projected); }
+    .cjs-chart-wrap { position: relative; height: 150px; }
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--clr-muted); align-items: center; }
     .leg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
     .leg-line-mean { display: inline-block; width: 14px; border-top: 1px dashed var(--clr-mean); vertical-align: middle; margin-right: 4px; }
@@ -426,6 +413,7 @@
   <p class="data-note">Charts load from today's hourly pulse snapshots.</p>
 </main>
 
+<script src="/static/vendor/chart.umd.min.js"></script>
 <script>
 /* ── Dark mode: follow main page setting ── */
 if (localStorage.getItem('fr_dark') === '1') document.body.classList.add('dark');
@@ -450,8 +438,6 @@ const STATUS_ICON_SVG = {
   severe:   '<svg viewBox="0 0 16 16"><polygon points="8,1.5 14.5,8 8,14.5 1.5,8"/></svg>',
 };
 const statusBadge = status => `<span class="status ${status}"><span class="status-icon">${STATUS_ICON_SVG[status] || ''}</span>${status}</span>`;
-
-const CHART_H = 88;
 
 // Round a raw axis step up to a "nice" 1/2/5×10^n number so gridlines land
 // on readable values instead of arbitrary fractions.
@@ -480,74 +466,6 @@ function computeDomain(values) {
 }
 
 function renderChart(cat) {
-  const scores = cat.history.map(h => (h && typeof h === 'object') ? h.score : h);
-  const domainInputs = [...scores, cat.ongoing.score].filter(v => v != null);
-  if (cat.projected) domainInputs.push(cat.projected.score);
-  if (cat.baseline) domainInputs.push(cat.baseline.p25, cat.baseline.mean, cat.baseline.p75);
-  const { lo, hi, step } = computeDomain(domainInputs);
-  const posPct = v => ((v - lo) / (hi - lo)) * 100;
-
-  const hlen = cat.history.length;
-  const totalCols = hlen + (cat.projected ? 1 : 0);
-  const xCenter = i => ((i + 0.5) / totalCols) * 100;
-  const nowMs = Date.now();
-
-  let grid = '';
-  for (let v = lo; v <= hi + 1e-9; v += step) {
-    grid += `<div class="range-grid-line" style="bottom:${posPct(v)}%"></div><div class="range-grid-val" style="bottom:${posPct(v)}%">${Math.round(v)}</div>`;
-  }
-
-  // Per-dot x-axis labels: derived from each bucket's real timestamp
-  // (period/hour/date), not just first/last — matches admin.html's mini-chart.
-  let cols = '', xlabels = '';
-  const linePts = [];
-  cat.history.forEach((entry, i) => {
-    const isNow = i === hlen - 1;
-    const isObj = entry && typeof entry === 'object';
-    const s = isObj ? entry.score : entry;
-    const count = isObj ? entry.count : null;
-    const rawLabel = isObj ? (entry.period || entry.hour || entry.date || '') : '';
-    let shortLabel = '';
-    const bucketMs = rawLabel.length === 10
-      ? new Date(rawLabel + 'T00:00:00Z').getTime()
-      : new Date(rawLabel).getTime();
-    if (!isNaN(bucketMs)) {
-      const diffH = Math.round((nowMs - bucketMs) / 3600000);
-      if (diffH < 1) shortLabel = 'now';
-      else if (diffH < 24) shortLabel = `-${diffH}h`;
-      else shortLabel = `-${Math.round(diffH / 24)}d`;
-    }
-    const countTitle = count != null ? ` (${count} alerts)` : '';
-    cols    += `<div class="range-col"><div class="dot ${isNow ? 'current' : 'ongoing'}" style="bottom:${posPct(s ?? 0)}%" title="score: ${s ?? 0}${countTitle}"></div></div>`;
-    xlabels += `<div class="x-label${isNow ? ' is-now' : ''}">${shortLabel}</div>`;
-    if (s != null) linePts.push(`${xCenter(i)},${100 - posPct(s)}`);
-  });
-
-  let projLine = '';
-  if (cat.projected) {
-    const projPct = posPct(cat.projected.score);
-    cols    += `<div class="range-col proj-col"><div class="dot projected" style="bottom:${projPct}%" title="projected: ${cat.projected.score}"></div></div>`;
-    xlabels += `<div class="x-label is-proj">next</div>`;
-    if (linePts.length) {
-      const [lastX, lastY] = linePts[linePts.length - 1].split(',');
-      projLine = `<line x1="${lastX}" y1="${lastY}" x2="${xCenter(hlen)}" y2="${100 - projPct}" stroke="var(--clr-projected)" stroke-width="1" stroke-dasharray="3,2" vector-effect="non-scaling-stroke" opacity="0.8" />`;
-    }
-  }
-
-  const trendSvg = linePts.length > 1
-    ? `<svg class="range-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline points="${linePts.join(' ')}" fill="none" stroke="var(--clr-ongoing)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.8" />
-        ${projLine}
-      </svg>`
-    : '';
-
-  let markers = '';
-  if (cat.baseline) {
-    const bandBot = posPct(cat.baseline.p25);
-    const bandH = posPct(cat.baseline.p75) - posPct(cat.baseline.p25);
-    markers = `<div class="baseline-band" style="bottom:${bandBot}%;height:${bandH}%"></div><div class="mean-line" style="bottom:${posPct(cat.baseline.mean)}%"></div>`;
-  }
-
   const projLegend = cat.projected
     ? `<span><span class="leg-dot" style="background:var(--clr-projected)"></span>Projected (next interval)</span>`
     : '';
@@ -557,8 +475,7 @@ function renderChart(cat) {
 
   return `
     <div class="chart-wrap">
-      <div class="range-plot">${grid}${trendSvg}${markers}${cols}</div>
-      <div class="chart-xlabels">${xlabels}</div>
+      <div class="cjs-chart-wrap"><canvas id="cat-chart-${cat.id}"></canvas></div>
       <div class="chart-legend">
         <span><span class="leg-dot" style="background:var(--clr-current)"></span>Current</span>
         <span><span class="leg-dot" style="background:var(--clr-ongoing)"></span>History (${cat.window})</span>
@@ -567,6 +484,98 @@ function renderChart(cat) {
       </div>
       <div class="cat-explain">${renderRuleExplain(cat)}</div>
     </div>`;
+}
+
+// Same encoding as admin.html's health chart and pulse-detail mini-chart:
+// zoomed single axis (legitimate for a dot/position plot), history line with
+// a bigger "current" point, a dashed projected segment, and a translucent
+// baseline band drawn as a fill between two flat p75/p25 datasets.
+function instantiateChart(cat) {
+  const canvas = document.getElementById(`cat-chart-${cat.id}`);
+  if (!canvas) return;
+
+  const isDark = document.body.classList.contains('dark');
+  const mutedColor = isDark ? '#8892a4' : '#64748b';
+  const gridColor = isDark ? '#2a3344' : '#e2e8f0';
+  const surfaceColor = isDark ? '#1c2433' : '#ffffff';
+
+  const nowMs = Date.now();
+  const histScore = h => (h && typeof h === 'object') ? h.score : h;
+  const histLabel = h => {
+    const rawLabel = (h && typeof h === 'object') ? (h.period || h.hour || h.date || '') : '';
+    const bucketMs = rawLabel.length === 10 ? new Date(rawLabel + 'T00:00:00Z').getTime() : new Date(rawLabel).getTime();
+    if (isNaN(bucketMs)) return '';
+    const diffH = Math.round((nowMs - bucketMs) / 3600000);
+    if (diffH < 1) return 'now';
+    if (diffH < 24) return `-${diffH}h`;
+    return `-${Math.round(diffH / 24)}d`;
+  };
+
+  const histScores = cat.history.map(histScore);
+  const histLabels = cat.history.map(histLabel);
+  const labels = cat.projected ? [...histLabels, 'next'] : histLabels;
+  const n = labels.length;
+  const lastIdx = histScores.length - 1;
+
+  const historyData = cat.projected ? [...histScores, null] : histScores;
+  let projectedData = null;
+  if (cat.projected) {
+    projectedData = new Array(n).fill(null);
+    projectedData[n - 2] = histScores[lastIdx];
+    projectedData[n - 1] = cat.projected.score;
+  }
+
+  const domainInputs = histScores.filter(v => v != null);
+  if (cat.projected) domainInputs.push(cat.projected.score);
+  if (cat.baseline) domainInputs.push(cat.baseline.p25, cat.baseline.mean, cat.baseline.p75);
+  const { lo, hi } = computeDomain(domainInputs);
+
+  const datasets = [];
+  if (cat.baseline) {
+    datasets.push({
+      label: 'Baseline p75', data: new Array(n).fill(cat.baseline.p75),
+      borderWidth: 0, pointRadius: 0, backgroundColor: 'rgba(34,197,94,0.14)', fill: '+1', order: 5,
+    });
+    datasets.push({
+      label: 'Baseline p25', data: new Array(n).fill(cat.baseline.p25),
+      borderWidth: 0, pointRadius: 0, backgroundColor: 'transparent', fill: false, order: 5,
+    });
+    datasets.push({
+      label: 'Baseline mean', data: new Array(n).fill(cat.baseline.mean),
+      borderColor: mutedColor, borderWidth: 1, borderDash: [4, 3], pointRadius: 0, fill: false, order: 4,
+    });
+  }
+  if (cat.projected) {
+    datasets.push({
+      label: 'Projected', data: projectedData, borderColor: '#f0883e', borderWidth: 1.5,
+      borderDash: [3, 2], pointRadius: c => c.dataIndex === n - 1 ? 6 : 0,
+      pointBackgroundColor: '#f0883e', pointBorderColor: surfaceColor, pointBorderWidth: 2,
+      fill: false, order: 2, spanGaps: true,
+    });
+  }
+  datasets.push({
+    label: 'History', data: historyData, borderColor: '#58a6ff', borderWidth: 1.5,
+    pointRadius: c => c.dataIndex === lastIdx ? 6.5 : 5,
+    pointBackgroundColor: c => c.dataIndex === lastIdx ? '#2563eb' : '#58a6ff',
+    pointBorderColor: surfaceColor, pointBorderWidth: 2, fill: false, tension: 0, order: 1,
+  });
+
+  new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { color: mutedColor, font: { size: 9 } }, grid: { display: false } },
+        y: { min: lo, max: hi, ticks: { color: mutedColor, font: { size: 9 } }, grid: { color: gridColor } },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { filter: item => item.dataset.label === 'History' || item.dataset.label === 'Projected' },
+      },
+    },
+  });
 }
 
 // Plain-language readout of the deterministic status/trend rule that fired
@@ -727,6 +736,7 @@ function renderFromData(data, alertsById) {
     return merged;
   });
   document.getElementById('cat-cards').innerHTML = cats.map(renderCard).join('');
+  cats.forEach(instantiateChart);
   renderNarrative(data, alertsById);
   renderInputExamples(data);
 }

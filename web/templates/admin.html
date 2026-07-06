@@ -249,26 +249,13 @@
     .score-label { font-size: 10px; color: var(--clr-muted); }
     .score-val { font-size: 16px; font-weight: 700; }
 
-    /* ── Mini history range plot (dot + p25–p75 baseline band, zoomed axis) ──
+    /* ── Mini history chart (Chart.js — dot/line + p25–p75 baseline band, zoomed axis) ──
        Position, not bar length, carries the value here, so a zoomed axis is
-       legitimate (unlike a bar chart, which must start at zero). The
-       baseline band is a translucent full-width fill (not a thin whisker)
-       so "inside vs. outside the typical range" reads at a glance. ── */
+       legitimate (unlike a bar chart, which must start at zero). Same library
+       and encoding as the health chart above and pulse-methodology.html's
+       Score evidence charts — sized the same as pulse-methodology, not smaller. ── */
     .mini-chart { margin-top: 8px; }
-    .mini-range { display: flex; align-items: stretch; gap: 3px; height: 64px; position: relative; }
-    .mini-grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--clr-border); }
-    .mini-grid-val { position: absolute; left: -2px; font-size: 9px; color: var(--clr-muted); transform: translateY(-50%); }
-    .mini-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-    .mini-col { flex: 1; min-width: 0; position: relative; }
-    .mini-col.projected-col { border-left: 1px dashed var(--clr-border); padding-left: 3px; }
-    .mini-baseline-band { position: absolute; left: 0; right: 0; background: #3fb950; opacity: 0.14; border-radius: 3px; z-index: 0; }
-    .mini-mean-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--clr-muted); opacity: 0.9; z-index: 1; }
-    .mini-dot { position: absolute; left: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, 50%); border: 2px solid var(--clr-surface); box-shadow: 0 0 0 1px rgba(0,0,0,0.2); z-index: 2; }
-    .mini-dot.ongoing   { background: #58a6ff; }
-    .mini-dot.current   { background: #58a6ff; width: 13px; height: 13px; }
-    .mini-dot.projected { background: #f0883e; }
-    .mini-labels { display: flex; gap: 3px; margin-top: 3px; }
-    .mini-label { flex: 1; font-size: 9px; color: var(--clr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+    .mini-chart-wrap { position: relative; height: 150px; }
 
     @media (max-width: 700px) {
       main { padding: 10px; gap: 12px; }
@@ -523,6 +510,96 @@ function computeDomain(values) {
   const rawHi = hi + pad;
   const step = niceStep((rawHi - rawLo) / 4);
   return { lo: Math.max(0, Math.floor(rawLo / step) * step), hi: Math.ceil(rawHi / step) * step, step };
+}
+
+// Same Chart.js encoding as pulse_methodology.html's Score evidence charts and
+// the health chart above: zoomed axis, history line with a bigger "current"
+// point, dashed projected segment, translucent p25-p75 band via a fill
+// between two flat datasets. Tracked by id so a reopened pulse-detail panel
+// destroys its previous instance before creating a new one on the same canvas id.
+const _miniCharts = {};
+
+function instantiateMiniChart(spec) {
+  const canvas = document.getElementById(spec.id);
+  if (!canvas) return;
+  if (_miniCharts[spec.id]) { _miniCharts[spec.id].destroy(); delete _miniCharts[spec.id]; }
+
+  const nowMs = Date.now();
+  const histLabel = h => {
+    const rawLabel = h.period || h.hour || h.date || '';
+    const bucketMs = rawLabel.length === 10 ? new Date(rawLabel + 'T00:00:00Z').getTime() : new Date(rawLabel).getTime();
+    if (isNaN(bucketMs)) return '';
+    const diffH = Math.round((nowMs - bucketMs) / 3600000);
+    if (diffH < 1) return 'now';
+    if (diffH < 24) return `-${diffH}h`;
+    return `-${Math.round(diffH / 24)}d`;
+  };
+
+  const histScores = spec.history.map(h => h.score || 0);
+  const histLabels = spec.history.map(histLabel);
+  const labels = spec.projected ? [...histLabels, 'next'] : histLabels;
+  const n = labels.length;
+  const lastIdx = histScores.length - 1;
+
+  const historyData = spec.projected ? [...histScores, null] : histScores;
+  let projectedData = null;
+  if (spec.projected) {
+    projectedData = new Array(n).fill(null);
+    projectedData[n - 2] = histScores[lastIdx];
+    projectedData[n - 1] = spec.projected.score;
+  }
+
+  const domainInputs = histScores.slice();
+  if (spec.projected) domainInputs.push(spec.projected.score);
+  if (spec.baseline) domainInputs.push(spec.baseline.p25, spec.baseline.mean, spec.baseline.p75);
+  const { lo, hi } = computeDomain(domainInputs);
+
+  const datasets = [];
+  if (spec.baseline) {
+    datasets.push({
+      label: 'Baseline p75', data: new Array(n).fill(spec.baseline.p75),
+      borderWidth: 0, pointRadius: 0, backgroundColor: 'rgba(63,185,80,0.14)', fill: '+1', order: 5,
+    });
+    datasets.push({
+      label: 'Baseline p25', data: new Array(n).fill(spec.baseline.p25),
+      borderWidth: 0, pointRadius: 0, backgroundColor: 'transparent', fill: false, order: 5,
+    });
+    datasets.push({
+      label: 'Baseline mean', data: new Array(n).fill(spec.baseline.mean),
+      borderColor: '#7d8590', borderWidth: 1, borderDash: [4, 3], pointRadius: 0, fill: false, order: 4,
+    });
+  }
+  if (spec.projected) {
+    datasets.push({
+      label: 'Projected', data: projectedData, borderColor: '#f0883e', borderWidth: 1.5,
+      borderDash: [3, 2], pointRadius: c => c.dataIndex === n - 1 ? 6 : 0,
+      pointBackgroundColor: '#f0883e', pointBorderColor: '#161b22', pointBorderWidth: 2,
+      fill: false, order: 2, spanGaps: true,
+    });
+  }
+  datasets.push({
+    label: 'History', data: historyData, borderColor: '#58a6ff', borderWidth: 1.5,
+    pointRadius: c => c.dataIndex === lastIdx ? 6.5 : 5,
+    pointBackgroundColor: c => c.dataIndex === lastIdx ? '#2563eb' : '#58a6ff',
+    pointBorderColor: '#161b22', pointBorderWidth: 2, fill: false, tension: 0, order: 1,
+  });
+
+  _miniCharts[spec.id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { color: '#7d8590', font: { size: 9 } }, grid: { display: false } },
+        y: { min: lo, max: hi, ticks: { color: '#7d8590', font: { size: 9 } }, grid: { color: '#21262d' } },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { filter: item => item.dataset.label === 'History' || item.dataset.label === 'Projected' },
+      },
+    },
+  });
 }
 
 let P = { usd_to_eur: 0.92, gemini_input_per_m: 0.15, gemini_output_per_m: 0.60, gemini_thinking_per_m: 3.50, translate_chars_per_m: 20.0 };
@@ -868,6 +945,7 @@ function selectCell(idx, cat) {
   $('#pulse-detail-title').textContent = `${time}${titleCat} · ${titleCount}`;
 
   let body = '';
+  const pendingCharts = [];
 
   // Narrative at the top — always visible
   const l2top = e.layer_2_llm || {};
@@ -940,66 +1018,19 @@ function selectCell(idx, cat) {
     }
     body += `</div>`;
 
-    // History range plot (dot + p25-p75 whisker, zoomed axis)
+    // History chart (Chart.js — dot/line + p25-p75 band, zoomed axis).
+    // Canvas is emitted now; the chart itself is instantiated after the
+    // whole `body` string is inserted into the DOM (see pendingCharts loop
+    // below), since a canvas needs to exist in the document first.
     if (history.length) {
-      const projScore = projected.score || 0;
-      const histScores = history.map(h => h.score || 0);
-      const domainInputs = [...histScores, projScore];
-      if (bP25 > 0 || bMean > 0 || bP75 > 0) domainInputs.push(bP25, bMean, bP75);
-      const { lo: dLo, hi: dHi, step: dStep } = computeDomain(domainInputs);
-      const posPct = v => ((v - dLo) / (dHi - dLo)) * 100;
-      const totalCols = history.length + 1; // +1 for projected
-      const xCenter = i => ((i + 0.5) / totalCols) * 100;
-      const nowMs = Date.now();
-
-      let grid = '';
-      for (let v = dLo; v <= dHi + 1e-9; v += dStep) {
-        grid += `<div class="mini-grid-line" style="bottom:${posPct(v)}%"></div><div class="mini-grid-val" style="bottom:${posPct(v)}%">${Math.round(v)}</div>`;
-      }
-
-      let cols = '', labels = '';
-      const linePts = [];
-      history.forEach((h, i) => {
-        const isNow = i === history.length - 1;
-        const rawLabel = h.period || h.hour || h.date || '';
-        let shortLabel = rawLabel;
-        const bucketMs = rawLabel.length === 10
-          ? new Date(rawLabel + 'T00:00:00Z').getTime()
-          : new Date(rawLabel).getTime();
-        if (!isNaN(bucketMs)) {
-          const diffH = Math.round((nowMs - bucketMs) / 3600000);
-          if (diffH < 1) shortLabel = 'now';
-          else if (diffH < 24) shortLabel = `-${diffH}h`;
-          else shortLabel = `-${Math.round(diffH / 24)}d`;
-        }
-        cols   += `<div class="mini-col"><div class="mini-dot ${isNow ? 'current' : 'ongoing'}" style="bottom:${posPct(h.score || 0)}%" title="score: ${h.score} (${h.count} alerts)"></div></div>`;
-        labels += `<div class="mini-label">${shortLabel}</div>`;
-        linePts.push(`${xCenter(i)},${100 - posPct(h.score || 0)}`);
+      const chartId = `mini-chart-${c}`;
+      pendingCharts.push({
+        id: chartId, history,
+        projected: (projected && projected.score != null) ? projected : null,
+        baseline: (bP25 > 0 || bMean > 0 || bP75 > 0) ? { p25: bP25, mean: bMean, p75: bP75 } : null,
       });
-
-      const projPct = posPct(projScore);
-      cols   += `<div class="mini-col projected-col"><div class="mini-dot projected" style="bottom:${projPct}%" title="projected: ${projScore} (${projected.count ?? 0} alerts)"></div></div>`;
-      labels += `<div class="mini-label" style="color:#f0883e">next</div>`;
-      const [lastX, lastY] = linePts[linePts.length - 1].split(',');
-      const projLine = `<line x1="${lastX}" y1="${lastY}" x2="${xCenter(history.length)}" y2="${100 - projPct}" stroke="#f0883e" stroke-width="1" stroke-dasharray="3,2" vector-effect="non-scaling-stroke" opacity="0.8" />`;
-      const trendSvg = linePts.length > 1
-        ? `<svg class="mini-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polyline points="${linePts.join(' ')}" fill="none" stroke="#58a6ff" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.8" />
-            ${projLine}
-          </svg>`
-        : '';
-
-      let markers = '';
-      if (bP25 > 0 || bP75 > 0) {
-        const bandBot = posPct(bP25);
-        const bandH = posPct(bP75) - posPct(bP25);
-        markers = `<div class="mini-baseline-band" style="bottom:${bandBot}%;height:${bandH}%"></div>`;
-      }
-      if (bMean > 0) markers += `<div class="mini-mean-line" style="bottom:${posPct(bMean)}%"></div>`;
-
       body += `<div class="mini-chart">
-        <div class="mini-range">${grid}${trendSvg}${markers}${cols}</div>
-        <div class="mini-labels">${labels}</div>
+        <div class="mini-chart-wrap"><canvas id="${chartId}"></canvas></div>
       </div>`;
 
       const baselineLabel = bMean > 0 ? `p25 ${bP25} · mean ${bMean} · p75 ${bP75}` : '';
@@ -1111,6 +1142,7 @@ function selectCell(idx, cat) {
   const hasTrend = displayCats.some(c => resp.categories?.[c]?.trend);
 
   $('#pulse-detail-body').innerHTML = body;
+  pendingCharts.forEach(instantiateMiniChart);
   $('#pulse-detail').style.display = 'block';
   document.getElementById('pulse-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
