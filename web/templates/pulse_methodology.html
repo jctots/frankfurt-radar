@@ -401,6 +401,19 @@
     <div id="narrative-block"></div>
   </div>
 
+  <!-- Review pipeline -->
+  <div class="section">
+    <div class="section-eyebrow">🔎 How this methodology gets reviewed</div>
+    <p class="section-lead" style="font-size:13px;">
+      The rules above don't stay static by accident. An admin-triggered AI agent periodically audits City Pulse's own
+      operation — cost, translation cache behaviour, whether the severity weights above are producing sensible
+      scores, whether status/trend are actually useful, and prompt quality — over the last few days of runs. It
+      proposes concrete edits (weight adjustments, threshold tuning) as a reviewable pull request; nothing changes
+      automatically. Full design:
+      <a href="https://github.com/jctots/frankfurt-radar/blob/main/docs/review.md" target="_blank" rel="noopener">review.md</a>.
+    </p>
+  </div>
+
   <!-- Feedback -->
   <div class="section">
     <div class="section-eyebrow">💬 Feedback</div>

@@ -63,7 +63,7 @@ Instead of making you read forty alerts, City Pulse reads them for you. Every ho
 
 Five categories — Weather, Transport, Roadworks, Incidents, Events — each get a live status and trend, shown right on the map. Bot subscribers can get the pulse delivered by DM at 08:00, 12:00, or 18:00, or fetch it any time with `/pulse`.
 
-Curious how it works? The [methodology page](https://frankfurt-radar.com/pulse-methodology) explains it in plain language, and [docs/analysis.md](docs/analysis.md) has the full technical breakdown.
+Curious how it works? The [methodology page](https://frankfurt-radar.com/pulse-methodology) explains it in plain language, and [docs/analysis.md](docs/analysis.md) has the full technical breakdown. City Pulse also reviews itself: an admin-triggered AI agent periodically audits cost, translation behaviour, and scoring accuracy, and proposes concrete fixes as a pull request — see [docs/review.md](docs/review.md).
 
 ### 🤖 Personalized alerts via Telegram bot
 
@@ -103,6 +103,7 @@ The [Self-Hosting Guide](docs/self-hosting.md) covers everything: environment va
 | [Self-Hosting Guide](docs/self-hosting.md) | Setup, configuration reference, admin dashboard, MCP server |
 | [Architecture](docs/architecture.md) | Containers, data flow, database schema, pipeline internals |
 | [City Pulse Analysis](docs/analysis.md) | How the AI summary works — scoring, trends, calibration |
+| [City Pulse Review Pipeline](docs/review.md) | How City Pulse audits its own cost, translation behaviour, and scoring, and proposes fixes |
 | [Telegram Bot Setup](docs/telegram-bot-setup.md) | Creating and wiring up your own bot |
 
 ## 🔒 Security and privacy
