@@ -15,6 +15,7 @@ import db
 from districts import coords_to_district
 from pulse_categories import (
     WEIGHTS_VERSION,
+    _compute_weight,
     apply_status_hysteresis,
     build_category_timeseries,
     compute_pulse_config_version,
@@ -85,8 +86,8 @@ def _to_berlin_iso(iso: str | None) -> str | None:
         return iso
 
 
-def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
-    fresh = []
+def _build_alert_data(alerts: list[dict], max_prompt_alerts: int = 60) -> tuple[str, str, str]:
+    fresh = []  # (weight, entry) — weight only used for capping, dropped before serializing
     stale_counts: dict[str, int] = {}
     for a in alerts:
         if a.get("stale"):
@@ -112,16 +113,34 @@ def _build_alert_data(alerts: list[dict]) -> tuple[str, str]:
             district = coords_to_district(a.get("lat"), a.get("lon"))
             if district:
                 entry["district"] = district
-            fresh.append(entry)
+            fresh.append((_compute_weight(a), entry))
 
-    fresh.sort(key=lambda x: x.get("valid_from") or "", reverse=True)
+    # Cap by severity rank (same weighting as the real pulse score, see
+    # pulse_categories._compute_weight) rather than age or source — keeps the
+    # highest-signal alerts individually detailed and folds the long tail into
+    # a summary line, bounding prompt size regardless of how many low-severity
+    # alerts (e.g. baustellen) are active at once.
+    capped_counts: dict[str, int] = {}
+    if len(fresh) > max_prompt_alerts:
+        fresh.sort(key=lambda x: x[0], reverse=True)
+        for _, dropped_entry in fresh[max_prompt_alerts:]:
+            src = dropped_entry["source"]
+            capped_counts[src] = capped_counts.get(src, 0) + 1
+        fresh = fresh[:max_prompt_alerts]
 
-    alerts_json = json.dumps(fresh, ensure_ascii=False, indent=2)
+    entries = [entry for _, entry in fresh]
+    entries.sort(key=lambda x: x.get("valid_from") or "", reverse=True)
+
+    alerts_json = json.dumps(entries, ensure_ascii=False, indent=2)
     if stale_counts:
         stale_summary = ", ".join(f"{count} {src}" for src, count in stale_counts.items())
     else:
         stale_summary = "None"
-    return alerts_json, stale_summary
+    if capped_counts:
+        capped_summary = ", ".join(f"{count} {src}" for src, count in capped_counts.items())
+    else:
+        capped_summary = "None"
+    return alerts_json, stale_summary, capped_summary
 
 
 def _build_history_section(pulses: list[dict], daily_summaries: list[dict] | None = None) -> str:
@@ -397,7 +416,8 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
 
     prompt_config, template = load_prompt("pulse")
     pulse_config_version = compute_pulse_config_version(template)
-    alerts_json, stale_summary = _build_alert_data(alerts)
+    max_prompt_alerts = config.get("pulse", {}).get("max_prompt_alerts", 60)
+    alerts_json, stale_summary, capped_summary = _build_alert_data(alerts, max_prompt_alerts)
     history = _build_history_section(db.get_recent_pulses(3), db.get_recent_daily_summaries(3))
     _BERLIN = ZoneInfo("Europe/Berlin")
     now_berlin = now.astimezone(_BERLIN)
@@ -409,6 +429,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         "alert_count": fresh_count,
         "alerts_json": alerts_json,
         "stale_summary": stale_summary,
+        "capped_summary": capped_summary,
         "history_section": history,
         "timeseries_json": json.dumps(_llm_timeseries(timeseries), indent=2),
     })

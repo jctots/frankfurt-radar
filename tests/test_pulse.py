@@ -51,11 +51,12 @@ class TestBuildAlertData:
              "service": None, "lines": None, "severity": 1,
              "valid_from": "2026-05-02T00:00:00Z", "valid_until": None},
         ]
-        alerts_json, stale_summary = _build_alert_data(alerts)
+        alerts_json, stale_summary, capped_summary = _build_alert_data(alerts)
         parsed = json.loads(alerts_json)
         assert len(parsed) == 1
         assert parsed[0]["source"] == "rmv"
         assert "2 autobahn" in stale_summary
+        assert capped_summary == "None"
 
     def test_no_stale(self):
         alerts = [
@@ -63,8 +64,37 @@ class TestBuildAlertData:
              "service": None, "lines": None, "severity": 3,
              "valid_from": "2026-06-22T10:00:00Z", "valid_until": "2026-06-22T18:00:00Z"},
         ]
-        _, stale_summary = _build_alert_data(alerts)
+        _, stale_summary, _ = _build_alert_data(alerts)
         assert stale_summary == "None"
+
+    def test_caps_by_severity_weight(self):
+        # 3 low-weight bus alerts + 1 high-weight S-Bahn alert, cap of 2 — the
+        # S-Bahn alert (weight 6.0 = 1.5 * 4 lines) must survive the cap over
+        # the bus alerts (weight 0.5 each), regardless of recency.
+        alerts = [
+            {"alert_id": f"bus-{i}", "source": "rmv", "title_en": f"Bus {i}", "body_en": "delay",
+             "stale": False, "service": "Bus", "lines": None, "severity": None,
+             "valid_from": f"2026-06-22T1{i}:00:00Z", "valid_until": None}
+            for i in range(3)
+        ] + [
+            {"alert_id": "sbahn-1", "source": "rmv", "title_en": "S-Bahn disruption", "body_en": "signal fault",
+             "stale": False, "service": "S-Bahn", "lines": '["S1", "S2", "S3", "S4"]', "severity": None,
+             "valid_from": "2026-06-22T08:00:00Z", "valid_until": None},
+        ]
+        alerts_json, _, capped_summary = _build_alert_data(alerts, max_prompt_alerts=2)
+        parsed = json.loads(alerts_json)
+        assert len(parsed) == 2
+        assert "sbahn-1" in {p["alert_id"] for p in parsed}
+        assert "2 rmv" in capped_summary
+
+    def test_no_cap_when_under_limit(self):
+        alerts = [
+            {"source": "dwd", "title_en": "Storm", "body_en": "Severe", "stale": False,
+             "service": None, "lines": None, "severity": 3,
+             "valid_from": "2026-06-22T10:00:00Z", "valid_until": "2026-06-22T18:00:00Z"},
+        ]
+        _, _, capped_summary = _build_alert_data(alerts, max_prompt_alerts=60)
+        assert capped_summary == "None"
 
 
 class TestBuildHistorySection:

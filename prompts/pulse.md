@@ -14,6 +14,8 @@ Fresh active alerts ({alert_count}):
 
 Long-running background (not new — mention only if noteworthy): {stale_summary}
 
+Lower-severity alerts omitted for brevity (below the detail cutoff — mention only if a pattern emerges): {capped_summary}
+
 History (for narrative context — avoid repeating the same summary as a previous pulse):
 {history_section}
 

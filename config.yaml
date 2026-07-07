@@ -25,6 +25,9 @@ transport:
 
 pulse:
   enabled: false           # opt-in; set true in production config
+  max_prompt_alerts: 60    # keep this many alerts individually detailed in the pulse prompt,
+                           # ranked by severity weight (pulse_categories._compute_weight);
+                           # the rest are folded into a capped_summary line
 
 polling:
   interval_minutes: 10   # min 1, max 60 — drives cron poll schedule
