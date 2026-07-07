@@ -1,0 +1,226 @@
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+import db
+from review.reduce import estimate_cost, reduce
+
+
+def _write_jsonl(path: Path, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def _pulse_record(hour: str, version: str, status: str = "minor", weight: float = 1.5,
+                   trend_override=None, prompt="PROMPT TEXT"):
+    return {
+        "generated_at": hour,
+        "service": "gemini_pulse",
+        "pulse_config_version": version,
+        "usage": {"tokens_in": 1000, "tokens_out": 100, "tokens_thinking": 0},
+        "layer_1_deterministic": {
+            "timeseries": {
+                cat: {"current": {"status": status, "trend": "stable", "ongoing": {"score": 5.0}}}
+                for cat in ("weather", "transport", "roadworks", "incidents", "events")
+            },
+            "score_breakdown": {
+                "transport": {"ongoing": [
+                    {"alert_id": "HIM_1", "source": "rmv", "weight": weight, "title": "t", "body": "b"},
+                ]},
+            },
+        },
+        "layer_2_llm": {
+            "model": "gemini-2.5-flash",
+            "prompt": prompt,
+            "response": {
+                "title": "Title", "summary": "Summary", "recommendation": "Rec",
+                "references": ["HIM_1"], "trend_override": trend_override or [],
+            },
+        },
+        "trend_overrides_applied": {},
+        "layer_3_output": {
+            "generated_at": hour,
+            "categories": {cat: {"status": status, "trend": "stable"} for cat in
+                           ("weather", "transport", "roadworks", "incidents", "events")},
+        },
+    }
+
+
+@pytest.fixture
+def debug_dirs():
+    data_dir = Path(os.environ["DATA_DIR"])
+    dirs = [data_dir / "pulse_debug", data_dir / "cost_debug", data_dir / "translate_debug"]
+    yield data_dir
+    for d in dirs:
+        for f in d.glob("*.jsonl"):
+            f.unlink()
+
+
+class TestReduceShape:
+    def test_digest_has_expected_top_level_keys(self, debug_dirs, config):
+        digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
+        for key in ("range", "params", "config_versions", "prompt_template", "prompt_samples",
+                    "cost", "translate", "pulse_hours", "overrides", "version_metrics", "db_crosschecks"):
+            assert key in digest
+
+    def test_empty_window_returns_empty_digest(self, debug_dirs, config):
+        digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
+        assert digest["pulse_hours"] == []
+        assert digest["prompt_template"] is None
+        assert digest["config_versions"] == []
+
+
+class TestPromptDedup:
+    def test_prompt_appears_once_as_template_plus_samples(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1", prompt="PROMPT A"),
+            _pulse_record("2026-07-01T11:00:00Z", "v1", prompt="PROMPT B"),
+            _pulse_record("2026-07-01T12:00:00Z", "v1", prompt="PROMPT C"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, drivers_per_hour=1, prompt_samples=1, now=now, config=config)
+        assert digest["prompt_template"] == "PROMPT A"
+        assert digest["prompt_samples"] == ["PROMPT B"]
+        # The full rendered prompt is not repeated per pulse_hour entry.
+        for h in digest["pulse_hours"]:
+            assert "prompt" not in h
+
+    def test_prompt_samples_capped_at_requested_count(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [_pulse_record(f"2026-07-01T{h:02d}:00:00Z", "v1", prompt=f"P{h}") for h in range(5)]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, prompt_samples=2, now=now, config=config)
+        assert len(digest["prompt_samples"]) == 2
+
+
+class TestVersionGrouping:
+    def test_groups_hours_by_config_version(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1"),
+            _pulse_record("2026-07-01T11:00:00Z", "v1"),
+            _pulse_record("2026-07-01T12:00:00Z", "v2"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["config_versions"] == ["v1", "v2"]
+        assert set(digest["version_metrics"].keys()) == {"v1", "v2"}
+
+
+class TestVersionMetrics:
+    def test_status_flap_rate_detects_transitions(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1", status="minor"),
+            _pulse_record("2026-07-01T11:00:00Z", "v1", status="moderate"),
+            _pulse_record("2026-07-01T12:00:00Z", "v1", status="minor"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["version_metrics"]["v1"]["status_flap_rate"] > 0
+
+    def test_trend_override_rate(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1"),
+            _pulse_record("2026-07-01T11:00:00Z", "v1",
+                           trend_override=[{"category": "transport", "trend": "improving", "reason": "x"}]),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["version_metrics"]["v1"]["trend_override_rate"] == 0.5
+
+    def test_coverage_present_for_each_version(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [_pulse_record("2026-07-01T10:00:00Z", "v1")]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert 0.0 <= digest["version_metrics"]["v1"]["coverage"] <= 1.0
+
+    def test_override_rate_only_present_when_overrides_exist(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [_pulse_record("2026-07-01T10:00:00Z", "v1")]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert "override_rate" not in digest["version_metrics"]["v1"]
+
+        db.add_status_override("2026-07-01T10:00:00Z", "transport", "minor", "moderate", "looked worse")
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["version_metrics"]["v1"]["override_rate"] == 1.0
+
+
+class TestCostReconciliation:
+    def test_reconciliation_present(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        rec = digest["db_crosschecks"]["cost_reconciliation"]
+        assert set(rec.keys()) == {"logged_eur", "api_usage_eur", "delta"}
+
+    def test_delta_zero_with_no_usage(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["db_crosschecks"]["cost_reconciliation"]["delta"] == 0.0
+
+
+class TestCoverageGaps:
+    def test_missing_hour_reported_as_gap(self, debug_dirs, config):
+        now = datetime(2026, 7, 1, 2, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T00:00:00Z", "v1"),
+            # 01:00 missing — a gap
+            _pulse_record("2026-07-01T02:00:00Z", "v1"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=1, now=now, config=config)
+        coverage = digest["db_crosschecks"]["pulse_coverage"]
+        assert "2026-07-01T01:00Z" in coverage["gaps"]
+        assert coverage["produced"] == coverage["expected_hours"] - len(coverage["gaps"])
+
+
+class TestRedaction:
+    def test_subscribers_never_leak_into_digest(self, debug_dirs, config):
+        with db._conn() as conn:
+            conn.execute(
+                "INSERT INTO subscribers (chat_id, preferences) VALUES (?, ?)",
+                (999999999, "{}"),
+            )
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        serialized = json.dumps(digest)
+        assert "999999999" not in serialized
+        assert "chat_id" not in serialized
+
+
+class TestEstimateCost:
+    def test_returns_tokens_and_eur(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        est = estimate_cost(digest)
+        assert est["tokens"] >= 0
+        assert est["eur"] >= 0.0
+
+
+class TestRealDebugLogsSmoke:
+    def test_high_detail_token_estimate_under_budget(self, debug_dirs, config, monkeypatch):
+        repo_root = Path(__file__).parent.parent
+        if not (repo_root / "pulse_debug").exists():
+            pytest.skip("real 7-day debug logs not present in this checkout")
+        monkeypatch.setenv("DATA_DIR", str(repo_root))
+        digest = reduce(days=7, drivers_per_hour=None, prompt_samples=2, config=config)
+        est = estimate_cost(digest)
+        # docs/review.md indicative table: high detail, 7 days ~= 200K tokens.
+        assert est["tokens"] < 500_000

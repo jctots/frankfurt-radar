@@ -50,6 +50,10 @@ def clean_db():
         conn.execute("DELETE FROM translation_variants")
         conn.execute("DELETE FROM category_snapshots")
         conn.execute("DELETE FROM strike_duplicates")
+        conn.execute("DELETE FROM status_overrides")
+        conn.execute("DELETE FROM event_log")
+        conn.execute("DELETE FROM api_usage")
+        conn.execute("DELETE FROM api_usage_hourly")
     yield
 
 
