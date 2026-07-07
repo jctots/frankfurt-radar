@@ -64,9 +64,9 @@ def debug_dirs():
 class TestReduceShape:
     def test_digest_has_expected_top_level_keys(self, debug_dirs, config):
         digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
-        for key in ("range", "params", "config_versions", "prompt_template", "prompt_sample_texts",
-                    "cost", "translate", "pulse_hours", "status_distribution", "overrides",
-                    "version_metrics", "db_crosschecks"):
+        for key in ("range", "params", "config_versions", "weight_tables", "prompt_template",
+                    "prompt_sample_texts", "cost", "translate", "pulse_hours", "status_distribution",
+                    "overrides", "version_metrics", "db_crosschecks"):
             assert key in digest
 
     def test_empty_window_returns_empty_digest(self, debug_dirs, config):
@@ -92,8 +92,68 @@ class TestReduceShape:
         digest = reduce(days=3, now=now, config=config)
         assert len(digest["pulse_hours"]) == 1
         assert digest["pulse_hours"][0]["hour"] == "2026-07-01T10:00:00Z"
-        assert all(v is not None for v in digest["pulse_hours"][0]["score_inputs"]["transport"].values()
-                   if v != [])
+        # baseline is legitimately None absent history — excluded from the check
+        assert all(v is not None for k, v in digest["pulse_hours"][0]["score_inputs"]["transport"].items()
+                   if v != [] and k != "baseline")
+
+
+class TestWeightTables:
+    def test_matches_live_pulse_categories_values(self, debug_dirs, config):
+        import pulse_categories
+        digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
+        wt = digest["weight_tables"]
+        assert wt["weights_version"] == pulse_categories.WEIGHTS_VERSION
+        assert wt["dwd_severity"] == pulse_categories.SEVERITY_WEIGHTS_DWD
+        assert wt["rmv_service"] == pulse_categories.SERVICE_WEIGHTS_RMV
+        assert wt["baustellen_service"] == pulse_categories.SERVICE_WEIGHTS_BAUSTELLEN
+        assert wt["events_weight"] == pulse_categories.WEIGHT_EVENTS
+        assert wt["strike_weight"] == pulse_categories.WEIGHT_STRIKE
+        assert wt["polizei_weight"] == pulse_categories.WEIGHT_POLIZEI
+        assert wt["feuerwehr_weight"] == pulse_categories.WEIGHT_FEUERWEHR
+
+    def test_present_even_with_no_pulse_hours(self, debug_dirs, config):
+        # static reference data — not derived from the window's pulse_hours
+        digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
+        assert digest["pulse_hours"] == []
+        assert digest["weight_tables"]["dwd_severity"]
+
+
+class TestDriverContent:
+    def test_top_driver_includes_title_source_body_not_just_id_weight(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl",
+                     [_pulse_record("2026-07-01T10:00:00Z", "v1", weight=6.0)])
+        digest = reduce(days=3, now=now, config=config)
+        drivers = digest["pulse_hours"][0]["score_inputs"]["transport"]["top_drivers"]
+        assert drivers == [{"alert_id": "HIM_1", "weight": 6.0, "source": "rmv", "title": "t", "body": "b"}]
+
+    def test_drivers_per_hour_zero_still_returns_no_drivers(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl",
+                     [_pulse_record("2026-07-01T10:00:00Z", "v1")])
+        digest = reduce(days=3, drivers_per_hour=0, now=now, config=config)
+        assert digest["pulse_hours"][0]["score_inputs"]["transport"]["top_drivers"] == []
+
+
+class TestBaselinePassthrough:
+    def test_baseline_included_when_present_in_timeseries(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        rec = _pulse_record("2026-07-01T10:00:00Z", "v1")
+        rec["layer_1_deterministic"]["timeseries"]["transport"]["baseline"] = {
+            "mean": 8.2, "p25": 4.0, "p75": 11.0, "n": 41,
+        }
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", [rec])
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["pulse_hours"][0]["score_inputs"]["transport"]["baseline"] == {
+            "mean": 8.2, "p25": 4.0, "p75": 11.0, "n": 41,
+        }
+
+    def test_baseline_none_when_absent(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl",
+                     [_pulse_record("2026-07-01T10:00:00Z", "v1")])
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["pulse_hours"][0]["score_inputs"]["transport"]["baseline"] is None
 
 
 class TestPromptDedup:
@@ -415,7 +475,21 @@ class TestRealDebugLogsSmoke:
         if not (repo_root / "pulse_debug").exists():
             pytest.skip("real 7-day debug logs not present in this checkout")
         monkeypatch.setenv("DATA_DIR", str(repo_root))
-        digest = reduce(days=7, drivers_per_hour=None, prompt_samples=2, config=config)
+        # High detail preset is drivers_per_hour=5, not "all" (web/templates/admin.html) —
+        # driver entries now carry title+body, so unbounded "all" on a busy category
+        # (seen up to ~76 alerts/hour in production) would blow well past budget.
+        digest = reduce(days=7, drivers_per_hour=5, prompt_samples=2, config=config)
         est = estimate_cost(digest)
         # docs/review.md indicative table: high detail, 7 days ~= 200K tokens.
         assert est["tokens"] < 500_000
+
+    def test_unbounded_drivers_is_deliberately_expensive(self, debug_dirs, config, monkeypatch):
+        """drivers_per_hour=None ("all") is a manual, not preset, choice — it is
+        not expected to stay under the same budget as the high-detail preset."""
+        repo_root = Path(__file__).parent.parent
+        if not (repo_root / "pulse_debug").exists():
+            pytest.skip("real 7-day debug logs not present in this checkout")
+        monkeypatch.setenv("DATA_DIR", str(repo_root))
+        digest = reduce(days=7, drivers_per_hour=None, prompt_samples=2, config=config)
+        est = estimate_cost(digest)
+        assert est["tokens"] > 500_000

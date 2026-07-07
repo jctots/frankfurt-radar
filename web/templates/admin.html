@@ -450,7 +450,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <label style="font-size:12px;">Days <input type="number" id="review-days" value="7" min="1" max="30" style="width:60px;"></label>
-      <label style="font-size:12px;">Drivers/hour <input type="text" id="review-drivers" value="3" style="width:60px;" title="Top-N alerts per category per hour. 0 = counts only, 'all' = every alert."></label>
+      <label style="font-size:12px;">Drivers/hour <input type="text" id="review-drivers" value="3" style="width:60px;" title="Top-N alerts per category per hour, each with title/body — not just id+weight. 0 = counts only. 'all' = every alert; can be expensive on busy categories (seen up to ~76 alerts/hour in production), use deliberately."></label>
       <label style="font-size:12px;">Prompt samples <input type="number" id="review-samples" value="0" min="0" max="2" style="width:60px;" title="Extra fully-rendered pulse prompt examples beyond the free template copy. Costly (~97KB each) and hasn't yet contributed to a finding — leave at 0 unless chasing a specific prompt-rendering suspicion."></label>
       <button class="btn btn-sm" onclick="setReviewPreset('high')">High detail</button>
       <button class="btn btn-sm" onclick="setReviewPreset('low')">Low detail</button>
@@ -1528,7 +1528,10 @@ async function deleteOverride(id) {
 
 function setReviewPreset(kind) {
   if (kind === 'high') {
-    $('#review-drivers').value = 'all';
+    // 5, not 'all' — driver entries now carry title+body (not just id+weight),
+    // so 'all' on a busy category (up to ~76 alerts/hour seen in production)
+    // blows well past budget. 'all' still works if typed manually.
+    $('#review-drivers').value = '5';
     $('#review-samples').value = '2';
   } else {
     $('#review-drivers').value = '0';

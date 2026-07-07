@@ -89,6 +89,10 @@ SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional
 SERVICE_WEIGHTS_BAUSTELLEN: dict[str, float] = {"City (Full)": 1.5, "City (Partial)": 0.5}
 WEIGHT_EVENTS = 2.0
 WEIGHT_DEFAULT = 1.0
+WEIGHT_AUTOBAHN_CLOSURE = 2.0
+WEIGHT_STRIKE = 1.5
+WEIGHT_POLIZEI = 0.5
+WEIGHT_FEUERWEHR = 1.0
 
 _NO_TEMPORAL_SOURCES = frozenset(("polizei", "strike"))
 
@@ -242,17 +246,17 @@ def _compute_weight(alert: dict) -> float:
         return base * max(1, min(line_count, 4))
     if source == "autobahn":
         title = (alert.get("title_en") or alert.get("title") or "").lower()
-        return 2.0 if "closure" in title else WEIGHT_DEFAULT
+        return WEIGHT_AUTOBAHN_CLOSURE if "closure" in title else WEIGHT_DEFAULT
     if source == "baustellen":
         return SERVICE_WEIGHTS_BAUSTELLEN.get(alert.get("service"), WEIGHT_DEFAULT)
     if source in ("events", "sports", "messe"):
         return WEIGHT_EVENTS
     if source == "strike":
-        return 1.5
+        return WEIGHT_STRIKE
     if source == "polizei":
-        return 0.5
+        return WEIGHT_POLIZEI
     if source == "feuerwehr":
-        return 1.0
+        return WEIGHT_FEUERWEHR
     return WEIGHT_DEFAULT
 
 

@@ -41,6 +41,17 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
   "range": "2026-07-01..2026-07-07",
   "params": { "days": 7, "drivers_per_hour": 3, "prompt_samples": 0 },
   "config_versions": ["a1b2c3"],
+  "weight_tables": {
+    "weights_version": 2,
+    "dwd_severity": { "1": 0.5, "2": 1.0, "3": 1.5, "4": 2.0 },
+    "rmv_service": { "S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5, "Tram": 1.0, "Bus": 0.5 },
+    "rmv_formula": "service_weight * min(line_count, 4), minimum 1 line",
+    "baustellen_service": { "City (Full)": 1.5, "City (Partial)": 0.5 },
+    "autobahn": { "closure_keyword_weight": 2.0, "default_weight": 1.0 },
+    "events_weight": 2.0, "strike_weight": 1.5, "polizei_weight": 0.5, "feuerwehr_weight": 1.0,
+    "default_weight": 1.0,
+    "status_band_note": "status = clear if score <= 0; else minor/moderate/severe against baseline mean/p75"
+  },
   "prompt_template": "<the pulse prompt, extracted once — the artifact under review>",
   "prompt_sample_texts": ["<N fully rendered prompts, N = params.prompt_samples>"],
   "cost": {
@@ -58,8 +69,14 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
   "pulse_hours": [
     {
       "hour": "2026-07-06T10:00Z", "config_version": "a1b2c3",
-      "score_inputs": { "transport": {"status": "minor", "trend": "stable",
-                        "ongoing_score": 6.5, "top_drivers": ["HIM_123 w1.5", "..."]} },
+      "score_inputs": { "transport": {
+        "status": "minor", "trend": "stable", "ongoing_score": 6.5,
+        "baseline": { "mean": 8.2, "p25": 4.0, "p75": 11.0, "n": 41 },
+        "top_drivers": [
+          { "alert_id": "HIM_123", "weight": 1.5, "source": "rmv",
+            "title": "S1 delayed", "body": "Signal fault near Hauptbahnhof" }
+        ]
+      } },
       "llm_response": { "title": "...", "summary": "...", "recommendation": "...",
                         "references": ["..."], "trend_override": [] },
       "layer_3_output": { "categories": {"...": {"status": "...", "trend": "..."}} }
@@ -91,10 +108,10 @@ Cost is `days × 27 hours/day × detail-per-hour`, so the reducer exposes the ac
 | Param | Type | Default | Effect on cost |
 |---|---|---|---|
 | `days` | int | **7** | linear |
-| `drivers_per_hour` | int — top-N scoring alerts kept per category per hour; **0 = counts only** | **3** | linear |
+| `drivers_per_hour` | int — top-N scoring alerts kept per category per hour, each with `title`/`body` (not just id+weight — see [Severity weight visibility](#severity-weight-visibility) below); **0 = counts only** | **3** | linear |
 | `prompt_samples` | int, 0–2 — fully rendered prompt examples, stored as `prompt_sample_texts` | **0** | fixed step (~98 KB each) |
 
-Two one-click presets sit on top of these for convenience: **high detail** = `(drivers=all, samples=2)`, **low detail** = `(0, 0)`. But the numbers are the real control.
+Two one-click presets sit on top of these for convenience: **high detail** = `(drivers=5, samples=2)`, **low detail** = `(0, 0)`. `drivers_per_hour=None` ("all") is available as a manual, deliberate choice — not a preset — since a busy category can carry ~70+ alerts/hour in production, and every entry now includes title/body, not just a short id string; unbounded is a real cost multiplier, not a free upgrade.
 
 `prompt_samples` defaults to 0, not 1 — across the first two real reviews it never contributed to a finding beyond what the always-included `prompt_template` already showed, while costing ~25% of total digest size (each sample is ~97KB, mostly repeated prompt boilerplate) and once caused the reviewer to conflate the knob with a nonexistent pulse-system setting. Opt in via the High detail preset when chasing a specific prompt-rendering suspicion, not as routine practice.
 
@@ -102,10 +119,19 @@ Two one-click presets sit on top of these for convenience: **high detail** = `(d
 
 | Digest | ~Tokens | Gemini 2.5 Pro / run | Gemini Flash / run |
 |---|---|---|---|
-| high detail, 7 days | ~200K | ~€0.30 | ~€0.03 |
+| high detail, 7 days | ~240K | ~€0.36 | ~€0.04 |
 | low detail, 7 days | ~40K | ~€0.06 | ~€0.01 |
 
 A €1 monthly budget comfortably covers on-demand review — even a high-detail Pro run is ~€0.35.
+
+### Severity weight visibility
+
+The reviewer has **no repository access** (see [Stage 2](#stage-2--llm-reviewer)) — without deliberately feeding it the current weight values, it can only guess at them from arithmetic patterns across `top_drivers`, and can never propose a concrete current→new number. Two additions close that gap:
+
+- **`weight_tables`** — the live values from `pulse_categories.py` (`SEVERITY_WEIGHTS_DWD`, `SERVICE_WEIGHTS_RMV` + its line-count formula, `SERVICE_WEIGHTS_BAUSTELLEN`, the per-source constants for autobahn/events/strike/polizei/feuerwehr, and the status-band logic), read directly off the module so the digest can never drift from what's actually scoring alerts. Static — included once, doesn't scale with `days` or `drivers_per_hour`.
+- **Per-hour `baseline`** (`mean`/`p25`/`p75`/`n`) alongside each category's `ongoing_score` and `status` — the actual threshold `compute_status` judged that score against, so the reviewer can check whether a `severe` label was a real, well-calibrated crossing rather than trusting the label alone.
+
+Each `top_drivers` entry also carries `title`/`body` (truncated at the source, `pulse_categories._alert_entry`), not just `alert_id` and `weight` — so a proposed weight change can cite what the alert actually said, not just its score contribution.
 
 ### radar.db cross-checks (four tables, each earning its place)
 

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import db
+import pulse_categories
 
 # Rough chars-per-token used only for the pre-spend cost estimate — not for
 # billing (Gemini bills on its own tokenizer). See docs/review.md cost table.
@@ -32,6 +33,38 @@ _DEFAULT_REVIEWER_MODEL = "gemini-2.5-pro"
 _ANOMALY_EVENT_TYPES = frozenset(("failure", "restart"))
 
 _CATEGORIES = ("weather", "transport", "roadworks", "incidents", "events")
+
+
+def _build_weight_tables() -> dict:
+    """The live severity-weight tables from pulse_categories, verbatim — read
+    directly off the module so this can never drift from the values actually
+    used to score alerts. Static (doesn't scale with `days`): the reviewer has
+    no repo access (prompts/review.md), so without this it can only guess at
+    current weight values from arithmetic patterns in `top_drivers`, never
+    propose a concrete current->new value.
+    """
+    return {
+        "weights_version": pulse_categories.WEIGHTS_VERSION,
+        "dwd_severity": dict(pulse_categories.SEVERITY_WEIGHTS_DWD),
+        "rmv_service": dict(pulse_categories.SERVICE_WEIGHTS_RMV),
+        "rmv_formula": "service_weight * min(line_count, 4), minimum 1 line",
+        "baustellen_service": dict(pulse_categories.SERVICE_WEIGHTS_BAUSTELLEN),
+        "autobahn": {
+            "closure_keyword_weight": pulse_categories.WEIGHT_AUTOBAHN_CLOSURE,
+            "default_weight": pulse_categories.WEIGHT_DEFAULT,
+        },
+        "events_weight": pulse_categories.WEIGHT_EVENTS,
+        "strike_weight": pulse_categories.WEIGHT_STRIKE,
+        "polizei_weight": pulse_categories.WEIGHT_POLIZEI,
+        "feuerwehr_weight": pulse_categories.WEIGHT_FEUERWEHR,
+        "default_weight": pulse_categories.WEIGHT_DEFAULT,
+        "status_band_note": (
+            "status = clear if ongoing_score <= 0; else minor if score <= baseline lo, "
+            "moderate if score <= baseline hi, else severe. lo = min(baseline.mean, baseline.p75); "
+            f"hi = max(baseline.mean, baseline.p75, lo + baseline.mean * "
+            f"{pulse_categories.MIN_MODERATE_BAND_FRACTION})."
+        ),
+    }
 
 
 def _data_dir() -> Path:
@@ -85,8 +118,15 @@ def _parse_ts(value: str | None) -> datetime | None:
 
 # ── pulse_debug reduction ────────────────────────────────────────────────
 
-def _extract_drivers(cat_breakdown: dict, drivers_per_hour: int | None) -> list[str]:
-    """Top-N scoring alerts for a category/hour, formatted as "id wWEIGHT".
+def _extract_drivers(cat_breakdown: dict, drivers_per_hour: int | None) -> list[dict]:
+    """Top-N scoring alerts for a category/hour, with enough content to judge
+    *why* an alert scored what it did — not just its id and weight.
+
+    `title`/`body` are already truncated at the source (pulse_categories's
+    `_alert_entry`, 80/100 chars) — this only passes them through, it doesn't
+    add a new cost. Without them, the reviewer could rank drivers by weight
+    but never read what they actually said (short of the 1-3 hours that land
+    in prompt_template/prompt_sample_texts).
 
     `drivers_per_hour is None` means "all"; `0` means counts only (empty).
     """
@@ -96,7 +136,16 @@ def _extract_drivers(cat_breakdown: dict, drivers_per_hour: int | None) -> list[
     ranked = sorted(ongoing, key=lambda a: a.get("weight", 0) or 0, reverse=True)
     if drivers_per_hour is not None:
         ranked = ranked[:drivers_per_hour]
-    return [f"{a.get('alert_id')} w{a.get('weight')}" for a in ranked]
+    return [
+        {
+            "alert_id": a.get("alert_id"),
+            "weight": a.get("weight"),
+            "source": a.get("source"),
+            "title": a.get("title", ""),
+            "body": a.get("body", ""),
+        }
+        for a in ranked
+    ]
 
 
 def _reduce_pulse_hours(records: list[dict], drivers_per_hour: int | None) -> tuple[list[dict], str | None, list[str]]:
@@ -131,11 +180,16 @@ def _reduce_pulse_hours(records: list[dict], drivers_per_hour: int | None) -> tu
 
         score_inputs = {}
         for cat in _CATEGORIES:
-            current = (timeseries.get(cat, {}) or {}).get("current", {}) or {}
+            cat_series = timeseries.get(cat, {}) or {}
+            current = cat_series.get("current", {}) or {}
             score_inputs[cat] = {
                 "status": current.get("status"),
                 "trend": current.get("trend"),
                 "ongoing_score": (current.get("ongoing", {}) or {}).get("score"),
+                # the baseline compute_status actually judged this score against —
+                # without it the reviewer sees the status label but not why the
+                # score did or didn't cross into it (see weight_tables.status_band_note)
+                "baseline": cat_series.get("baseline"),
                 "top_drivers": _extract_drivers(breakdown.get(cat, {}), drivers_per_hour),
             }
 
@@ -601,6 +655,7 @@ def reduce(
         "range": f"{since.date().isoformat()}..{now.date().isoformat()}",
         "params": {"days": days, "drivers_per_hour": drivers_per_hour, "prompt_samples": prompt_samples},
         "config_versions": config_versions,
+        "weight_tables": _build_weight_tables(),
         "prompt_template": prompt_template,
         "prompt_sample_texts": prompt_samples_out,
         "cost": _reduce_cost(cost_records, config or {}, since, now),
