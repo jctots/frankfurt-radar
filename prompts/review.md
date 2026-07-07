@@ -1,7 +1,7 @@
 ---
 model: gemini-2.5-pro
 temperature: 0.3
-max_output_tokens: 8192
+max_output_tokens: 32768
 thinking_budget: 4096
 response_mime_type: application/json
 ---
