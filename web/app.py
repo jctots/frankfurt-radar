@@ -345,7 +345,7 @@ def api_admin_data():
         "translate_debug": translate_debug,
         "pulse_debug": pulse_debug,
         "cost_debug": cost_debug,
-        "budget": config.get("cost", {}).get("monthly_budget_eur", 10),
+        "budget": config.get("cost", {}).get("monthly_budget", 10),
         "pricing": _get_pricing(config),
     })
 
@@ -483,7 +483,7 @@ def api_admin_cost_history():
             "translate_eur": round(translate_cost, 4),
         })
 
-    return jsonify({"history": history, "budget": config.get("cost", {}).get("monthly_budget_eur", 10)})
+    return jsonify({"history": history, "budget": config.get("cost", {}).get("monthly_budget", 10)})
 
 
 @app.route("/api/admin/server-status")
