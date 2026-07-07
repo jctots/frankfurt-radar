@@ -253,6 +253,26 @@ def _admin_required(f):
     return decorated
 
 
+def _admin_or_api_key_required(f):
+    """Like `_admin_required`, but also accepts an `X-Admin-Token` header —
+    for the review-pr CI workflow (docs/review.md#opening-the-pr), which has
+    no browser session to log into. The prod server never holds a GitHub
+    token; this is the other half — CI holds no session cookie, only the
+    admin key already used for the login form."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not ADMIN_TOKEN:
+            abort(404)
+        header_token = request.headers.get("X-Admin-Token", "")
+        if header_token and secrets.compare_digest(header_token, ADMIN_TOKEN):
+            return f(*args, **kwargs)
+        if session.get("admin"):
+            return f(*args, **kwargs)
+        return jsonify({"error": "unauthorized"}), 401
+    return decorated
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if not ADMIN_TOKEN:
@@ -390,6 +410,20 @@ def api_admin_review_report_detail(timestamp):
     changes = json.loads(Path(match["changes_path"]).read_text(encoding="utf-8"))
     return jsonify({"timestamp": timestamp, "report_md": report_md, "changes": changes["changes"],
                      "config_versions": changes["config_versions"]})
+
+
+@app.route("/api/admin/review/changes/<timestamp>")
+@_admin_or_api_key_required
+def api_admin_review_changes(timestamp):
+    """Raw changes.json for a report — fetched by the review-pr CI workflow
+    (Phase 4, docs/review.md#opening-the-pr) via the `X-Admin-Token` header."""
+    from review.reviewer import list_reports
+
+    match = next((r for r in list_reports() if r["timestamp"] == timestamp), None)
+    if not match:
+        abort(404)
+    changes = json.loads(Path(match["changes_path"]).read_text(encoding="utf-8"))
+    return jsonify(changes)
 
 
 def _get_pricing(config: dict) -> dict:

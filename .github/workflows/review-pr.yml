@@ -1,0 +1,75 @@
+name: Review PR
+
+# Picks up a City Pulse review report's changes.json (docs/review.md#opening-the-pr)
+# and opens it as a draft PR. Manual trigger only — the GitHub write credential
+# lives here, never on the prod server, which only ever exposes changes.json
+# via an admin-authed endpoint. Never auto-merges.
+
+on:
+  workflow_dispatch:
+    inputs:
+      timestamp:
+        description: "Review report timestamp (e.g. 2026-07-07T120000Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch changes.json from prod
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL }}
+        run: |
+          curl -sf -H "X-Admin-Token: $ADMIN_API_KEY" \
+            "$PROD_BASE_URL/api/admin/review/changes/${{ inputs.timestamp }}" \
+            -o changes.json
+
+      - name: Apply changes
+        run: python review/apply_changes.py changes.json .
+
+      - name: Commit on a new branch
+        id: commit
+        run: |
+          git config user.name "frankfurt-radar-review-bot"
+          git config user.email "review-bot@users.noreply.github.com"
+          branch="review/${{ inputs.timestamp }}"
+          git checkout -b "$branch"
+          git add -A -- . ':!changes.json' ':!.review_apply_summary.json' ':!.review_patch.diff'
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "review: proposed changes from report ${{ inputs.timestamp }}"
+            git push origin "$branch"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open draft PR
+        if: steps.commit.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          summary=$(python -c "
+          import json
+          d = json.load(open('.review_apply_summary.json'))
+          print(f\"{len(d['applied'])} applied automatically, {len(d['manual'])} need manual application (see PROPOSED_CHANGES.md)\")
+          ")
+          gh pr create --draft \
+            --title "review: proposed changes from report ${{ inputs.timestamp }}" \
+            --body "Auto-generated from City Pulse review report \`${{ inputs.timestamp }}\`. $summary. Proposals only — review, test, and merge (or close) like any other PR; never auto-merged." \
+            --head "review/${{ inputs.timestamp }}"
+
+      - name: No changes to open
+        if: steps.commit.outputs.has_changes == 'false'
+        run: echo "::notice::changes.json had no applicable edits for report ${{ inputs.timestamp }} — nothing to open."

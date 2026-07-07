@@ -203,3 +203,42 @@ class TestReviewReports:
         mocker.patch("review.reviewer.list_reports", return_value=[])
         resp = _admin_client().get("/api/admin/review/reports/does-not-exist")
         assert resp.status_code == 404
+
+
+class TestReviewChangesEndpoint:
+    def test_session_auth_works(self, mocker, tmp_path):
+        changes_path = tmp_path / "changes.json"
+        changes_path.write_text('{"timestamp": "t1", "config_versions": [], "changes": []}', encoding="utf-8")
+        mocker.patch("review.reviewer.list_reports", return_value=[
+            {"timestamp": "t1", "changes_path": str(changes_path)}
+        ])
+        resp = _admin_client().get("/api/admin/review/changes/t1")
+        assert resp.status_code == 200
+        assert resp.get_json()["timestamp"] == "t1"
+
+    def test_header_api_key_works_without_session(self, mocker, tmp_path):
+        changes_path = tmp_path / "changes.json"
+        changes_path.write_text('{"timestamp": "t1", "config_versions": [], "changes": []}', encoding="utf-8")
+        mocker.patch("review.reviewer.list_reports", return_value=[
+            {"timestamp": "t1", "changes_path": str(changes_path)}
+        ])
+        resp = web_app.app.test_client().get(
+            "/api/admin/review/changes/t1", headers={"X-Admin-Token": "test_admin_token"}
+        )
+        assert resp.status_code == 200
+
+    def test_wrong_header_token_rejected(self, mocker):
+        mocker.patch("review.reviewer.list_reports", return_value=[])
+        resp = web_app.app.test_client().get(
+            "/api/admin/review/changes/t1", headers={"X-Admin-Token": "wrong"}
+        )
+        assert resp.status_code == 401
+
+    def test_no_auth_rejected(self):
+        resp = web_app.app.test_client().get("/api/admin/review/changes/t1")
+        assert resp.status_code == 401
+
+    def test_unknown_timestamp_404s(self, mocker):
+        mocker.patch("review.reviewer.list_reports", return_value=[])
+        resp = _admin_client().get("/api/admin/review/changes/does-not-exist")
+        assert resp.status_code == 404
