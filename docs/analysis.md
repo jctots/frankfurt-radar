@@ -1,5 +1,7 @@
 # City Pulse — Analysis Approach
 
+> A companion document, [review.md](review.md), describes how this pipeline is reviewed, cost-audited, and tuned.
+
 ## Goal
 
 City Pulse provides glanceable situational awareness for Frankfurt. It does not repeat alert titles — users already see those in the feed. Instead, it synthesizes alerts into actionable intelligence: what's the real impact, what correlates across sources, and what should someone do differently.
@@ -228,27 +230,6 @@ Each pulse appends one JSON line to a daily JSONL file in `data/pulse_debug/` (r
 - **Layer 3**: Final output = Layer 1 status + trend, with any validated override applied (see `trend_overrides_applied`).
 
 The admin dashboard (`/admin`) reads these files directly and visualizes all three layers with per-category score charts, breakdown tables, and history.
-
-## Self-improving calibration loop
-
-Status accuracy improves over time through a structured feedback loop.
-
-**Step 1 — Admin override with reasoning**
-When the computed status is wrong, the admin records a correction in the dashboard:
-- Selects the correct status
-- Provides a reason: e.g. "baustellen partial closures are routine — weight 1.0 too high"
-
-Stored in `status_overrides` (pulse timestamp, category, computed status, override status, reason). Does not change live output — retrospective learning signal only.
-
-**Step 2 — Weight review**
-Admin-triggered from the dashboard. Sends recent overrides + score breakdowns + the current weight table to Gemini, which returns suggested weight adjustments with rationale. The admin reviews and applies manually to `pulse_categories.py`.
-
-**The loop:**
-```
-Deterministic status → Wrong? Record override + reason
-→ Weight review → Suggested adjustment → Apply to weights
-→ Better scores → Better status → Fewer overrides
-```
 
 ## Current limitations
 

@@ -5,6 +5,10 @@
 seen.json
 status.json
 *.db
+/cost_debug/
+/pulse_debug/
+/translate_debug/
+/review_debug/
 
 # Python
 .venv/
