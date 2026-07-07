@@ -31,6 +31,7 @@ def check_and_notify_health(config: dict) -> None:
         "poll_schedule": "Cron schedule",
         "ram": "RAM",
         "load": "Load",
+        "extraction": "Gemini",
     }
 
     def _fmt(keys: list[str]) -> str:

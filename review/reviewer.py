@@ -10,16 +10,40 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from pulse import _call_gemini, load_prompt
 
 log = logging.getLogger(__name__)
 
+_REVIEW_DEBUG_RETENTION_DAYS = 30
+
 
 def _digest_dir() -> Path:
     return Path(os.getenv("DATA_DIR", ".")) / "review_debug"
+
+
+def _prune_old_reports(out_dir: Path) -> None:
+    """Delete review runs older than _REVIEW_DEBUG_RETENTION_DAYS.
+
+    Unlike pulse_debug/cost_debug/translate_debug (all pruned automatically
+    after every write), review_debug had no retention at all — admin-triggered
+    review runs are infrequent, but nothing ever removed old ones.
+    """
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_REVIEW_DEBUG_RETENTION_DAYS)
+        for digest_path in out_dir.glob("*.digest.json"):
+            timestamp = digest_path.name.removesuffix(".digest.json")
+            try:
+                dt = datetime.strptime(timestamp, "%Y-%m-%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if dt < cutoff:
+                for suffix in (".digest.json", ".report.md", ".changes.json"):
+                    (out_dir / f"{timestamp}{suffix}").unlink(missing_ok=True)
+    except OSError as e:
+        log.warning("review_debug retention cleanup failed: %s", e)
 
 
 def run(digest: dict, *, days: int | None = None) -> dict:
@@ -102,6 +126,8 @@ def _write_outputs(
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    _prune_old_reports(out_dir)
 
     return digest_path, report_path, changes_path
 

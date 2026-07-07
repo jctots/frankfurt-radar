@@ -1,6 +1,7 @@
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone, timedelta
@@ -496,12 +497,26 @@ def api_admin_server_status():
     last_polled = get_meta("last_polled_at")
     counts = get_subscriber_counts()
 
+    config = {}
+    try:
+        config = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+    except Exception:
+        pass
+    poll_stale_minutes = config.get("admin_health_notifier", {}).get("poll_stale_minutes", 0)
+
     label_map = {
-        "translator": "Translator", "poll_schedule": "Cron",
+        "translator": "Translator", "extraction": "Gemini",
     }
+    # ram/load are already visible in the health chart plot; StaticEventsPoller
+    # reads static YAML files and can't fail, so its dot is never informative;
+    # poll_schedule (Cron) duplicates the "Last poll: N min ago" line below the
+    # grid. Still tracked in admin_health for Telegram health alerts
+    # (notifier/health.py) — this only trims the dashboard grid.
+    _hidden_components = frozenset(("ram", "load", "StaticEventsPoller", "poll_schedule"))
     components = {
         label_map.get(k, k.replace("Poller", "")): v
         for k, v in health.items()
+        if k not in _hidden_components
     }
 
     boot_time_raw = get_meta("metrics_last_boot_time")
@@ -512,11 +527,24 @@ def api_admin_server_status():
         except ValueError:
             pass
 
+    disk = None
+    try:
+        usage = shutil.disk_usage(DATA_DIR)
+        disk = {
+            "used_gb": round(usage.used / 1024 ** 3, 1),
+            "total_gb": round(usage.total / 1024 ** 3, 1),
+            "pct": round(usage.used / usage.total * 100, 1) if usage.total else 0.0,
+        }
+    except OSError:
+        pass
+
     return jsonify({
         "components": components,
         "last_polled": last_polled,
+        "poll_stale_minutes": poll_stale_minutes,
         "subscribers": counts,
         "uptime_seconds": uptime_seconds,
+        "disk": disk,
     })
 
 

@@ -518,7 +518,7 @@ def _admin_status(chat_id: int) -> None:
 
     label_overrides = {
         "translator": "Translator", "poll_schedule": "Cron",
-        "ram": "RAM", "load": "Load",
+        "ram": "RAM", "load": "Load", "extraction": "Gemini",
     }
     named = {
         label_overrides.get(k, k.replace("Poller", "")): ok

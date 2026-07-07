@@ -148,6 +148,44 @@ class TestReviewerRun:
         assert service == "gemini_review"
 
 
+class TestPruneOldReports:
+    def _write_run(self, out_dir: Path, timestamp: str) -> None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / f"{timestamp}.digest.json").write_text("{}", encoding="utf-8")
+        (out_dir / f"{timestamp}.report.md").write_text("report", encoding="utf-8")
+        (out_dir / f"{timestamp}.changes.json").write_text("{}", encoding="utf-8")
+
+    def test_old_run_removed_recent_run_kept(self, mocker):
+        import os
+        out_dir = Path(os.environ["DATA_DIR"]) / "review_debug"
+        old_ts = "2020-01-01T000000Z"
+        recent_ts = "2026-07-07T120000Z"
+        self._write_run(out_dir, old_ts)
+        self._write_run(out_dir, recent_ts)
+
+        mocker.patch("review.reviewer.load_prompt", return_value=(
+            {"model": "gemini-2.5-pro"}, "Review {days} days: {digest_json}"
+        ))
+        mocker.patch("review.reviewer._call_gemini", return_value=(
+            {"report_md": "# Report", "changes": [], "copy_paste_prompts": []}, {}
+        ))
+        reviewer.run(_DIGEST)  # any run triggers pruning as a side effect
+
+        remaining = {f.name for f in out_dir.glob("*")}
+        assert not any(old_ts in name for name in remaining)
+        assert any(recent_ts in name for name in remaining)
+
+    def test_malformed_timestamp_left_alone(self):
+        import os
+        out_dir = Path(os.environ["DATA_DIR"]) / "review_debug"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "not-a-timestamp.digest.json").write_text("{}", encoding="utf-8")
+
+        reviewer._prune_old_reports(out_dir)
+
+        assert (out_dir / "not-a-timestamp.digest.json").exists()
+
+
 class TestListReports:
     def test_empty_when_no_reports(self):
         assert reviewer.list_reports() == []

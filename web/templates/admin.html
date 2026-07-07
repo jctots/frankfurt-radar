@@ -105,6 +105,7 @@
     .pill.pulse     { background: #0c2044; color: #58a6ff; }
     .pill.extraction { background: #1a1044; color: #a78bfa; }
     .pill.daily     { background: #2d1f05; color: #d29922; }
+    .pill.review    { background: #0d2818; color: #56d364; }
 
     /* ── Status: icon + colored text (clear/minor/moderate/severe) ──
        SVG shapes, not font glyphs — every icon sits in the same box with
@@ -1198,7 +1199,7 @@ async function loadServerStatus() {
     const grid = $('#status-grid');
     const comps = data.components || {};
     grid.innerHTML = Object.entries(comps).map(([name, ok]) =>
-      `<div class="status-item">
+      `<div class="status-item"${name === 'Gemini' ? ' title="Checked via extraction calls (polizei/strike/feuerwehr) — a proxy for overall Gemini API health, not pulse/daily/review individually"' : ''}>
         <div class="status-dot ${ok ? 'up' : 'down'}"></div>
         ${name}
       </div>`
@@ -1208,10 +1209,13 @@ async function loadServerStatus() {
     const parts = [];
     if (data.last_polled) {
       const age = Math.round((Date.now() - new Date(data.last_polled).getTime()) / 60000);
-      parts.push(`Last poll: <b>${age} min ago</b>`);
+      const stale = data.poll_stale_minutes > 0 && age > data.poll_stale_minutes;
+      const style = stale ? ` style="color:var(--clr-danger)"` : '';
+      parts.push(`Last poll: <b${style}>${age} min ago</b>`);
     }
     if (data.uptime_seconds != null) parts.push(`Uptime: <b>${formatUptime(data.uptime_seconds)}</b>`);
     if (data.subscribers) parts.push(`Subscribers: <b>${data.subscribers.active}/${data.subscribers.total}</b> active`);
+    if (data.disk) parts.push(`Disk: <b>${data.disk.pct}%</b> (${data.disk.used_gb}/${data.disk.total_gb} GB)`);
     meta.innerHTML = parts.join(' · ');
   } catch {}
 }

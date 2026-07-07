@@ -237,6 +237,8 @@ Manual only — **no cron**. The admin dashboard (`/admin`) has a **Run review**
 
 On run: `reduce(params)` builds the digest → `reviewer.run(digest)` calls Gemini → the report renders in-page and is written to `data/review_debug/<timestamp>.report.md` (with `.digest.json` and `.changes.json` beside it), same data-volume pattern as `pulse_debug`. Past reports are listed for re-reading. The run's own token cost is recorded in `api_usage` under a `gemini_review` service line, so review spend is visible alongside pulse spend. A separate GitHub Actions workflow picks up `changes.json` and opens the draft PR (see [Opening the PR](#opening-the-pr--ci-mediated-no-credential-on-prod)).
 
+Each run's three files (`.digest.json`/`.report.md`/`.changes.json`) are pruned together after 30 days (`review/reviewer.py`'s `_prune_old_reports`), matching `pulse_debug`/`cost_debug`'s retention. Since reviews are admin-triggered rather than hourly, this directory grows slowly regardless — but it's the one `*_debug` directory that previously had no retention at all.
+
 ## Development methodology — gold standard and blind comparison
 
 The reviewer prompt (`prompts/review.md`) is not written blind. It is validated against a **gold-standard reference**: a human-guided analysis of the same digest, recorded first. The reviewer then runs on the identical digest *without* seeing the reference, and the two are compared. Divergence shows where the prompt under-performs and drives its next revision.
