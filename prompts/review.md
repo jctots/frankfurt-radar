@@ -20,7 +20,7 @@ You are reviewing the operation of City Pulse, an hourly AI-generated situationa
 - `translate`: translation cache behaviour. `total_anomalies` is the total count of cache-miss/retranslation events; `top_churn_alerts` is the same data pre-aggregated by `alert_id` (count + share of `total_anomalies`) — use these counts, not `anomaly_samples`, to state how concentrated the churn is. `anomaly_samples` is deduplicated to one example per `alert_id`, already capped — it is illustrative only, its length says nothing about frequency.
 - `overrides`: human corrections an admin recorded against a computed status — `[]` if none were recorded this window. Sharpen the severity-weight analysis when present; their absence does not block the review.
 - `version_metrics`: per `pulse_config_version`, four log-derived metrics that are always available (status flap rate, trend-override rate, cost per pulse, coverage), plus `override_rate` only when overrides exist for that version.
-- `db_crosschecks`: cost reconciliation (logged vs. recomputed from `api_usage`), pulse coverage (expected vs. produced hours, with gaps), and event-log anomalies (failures, restarts).
+- `db_crosschecks`: cost reconciliation (logged vs. recomputed from `api_usage`), pulse coverage (expected vs. produced hours, with `gaps` and `debug_log_truncated` — the latter means the pulse actually ran and was stored, but its debug record is missing, a distinct failure mode from a real gap), and event-log anomalies (failures, restarts).
 
 ## Codebase files you may reference in `changes[].target_file`
 

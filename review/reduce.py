@@ -313,6 +313,7 @@ def _compute_version_metrics(
     pulse_hours: list[dict],
     all_pulse_records: list[dict],
     overrides: list[dict],
+    config: dict,
 ) -> dict[str, dict]:
     by_version: dict[str, list[dict]] = {}
     for h in pulse_hours:
@@ -348,7 +349,7 @@ def _compute_version_metrics(
         m = {
             "status_flap_rate": _status_flap_rate(hs),
             "trend_override_rate": _trend_override_rate(hs),
-            "cost_per_pulse_eur": _cost_per_pulse_eur(hs),
+            "cost_per_pulse_eur": _cost_per_pulse_eur(hs, config),
             "coverage": round(produced / possible, 4) if possible else 1.0,
         }
         if version in override_counts:
@@ -358,22 +359,67 @@ def _compute_version_metrics(
     return metrics
 
 
-def _cost_per_pulse_eur(hours_in_version: list[dict]) -> float:
-    # Proxy, not billed cost: token-based estimate from each hour's usage
-    # would require the raw record's `usage` block, which pulse_hours does
-    # not retain (kept out of the digest — see docs/review.md#redaction
-    # sibling concern, token budget). Approximated at zero when unknown.
-    return 0.0
+def _cost_per_pulse_eur(hours_in_version: list[dict], config: dict) -> float:
+    """Mean gemini_pulse cost per pulse in this version, from api_usage_hourly.
+
+    pulse_hours doesn't retain each hour's raw `usage` block (kept out of the
+    digest to stay compact), so this re-reads the hourly usage table instead
+    — scoped to gemini_pulse only, since a pulse hour's bucket can also carry
+    gemini_extraction/gemini_review/translate calls that ran the same hour.
+    """
+    if not hours_in_version:
+        return 0.0
+
+    buckets = set()
+    for h in hours_in_version:
+        ts = _parse_ts(h.get("hour"))
+        if ts:
+            buckets.add(ts.strftime("%Y-%m-%dT%H"))
+
+    totals = {"tokens_in": 0, "tokens_out": 0, "tokens_thinking": 0, "characters": 0}
+    for bucket in buckets:
+        for row in db.get_hourly_usage(bucket):
+            if row.get("service") != "gemini_pulse":
+                continue
+            for key in totals:
+                totals[key] += row.get(key) or 0
+
+    priced = _price_usage_rows([{"service": "gemini_pulse", **totals}], config)
+    total_eur = priced.get("gemini_pulse", 0.0)
+    return round(total_eur / len(hours_in_version), 6)
 
 
 # ── db cross-checks ──────────────────────────────────────────────────────
 
+def _hour_bucket(ts: datetime) -> str:
+    return ts.strftime("%Y-%m-%dT%H:00Z")
+
+
 def _pulse_coverage(all_pulse_records: list[dict], since: datetime, until: datetime) -> dict:
-    produced_hours = set()
+    """Coverage cross-checked against two independent sources, per
+    docs/review.md's own rationale: pulse_debug is an event stream that can
+    be truncated on a crash, so pulse_history (radar.db, written only on a
+    real generated pulse) is the authoritative one. A pulse hour counts as
+    "produced" if either source confirms it — pulse_history for a real
+    generation, or pulse_debug for a generation *or* an expected interval
+    skip (which pulse_history never records). `debug_log_truncated` isolates
+    the specific failure mode the design calls out: radar.db confirms a
+    pulse was generated but its debug record is missing entirely.
+    """
+    debug_hours = set()
     for rec in all_pulse_records:
         ts = _parse_ts(rec.get("generated_at"))
         if ts:
-            produced_hours.add(ts.strftime("%Y-%m-%dT%H:00Z"))
+            debug_hours.add(_hour_bucket(ts))
+
+    db_hours = set()
+    for row in db.get_pulses_since(_db_since(since)):
+        ts = _parse_ts(row.get("generated_at"))
+        if ts:
+            db_hours.add(_hour_bucket(ts))
+
+    produced_hours = debug_hours | db_hours
+    debug_log_truncated = sorted(db_hours - debug_hours)
 
     expected_hours = 0
     gaps = []
@@ -390,6 +436,7 @@ def _pulse_coverage(all_pulse_records: list[dict], since: datetime, until: datet
         "expected_hours": expected_hours,
         "produced": expected_hours - len(gaps),
         "gaps": gaps,
+        "debug_log_truncated": debug_log_truncated,
     }
 
 
@@ -519,7 +566,7 @@ def reduce(
         "translate": _reduce_translate(translate_records),
         "pulse_hours": pulse_hours,
         "overrides": overrides,
-        "version_metrics": _compute_version_metrics(pulse_hours, pulse_records, overrides),
+        "version_metrics": _compute_version_metrics(pulse_hours, pulse_records, overrides, config or {}),
         "db_crosschecks": {
             "cost_reconciliation": _cost_reconciliation(cost_records, config or {}, since, now),
             "pulse_coverage": _pulse_coverage(pulse_records, since, now),

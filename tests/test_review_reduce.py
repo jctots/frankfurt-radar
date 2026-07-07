@@ -209,6 +209,26 @@ class TestVersionMetrics:
         digest = reduce(days=3, now=now, config=config)
         assert digest["version_metrics"]["v1"]["trend_override_rate"] == 0.5
 
+    def test_cost_per_pulse_eur_computed_from_hourly_usage(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [_pulse_record("2026-07-01T10:00:00Z", "v1")]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        with db._conn() as conn:
+            conn.execute(
+                """INSERT INTO api_usage_hourly (hour, service, calls, tokens_in, tokens_out, tokens_thinking, characters)
+                   VALUES ('2026-07-01T10', 'gemini_pulse', 1, 1000000, 0, 0, 0)"""
+            )
+            # A different service's usage in the same hour must not leak in.
+            conn.execute(
+                """INSERT INTO api_usage_hourly (hour, service, calls, tokens_in, tokens_out, tokens_thinking, characters)
+                   VALUES ('2026-07-01T10', 'gemini_review', 1, 5000000, 0, 0, 0)"""
+            )
+
+        digest = reduce(days=3, now=now, config=config)
+        # 1M input tokens * $0.15/M * 0.92 USD->EUR default = ~€0.138, / 1 pulse.
+        assert digest["version_metrics"]["v1"]["cost_per_pulse_eur"] == pytest.approx(0.138, abs=1e-4)
+
     def test_coverage_present_for_each_version(self, debug_dirs, config):
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
         recs = [_pulse_record("2026-07-01T10:00:00Z", "v1")]
@@ -274,6 +294,39 @@ class TestCoverageGaps:
         coverage = digest["db_crosschecks"]["pulse_coverage"]
         assert "2026-07-01T01:00Z" in coverage["gaps"]
         assert coverage["produced"] == coverage["expected_hours"] - len(coverage["gaps"])
+
+    def test_pulse_history_row_without_debug_record_not_a_gap(self, debug_dirs, config):
+        # pulse_history is authoritative — a real generation the debug log
+        # never recorded (a truncated write) must not read as a missing hour.
+        now = datetime(2026, 7, 1, 2, tzinfo=timezone.utc)
+        db.store_pulse({"generated_at": "2026-07-01T01:00:00Z", "summary": "s"})
+        recs = [
+            _pulse_record("2026-07-01T00:00:00Z", "v1"),
+            _pulse_record("2026-07-01T02:00:00Z", "v1"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=1, now=now, config=config)
+        coverage = digest["db_crosschecks"]["pulse_coverage"]
+        assert "2026-07-01T01:00Z" not in coverage["gaps"]
+        assert coverage["debug_log_truncated"] == ["2026-07-01T01:00Z"]
+
+    def test_debug_only_hour_not_flagged_as_truncated(self, debug_dirs, config):
+        # An expected interval skip is in pulse_debug but never written to
+        # pulse_history — that's normal, not a truncation signal.
+        now = datetime(2026, 7, 1, 2, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T00:00:00Z", "v1"),
+            {"generated_at": "2026-07-01T01:00:02Z", "service": "gemini_pulse", "skipped": True,
+             "reason": "all calm", "layer_1_deterministic": {"timeseries": {}}},
+            _pulse_record("2026-07-01T02:00:00Z", "v1"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=1, now=now, config=config)
+        coverage = digest["db_crosschecks"]["pulse_coverage"]
+        assert coverage["debug_log_truncated"] == []
+        assert "2026-07-01T01:00Z" not in coverage["gaps"]
 
 
 class TestRedaction:

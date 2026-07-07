@@ -72,7 +72,8 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
   },
   "db_crosschecks": {
     "cost_reconciliation": { "logged_eur": 1.53, "api_usage_eur": 1.53, "delta": 0.0 },
-    "pulse_coverage": { "expected_hours": 168, "produced": 167, "gaps": ["2026-07-03T04:00Z"] },
+    "pulse_coverage": { "expected_hours": 168, "produced": 167, "gaps": ["2026-07-03T04:00Z"],
+                        "debug_log_truncated": [] },
     "event_log_anomalies": [ {"ts": "...", "level": "error", "msg": "..."} ]
   }
 }
@@ -105,7 +106,7 @@ Debug files are an *event stream* and can be truncated when a run crashes; `rada
 
 - `status_overrides` → the **human corrections** that sharpen weight tuning and supply the override-rate metric when present (optional — the review runs without them).
 - `api_usage` / `api_usage_hourly` → **reconcile logged cost against recorded cost**; catches miscounting. Both figures are "cost so far in the calendar month of the last `cost_debug` snapshot" — the same accounting basis, not the digest's day window (which would double-count whenever the window spans a month boundary).
-- `pulse_history` → confirm every hour actually produced a pulse; surface silent gaps the debug logs don't show. **Not yet wired up** — the current reducer checks coverage against `pulse_debug` presence only, which is exactly the source the design above calls truncatable. A crash that drops the debug write but not the DB row (or vice versa) would go undetected. Tracked as a follow-up, not blocking.
+- `pulse_history` → confirm every hour actually produced a pulse; surface silent gaps the debug logs don't show. A pulse hour counts as covered if *either* `pulse_history` (a real generation) or `pulse_debug` (a generation or an expected interval skip, which `pulse_history` never records) confirms it. `debug_log_truncated` isolates the specific failure the design above calls out: `pulse_history` confirms a generation but its debug record is missing entirely.
 - `event_log` → errors and anomalies the happy-path debug records omit.
 
 The other 13 tables stay out until a review concretely needs one.
