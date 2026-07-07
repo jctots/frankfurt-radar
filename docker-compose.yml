@@ -52,6 +52,7 @@ services:
       - POLLER_TRIGGER_URL=http://poller:8888/poll
       - STADIA_API_KEY=${STADIA_API_KEY:-}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     volumes:
       - radar_data:/app/data
     ports:
