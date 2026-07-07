@@ -50,7 +50,9 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
   },
   "translate": {
     "cache_hit_ratio": 0.98, "new_translated": 0, "retranslated": 3,
-    "anomalies": [ {"alert_id": "...", "action": "variant_hit", "reason": "text_changed"} ]
+    "total_anomalies": 1107,
+    "top_churn_alerts": [ {"alert_id": "baustellen-B-2025-00744", "count": 1035, "share": 0.935} ],
+    "anomaly_samples": [ {"alert_id": "...", "action": "variant_hit", "reason": "text_changed"} ]
   },
   "pulse_hours": [
     {
@@ -102,8 +104,8 @@ A €1 monthly budget comfortably covers on-demand review — even a high-detail
 Debug files are an *event stream* and can be truncated when a run crashes; `radar.db` is the authoritative record. The reducer reads four tables only:
 
 - `status_overrides` → the **human corrections** that sharpen weight tuning and supply the override-rate metric when present (optional — the review runs without them).
-- `api_usage` / `api_usage_hourly` → **reconcile logged cost against recorded cost**; catches miscounting.
-- `pulse_history` → confirm every hour actually produced a pulse; surface silent gaps the debug logs don't show.
+- `api_usage` / `api_usage_hourly` → **reconcile logged cost against recorded cost**; catches miscounting. Both figures are "cost so far in the calendar month of the last `cost_debug` snapshot" — the same accounting basis, not the digest's day window (which would double-count whenever the window spans a month boundary).
+- `pulse_history` → confirm every hour actually produced a pulse; surface silent gaps the debug logs don't show. **Not yet wired up** — the current reducer checks coverage against `pulse_debug` presence only, which is exactly the source the design above calls truncatable. A crash that drops the debug write but not the DB row (or vice versa) would go undetected. Tracked as a follow-up, not blocking.
 - `event_log` → errors and anomalies the happy-path debug records omit.
 
 The other 13 tables stay out until a review concretely needs one.

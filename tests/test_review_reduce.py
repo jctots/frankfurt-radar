@@ -121,6 +121,54 @@ class TestPromptDedup:
         assert len(digest["prompt_samples"]) == 2
 
 
+def _translate_record(timestamp: str, entries: list[dict], total_alerts: int = 10, cached: int = 9):
+    return {
+        "timestamp": timestamp,
+        "total_alerts": total_alerts,
+        "cached": cached,
+        "new_translated": 0,
+        "retranslated": len(entries),
+        "entries": entries,
+    }
+
+
+class TestTranslateAnomalyConcentration:
+    def test_top_churn_alerts_ranked_by_count(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _translate_record("2026-07-01T00:00:00Z", [
+                {"alert_id": "noisy-1", "action": "variant_hit", "reason": "text_changed"},
+                {"alert_id": "noisy-1", "action": "variant_hit", "reason": "text_changed"},
+                {"alert_id": "quiet-1", "action": "variant_hit", "reason": "text_changed"},
+            ]),
+        ]
+        _write_jsonl(debug_dirs / "translate_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        top = digest["translate"]["top_churn_alerts"]
+        assert top[0] == {"alert_id": "noisy-1", "count": 2, "share": pytest.approx(2 / 3, abs=1e-4)}
+        assert digest["translate"]["total_anomalies"] == 3
+
+    def test_anomaly_samples_capped_and_deduped_by_alert_id(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        entries = [{"alert_id": "same-id", "action": "variant_hit", "reason": "text_changed"} for _ in range(50)]
+        _write_jsonl(debug_dirs / "translate_debug" / "2026-07-01.jsonl", [_translate_record("2026-07-01T00:00:00Z", entries)])
+
+        digest = reduce(days=3, now=now, config=config)
+        # 50 raw entries for one alert_id collapse to a single sample, not 50.
+        assert digest["translate"]["anomaly_samples"] == [
+            {"alert_id": "same-id", "action": "variant_hit", "reason": "text_changed"}
+        ]
+        assert digest["translate"]["total_anomalies"] == 50
+
+    def test_no_anomalies_returns_empty(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["translate"]["top_churn_alerts"] == []
+        assert digest["translate"]["anomaly_samples"] == []
+        assert digest["translate"]["total_anomalies"] == 0
+
+
 class TestVersionGrouping:
     def test_groups_hours_by_config_version(self, debug_dirs, config):
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
@@ -193,6 +241,23 @@ class TestCostReconciliation:
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
         digest = reduce(days=3, now=now, config=config)
         assert digest["db_crosschecks"]["cost_reconciliation"]["delta"] == 0.0
+
+    def test_month_boundary_does_not_double_count_prior_month(self, debug_dirs, config):
+        # Window spans June 30 -> July 3. A full June's worth of api_usage
+        # must not be added on top of July's — both logged_eur and
+        # api_usage_eur are "cost so far in July", the same accounting basis.
+        db.record_api_usage("gemini_pulse", tokens_in=1_000_000, tokens_out=0, tokens_thinking=0)
+        with db._conn() as conn:
+            conn.execute("UPDATE api_usage SET month = '2026-06' WHERE service = 'gemini_pulse'")
+            conn.execute("UPDATE api_usage_hourly SET hour = '2026-06-30T10' WHERE service = 'gemini_pulse'")
+
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        rec = digest["db_crosschecks"]["cost_reconciliation"]
+        # No July usage recorded and no cost_debug snapshots -> both sides
+        # must reflect July only (0), not June's cost bleeding in.
+        assert rec["api_usage_eur"] == 0.0
+        assert rec["delta"] == 0.0
 
 
 class TestCoverageGaps:

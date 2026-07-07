@@ -7,6 +7,7 @@ no LLM. See docs/review.md for the digest schema and the cost knobs.
 
 from __future__ import annotations
 
+import collections
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -230,30 +231,58 @@ def _reduce_cost(cost_records: list[dict], config: dict, since: datetime, until:
 
 # ── translate reduction ──────────────────────────────────────────────────
 
+_TOP_CHURN_ALERTS_LIMIT = 10
+_ANOMALY_SAMPLES_LIMIT = 15
+
+
 def _reduce_translate(records: list[dict]) -> dict:
     if not records:
-        return {"cache_hit_ratio": None, "new_translated": 0, "retranslated": 0, "anomalies": []}
+        return {"cache_hit_ratio": None, "new_translated": 0, "retranslated": 0,
+                "total_anomalies": 0, "top_churn_alerts": [], "anomaly_samples": []}
 
     total_alerts = sum(r.get("total_alerts", 0) for r in records)
     cached = sum(r.get("cached", 0) for r in records)
     new_translated = sum(r.get("new_translated", 0) for r in records)
     retranslated = sum(r.get("retranslated", 0) for r in records)
 
-    anomalies = []
+    all_anomalies = []
     for rec in records:
         for entry in rec.get("entries", []) or []:
             if entry.get("action") == "variant_hit" or entry.get("reason") == "text_changed":
-                anomalies.append({
+                all_anomalies.append({
                     "alert_id": entry.get("alert_id"),
                     "action": entry.get("action"),
                     "reason": entry.get("reason"),
                 })
 
+    # The raw per-entry list is exactly the boilerplate the digest exists to
+    # collapse — a single flapping alert can dominate it (seen: 1035 of 1107
+    # entries were one alert_id in a real 7-day window). Report concentration
+    # as counts, not a list the reviewer has to eyeball and undercount.
+    total = len(all_anomalies)
+    counts = collections.Counter(a["alert_id"] for a in all_anomalies)
+    top_churn_alerts = [
+        {"alert_id": alert_id, "count": count, "share": round(count / total, 4)}
+        for alert_id, count in counts.most_common(_TOP_CHURN_ALERTS_LIMIT)
+    ] if total else []
+
+    seen_ids: set[str] = set()
+    anomaly_samples = []
+    for a in all_anomalies:
+        if a["alert_id"] in seen_ids:
+            continue
+        seen_ids.add(a["alert_id"])
+        anomaly_samples.append(a)
+        if len(anomaly_samples) >= _ANOMALY_SAMPLES_LIMIT:
+            break
+
     return {
         "cache_hit_ratio": round(cached / total_alerts, 4) if total_alerts else None,
         "new_translated": new_translated,
         "retranslated": retranslated,
-        "anomalies": anomalies,
+        "total_anomalies": total,
+        "top_churn_alerts": top_churn_alerts,
+        "anomaly_samples": anomaly_samples,
     }
 
 
@@ -365,29 +394,28 @@ def _pulse_coverage(all_pulse_records: list[dict], since: datetime, until: datet
 
 
 def _cost_reconciliation(cost_records: list[dict], config: dict, since: datetime, until: datetime) -> dict:
+    """Compare the last cost_debug snapshot's self-reported monthly total
+    against a fresh recomputation from api_usage, for the *same* calendar
+    month. Both figures are "cost so far this month" — summing across every
+    month the digest window happens to touch would double-count whenever the
+    window spans a month boundary, since get_monthly_cost(month) already
+    returns that whole month's total regardless of the window."""
     logged_eur = 0.0
+    month = until.strftime("%Y-%m")
     if cost_records:
         last = max(cost_records, key=lambda r: r.get("hour") or "")
         logged_eur = (last.get("monthly_cumulative") or {}).get("total_eur", 0.0)
+        last_hour = last.get("hour") or ""
+        if len(last_hour) >= 7:
+            month = last_hour[:7]
 
-    months = sorted({d.strftime("%Y-%m") for d in _daterange(since, until)})
-    api_usage_eur = 0.0
-    for month in months:
-        total, _ = db.get_monthly_cost(month, config or {})
-        api_usage_eur += total
+    api_usage_eur, _ = db.get_monthly_cost(month, config or {})
 
     return {
         "logged_eur": round(logged_eur, 4),
         "api_usage_eur": round(api_usage_eur, 4),
         "delta": round(api_usage_eur - logged_eur, 4),
     }
-
-
-def _daterange(since: datetime, until: datetime):
-    day = since
-    while day.date() <= until.date():
-        yield day
-        day += timedelta(days=1)
 
 
 def _event_log_anomalies(since: datetime) -> list[dict]:
@@ -404,8 +432,8 @@ def _status_overrides(since: datetime) -> list[dict]:
     """Human corrections since `since`, tagged with the pulse's config_version.
 
     `status_overrides` rows are keyed by `pulse_ts`, not directly by version —
-    joined here against pulse_history so the override rate can be attributed
-    to the correct methodology snapshot.
+    joined here (via `_attach_override_versions`) against `pulse_hours` so the
+    override rate can be attributed to the correct methodology snapshot.
     """
     overrides = db.get_status_overrides(limit=1000)
     since_str = _db_since(since)
