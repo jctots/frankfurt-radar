@@ -464,6 +464,11 @@ def reduce(
 
     pulse_records = _read_debug_range("pulse_debug", since, now)
     pulse_records = [r for r in pulse_records if (_parse_ts(r.get("generated_at")) or now) >= since]
+    # pulse_debug/*.jsonl is a shared log file — gemini_extraction and
+    # gemini_daily records land there too, alongside gemini_pulse. Filter to
+    # gemini_pulse only, or extraction/daily records (a completely different
+    # shape) get treated as empty/null pulse hours.
+    pulse_records = [r for r in pulse_records if r.get("service") == "gemini_pulse"]
     cost_records = _read_debug_range("cost_debug", since, now)
     translate_records = _read_debug_range("translate_debug", since, now)
     translate_records = [r for r in translate_records if (_parse_ts(r.get("timestamp")) or now) >= since]

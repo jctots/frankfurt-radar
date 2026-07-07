@@ -74,6 +74,26 @@ class TestReduceShape:
         assert digest["prompt_template"] is None
         assert digest["config_versions"] == []
 
+    def test_gemini_extraction_and_daily_records_excluded(self, debug_dirs, config):
+        # pulse_debug/*.jsonl is a shared log file — gemini_extraction and
+        # gemini_daily records land there too, with a completely different
+        # shape. They must not be treated as pulse hours.
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1"),
+            {"generated_at": "2026-07-01T10:40:05Z", "service": "gemini_extraction",
+             "extraction_type": "polizei", "usage": {}, "model": "gemini-2.5-flash"},
+            {"generated_at": "2026-07-01T21:00:04Z", "service": "gemini_daily",
+             "usage": {}, "date_summarized": "2026-07-01", "pulse_count": 14},
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert len(digest["pulse_hours"]) == 1
+        assert digest["pulse_hours"][0]["hour"] == "2026-07-01T10:00:00Z"
+        assert all(v is not None for v in digest["pulse_hours"][0]["score_inputs"]["transport"].values()
+                   if v != [])
+
 
 class TestPromptDedup:
     def test_prompt_appears_once_as_template_plus_samples(self, debug_dirs, config):
