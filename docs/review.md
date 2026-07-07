@@ -160,7 +160,7 @@ Reads the digest only. Produces a structured report:
 | **Inconsistencies & bugs** | Do the layers agree? Cost reconciliation deltas, pulse coverage gaps, event-log errors, `translate.cache_churn` concentration (source-data instability the cache is absorbing for free). |
 | **Cost reduction** | Where is spend concentrated (`cost.top_spenders`, `translate.paid_churn.top_alerts`), and what levers reduce it without hurting quality — translator backend, dedup, prompt-length trade-offs. `cache_churn` is never a cost lever — it costs nothing by construction. |
 | **Severity weights** | Are the `analysis.md` weight mappings producing sensible scores given the observed alert mix? Any recorded `overrides` sharpen this — but with none, the analysis proceeds from the score breakdowns alone. Concrete adjustments with rationale. |
-| **Status & trend usefulness** | Are computed `status`/`trend` values informative or noisy? Flapping, stuck-minor categories, baselines that never form. |
+| **Status & trend usefulness** | Are computed `status`/`trend` values informative or noisy? Flapping is one failure mode; never reaching `clear` is *not* one on its own (background-activity categories may legitimately never hit a literal zero score) — the real check is whether status ever escalates during genuinely elevated periods. Also: baselines that never form. |
 | **Prompt quality** | Two directions, explicitly traded off: (a) *enhance* — richer instructions, higher quality, higher token cost; (b) *reduce* — shorter prompt, lower cost, some quality loss. Each recommendation names its direction and expected cost delta. |
 | **Cross-version comparison** | When the digest spans versions, which version won on the [metrics above](#judging-strategy-versions) and why. |
 
