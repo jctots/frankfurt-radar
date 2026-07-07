@@ -29,6 +29,9 @@ pulse:
                            # ranked by severity weight (pulse_categories._compute_weight);
                            # the rest are folded into a capped_summary line
 
+translation_min_change_ratio: 0.10   # difflib similarity ratio (0-1) below which a body edit is
+                                      # treated as a meaningful change worth retranslating
+
 polling:
   interval_minutes: 10   # min 1, max 60 — drives cron poll schedule
 

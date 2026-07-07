@@ -13,6 +13,31 @@ def _make_alert(id: str, valid_until=None, source="rmv") -> Alert:
     )
 
 
+class TestMeaningfulTextChanged:
+    def test_identical_text_unchanged(self):
+        assert db._meaningful_text_changed("Title", "Body text.", "Title", "Body text.") is False
+
+    def test_stand_timestamp_ignored_in_title(self):
+        assert db._meaningful_text_changed(
+            "S1 delayed (Stand: 10:15 Uhr)", "Body", "S1 delayed (Stand: 09:00 Uhr)", "Body",
+        ) is False
+
+    def test_tiny_body_edit_below_threshold_not_meaningful(self):
+        old = "Delays on the S1 line due to a signal fault near Hauptbahnhof."
+        new = old + " "  # single trailing whitespace edit — negligible similarity change
+        assert db._meaningful_text_changed("Title", new, "Title", old, min_change_ratio=0.10) is False
+
+    def test_large_body_rewrite_above_threshold_is_meaningful(self):
+        old = "Delays on the S1 line due to a signal fault."
+        new = "Nationwide signal failure disrupts all regional and S-Bahn services across Hesse."
+        assert db._meaningful_text_changed("Title", new, "Title", old, min_change_ratio=0.10) is True
+
+    def test_default_threshold_used_when_omitted(self):
+        old = "Delays on the S1 line due to a signal fault."
+        new = old + "!"
+        assert db._meaningful_text_changed("Title", new, "Title", old) is False
+
+
 class TestGetUnseenAlerts:
     def test_all_new_when_none_seen(self, rmv_alert, dwd_alert):
         result = db.get_unseen_alerts([rmv_alert, dwd_alert])

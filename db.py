@@ -1,3 +1,4 @@
+import difflib
 import hashlib
 import json
 import logging
@@ -504,10 +505,20 @@ def _text_hash(title: str, body: str) -> str:
 _STAND_RE = re.compile(r'\(Stand[:\s]+[\d.,:\s]+Uhr\)', re.IGNORECASE)
 
 
-def _meaningful_text_changed(new_title: str, new_body: str, cached_title: str, cached_body: str) -> bool:
-    """Return True only if substantive content changed, ignoring RMV Stand: timestamp in title."""
+def _meaningful_text_changed(
+    new_title: str, new_body: str, cached_title: str, cached_body: str, min_change_ratio: float = 0.10,
+) -> bool:
+    """Return True only if substantive content changed, ignoring RMV Stand: timestamp in title.
+
+    Body changes below `min_change_ratio` (a difflib similarity ratio, pure CPU — no LLM
+    call) are treated as noise, not worth paying for a retranslation.
+    """
     title_changed = _STAND_RE.sub('', new_title).strip() != _STAND_RE.sub('', cached_title).strip()
-    body_changed = new_body != cached_body
+    if new_body == cached_body:
+        body_changed = False
+    else:
+        ratio = difflib.SequenceMatcher(None, cached_body, new_body).ratio()
+        body_changed = (1 - ratio) >= min_change_ratio
     return title_changed or body_changed
 
 
@@ -568,6 +579,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
 
     retention_days = config.get('cleared_retention_days', 1)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+    min_change_ratio = config.get('translation_min_change_ratio', 0.10)
     _debug_entries = []
 
     if not alerts:
@@ -639,6 +651,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             text_changed = _meaningful_text_changed(
                 alert.title or "", alert.body or "",
                 c["title_de"] or "", c["body_de"] or "",
+                min_change_ratio,
             )
             meta_changed = (c["valid_until"] != alert.valid_until
                             or c["valid_from"] != alert.valid_from
