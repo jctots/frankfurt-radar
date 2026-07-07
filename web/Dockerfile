@@ -8,6 +8,8 @@ COPY web/requirements.txt ./web-requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt -r web-requirements.txt
 
 COPY *.py .
+COPY review/ review/
+COPY prompts/ prompts/
 COPY config.yaml .
 COPY web/app.py .
 COPY web/templates/ templates/
