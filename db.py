@@ -579,7 +579,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
 
     retention_days = config.get('cleared_retention_days', 1)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
-    min_change_ratio = config.get('translation_min_change_ratio', 0.10)
+    min_change_ratio = config.get('translator', {}).get('translation_min_change_ratio', 0.10)
     _debug_entries = []
 
     if not alerts:
