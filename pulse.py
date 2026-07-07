@@ -17,6 +17,7 @@ from pulse_categories import (
     WEIGHTS_VERSION,
     apply_status_hysteresis,
     build_category_timeseries,
+    compute_pulse_config_version,
     compute_snapshot,
 )
 
@@ -395,6 +396,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         return pulse
 
     prompt_config, template = load_prompt("pulse")
+    pulse_config_version = compute_pulse_config_version(template)
     alerts_json, stale_summary = _build_alert_data(alerts)
     history = _build_history_section(db.get_recent_pulses(3), db.get_recent_daily_summaries(3))
     _BERLIN = ZoneInfo("Europe/Berlin")
@@ -464,6 +466,7 @@ def generate_pulse(config: dict, *, force: bool = False) -> dict | None:
         "generated_at": generated_at,
         "current_hour_utc": now.hour,
         "service": "gemini_pulse",
+        "pulse_config_version": pulse_config_version,
         "usage": usage,
         "layer_1_deterministic": {
             "timeseries": timeseries,

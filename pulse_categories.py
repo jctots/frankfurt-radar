@@ -14,6 +14,8 @@ Source-to-category mapping:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Callable
@@ -65,6 +67,22 @@ MIN_MODERATE_BAND_FRACTION = 0.1
 # otherwise every weight calibration poisons the baseline with old-scale
 # history for up to the category's full window (4 weeks for roadworks).
 WEIGHTS_VERSION = 2
+
+
+def compute_pulse_config_version(prompt_template: str) -> str:
+    """Short hash identifying the reviewable methodology as one unit.
+
+    Combines the pulse prompt template, WEIGHTS_VERSION, and the window/
+    strategy config so the review pipeline (docs/review.md) can attribute
+    output-quality changes to a specific methodology snapshot rather than
+    guess. Stamped onto every pulse_debug record.
+    """
+    payload = json.dumps(
+        {"weights_version": WEIGHTS_VERSION, "windows": CATEGORY_WINDOWS},
+        sort_keys=True,
+    ) + prompt_template
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+
 
 SEVERITY_WEIGHTS_DWD: dict[int, float] = {1: 0.5, 2: 1.0, 3: 1.5, 4: 2.0}
 SERVICE_WEIGHTS_RMV: dict[str, float] = {"S-Bahn": 1.5, "U-Bahn": 1.5, "Regional": 1.5, "Tram": 1.0, "Bus": 0.5}

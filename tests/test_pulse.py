@@ -5,6 +5,7 @@ import pytest
 import requests
 
 import db
+from pulse_categories import compute_pulse_config_version
 from pulse import (
     generate_daily_summary,
     generate_pulse,
@@ -250,6 +251,16 @@ class TestGeneratePulse:
             "categories": {"transport": {"trend": "worsening"}},
         })
         assert result["categories"]["transport"]["trend"] == "stable"
+
+    def test_pulse_config_version_stamped_on_debug_record(self, mocker):
+        write_debug_log = mocker.patch("pulse._write_debug_log")
+        self._run_with_response(mocker, {
+            "summary": "S1", "recommendation": "None.", "references": [],
+        })
+        debug_data = write_debug_log.call_args[0][0]
+        assert debug_data["pulse_config_version"] == compute_pulse_config_version(
+            "Prompt: {timestamp} {alert_count} {alerts_json} {stale_summary} {history_section} {timeseries_json}"
+        )
 
 
 class TestGenerateDailySummary:

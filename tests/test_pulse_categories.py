@@ -14,6 +14,7 @@ from pulse_categories import (
     apply_status_hysteresis,
     build_category_timeseries,
     compute_lead_alert,
+    compute_pulse_config_version,
     compute_snapshot,
     compute_status,
     compute_status_floor,
@@ -798,3 +799,33 @@ class TestCategoryConfig:
                 assert 0 < w["surge_lead_hours"] <= w["lookahead_hours"]
             else:
                 assert w["surge_lead_hours"] == 0
+
+
+class TestPulseConfigVersion:
+    def test_stable_for_identical_inputs(self):
+        assert compute_pulse_config_version("template a") == compute_pulse_config_version("template a")
+
+    def test_changes_when_prompt_changes(self):
+        assert compute_pulse_config_version("template a") != compute_pulse_config_version("template b")
+
+    def test_changes_when_weights_version_changes(self, monkeypatch):
+        import pulse_categories
+
+        before = compute_pulse_config_version("template a")
+        monkeypatch.setattr(pulse_categories, "WEIGHTS_VERSION", pulse_categories.WEIGHTS_VERSION + 1)
+        after = pulse_categories.compute_pulse_config_version("template a")
+        assert before != after
+
+    def test_changes_when_window_config_changes(self, monkeypatch):
+        import pulse_categories
+
+        before = compute_pulse_config_version("template a")
+        patched = {**CATEGORY_WINDOWS, "transport": {**CATEGORY_WINDOWS["transport"], "interval_hours": 99}}
+        monkeypatch.setattr(pulse_categories, "CATEGORY_WINDOWS", patched)
+        after = pulse_categories.compute_pulse_config_version("template a")
+        assert before != after
+
+    def test_returns_short_hex_string(self):
+        version = compute_pulse_config_version("template a")
+        assert len(version) == 8
+        int(version, 16)  # raises if not valid hex
