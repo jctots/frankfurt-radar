@@ -39,10 +39,10 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
 ```json
 {
   "range": "2026-07-01..2026-07-07",
-  "params": { "days": 7, "drivers_per_hour": 3, "prompt_samples": 1 },
+  "params": { "days": 7, "drivers_per_hour": 3, "prompt_samples": 0 },
   "config_versions": ["a1b2c3"],
   "prompt_template": "<the pulse prompt, extracted once — the artifact under review>",
-  "prompt_samples": ["<N fully rendered prompts, N = prompt_samples>"],
+  "prompt_sample_texts": ["<N fully rendered prompts, N = params.prompt_samples>"],
   "cost": {
     "monthly_cumulative": { "total_eur": 1.53, "services": { "...": {"calls": 0, "cost_eur": 0.0} } },
     "daily_by_service": [ { "date": "...", "google_translate": 0.12, "gemini_pulse": 0.09 } ],
@@ -92,9 +92,11 @@ Cost is `days × 27 hours/day × detail-per-hour`, so the reducer exposes the ac
 |---|---|---|---|
 | `days` | int | **7** | linear |
 | `drivers_per_hour` | int — top-N scoring alerts kept per category per hour; **0 = counts only** | **3** | linear |
-| `prompt_samples` | int, 0–2 — fully rendered prompt examples | **1** | fixed step (~98 KB each) |
+| `prompt_samples` | int, 0–2 — fully rendered prompt examples, stored as `prompt_sample_texts` | **0** | fixed step (~98 KB each) |
 
 Two one-click presets sit on top of these for convenience: **high detail** = `(drivers=all, samples=2)`, **low detail** = `(0, 0)`. But the numbers are the real control.
+
+`prompt_samples` defaults to 0, not 1 — across the first two real reviews it never contributed to a finding beyond what the always-included `prompt_template` already showed, while costing ~25% of total digest size (each sample is ~97KB, mostly repeated prompt boilerplate) and once caused the reviewer to conflate the knob with a nonexistent pulse-system setting. Opt in via the High detail preset when chasing a specific prompt-rendering suspicion, not as routine practice.
 
 **Cost preview.** Because the reducer runs *before* any tokens are spent, the admin page shows the built digest's **estimated tokens and EUR**, and you confirm before the Gemini call fires. You see the price, then decide to spend. Indicative figures (Gemini; verify against current pricing before wiring cost tracking):
 

@@ -8,10 +8,10 @@ from review import reviewer
 
 _DIGEST = {
     "range": "2026-07-01..2026-07-07",
-    "params": {"days": 7, "drivers_per_hour": 3, "prompt_samples": 1},
+    "params": {"days": 7, "drivers_per_hour": 3, "prompt_samples": 0},
     "config_versions": ["a1b2c3"],
     "prompt_template": "PROMPT",
-    "prompt_samples": [],
+    "prompt_sample_texts": [],
     "cost": {"monthly_cumulative": {}, "daily_by_service": [], "top_spenders": []},
     "translate": {"cache_hit_ratio": None, "new_translated": 0, "retranslated": 0,
                   "paid_churn": {"total": 0, "top_alerts": [], "samples": []},

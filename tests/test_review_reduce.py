@@ -64,7 +64,7 @@ def debug_dirs():
 class TestReduceShape:
     def test_digest_has_expected_top_level_keys(self, debug_dirs, config):
         digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
-        for key in ("range", "params", "config_versions", "prompt_template", "prompt_samples",
+        for key in ("range", "params", "config_versions", "prompt_template", "prompt_sample_texts",
                     "cost", "translate", "pulse_hours", "status_distribution", "overrides",
                     "version_metrics", "db_crosschecks"):
             assert key in digest
@@ -108,18 +108,28 @@ class TestPromptDedup:
 
         digest = reduce(days=3, drivers_per_hour=1, prompt_samples=1, now=now, config=config)
         assert digest["prompt_template"] == "PROMPT A"
-        assert digest["prompt_samples"] == ["PROMPT B"]
+        assert digest["prompt_sample_texts"] == ["PROMPT B"]
         # The full rendered prompt is not repeated per pulse_hour entry.
         for h in digest["pulse_hours"]:
             assert "prompt" not in h
 
-    def test_prompt_samples_capped_at_requested_count(self, debug_dirs, config):
+    def test_prompt_sample_texts_empty_by_default(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [_pulse_record("2026-07-01T10:00:00Z", "v1", prompt="PROMPT A")]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["params"]["prompt_samples"] == 0
+        assert digest["prompt_sample_texts"] == []
+        assert digest["prompt_template"] == "PROMPT A"
+
+    def test_prompt_sample_texts_capped_at_requested_count(self, debug_dirs, config):
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
         recs = [_pulse_record(f"2026-07-01T{h:02d}:00:00Z", "v1", prompt=f"P{h}") for h in range(5)]
         _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
 
         digest = reduce(days=3, prompt_samples=2, now=now, config=config)
-        assert len(digest["prompt_samples"]) == 2
+        assert len(digest["prompt_sample_texts"]) == 2
 
 
 def _translate_record(timestamp: str, entries: list[dict], total_alerts: int = 10, cached: int = 9):

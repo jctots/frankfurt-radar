@@ -361,7 +361,7 @@ def _review_params(data: dict) -> tuple[int, int | None, int]:
     days = int(data.get("days", 7))
     raw_drivers = data.get("drivers_per_hour", 3)
     drivers_per_hour = None if raw_drivers in (None, "all") else int(raw_drivers)
-    prompt_samples = int(data.get("prompt_samples", 1))
+    prompt_samples = int(data.get("prompt_samples", 0))
     return days, drivers_per_hour, prompt_samples
 
 

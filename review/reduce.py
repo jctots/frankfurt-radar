@@ -100,12 +100,14 @@ def _extract_drivers(cat_breakdown: dict, drivers_per_hour: int | None) -> list[
 
 
 def _reduce_pulse_hours(records: list[dict], drivers_per_hour: int | None) -> tuple[list[dict], str | None, list[str]]:
-    """Return (pulse_hours, prompt_template, extra_prompt_samples).
+    """Return (pulse_hours, prompt_template, extra_prompt_sample_texts).
 
     `prompt_template` is one deduped copy of the rendered prompt (the
-    artifact under review, included free of the `prompt_samples` knob).
-    `extra_prompt_samples` holds up to `prompt_samples` further full
-    prompts (set by the caller) to show variation across hours.
+    artifact under review, always included free of the `prompt_samples`
+    knob). `extra_prompt_sample_texts` holds further full prompts (capped by
+    the caller to the `prompt_samples` knob) to show variation across hours
+    — opt-in only (default knob value 0), since two real reviews found it
+    added ~25% of digest size without ever being the source of a finding.
     """
     generated = [r for r in records if not r.get("skipped")]
     generated.sort(key=lambda r: r.get("generated_at") or "")
@@ -558,7 +560,7 @@ def estimate_cost(digest: dict, model: str = _DEFAULT_REVIEWER_MODEL) -> dict:
 def reduce(
     days: int = 7,
     drivers_per_hour: int | None = 3,
-    prompt_samples: int = 1,
+    prompt_samples: int = 0,
     *,
     config: dict | None = None,
     now: datetime | None = None,
@@ -567,7 +569,11 @@ def reduce(
 
     `drivers_per_hour`: top-N scoring alerts kept per category per hour;
     `0` = counts only, `None` = all. `prompt_samples`: 0-2 additional fully
-    rendered prompt examples beyond the always-included dedup'd template.
+    rendered prompt examples beyond the always-included dedup'd template —
+    defaults to 0 (opt-in only, via the High detail preset): each one is
+    ~97KB of mostly-repeated boilerplate, and across two real reviews never
+    once contributed to a finding beyond what the free template already
+    showed.
     """
     now = now or datetime.now(timezone.utc)
     since = now - timedelta(days=days)
@@ -596,7 +602,7 @@ def reduce(
         "params": {"days": days, "drivers_per_hour": drivers_per_hour, "prompt_samples": prompt_samples},
         "config_versions": config_versions,
         "prompt_template": prompt_template,
-        "prompt_samples": prompt_samples_out,
+        "prompt_sample_texts": prompt_samples_out,
         "cost": _reduce_cost(cost_records, config or {}, since, now),
         "translate": _reduce_translate(translate_records),
         "pulse_hours": pulse_hours,
