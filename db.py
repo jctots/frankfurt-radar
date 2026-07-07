@@ -1477,6 +1477,7 @@ def get_monthly_cost(month: str, config: dict) -> tuple[float, dict[str, dict]]:
         "gemini_pulse": gemini_pricing,
         "gemini_extraction": gemini_pricing,
         "gemini_daily": gemini_pricing,
+        "gemini_review": gemini_pricing,
         "google_translate": {"chars_per_m": translate_cfg.get("chars_per_million", 20.0)},
     }
 
