@@ -65,7 +65,8 @@ class TestReduceShape:
     def test_digest_has_expected_top_level_keys(self, debug_dirs, config):
         digest = reduce(days=1, now=datetime(2026, 7, 10, 12, tzinfo=timezone.utc), config=config)
         for key in ("range", "params", "config_versions", "prompt_template", "prompt_samples",
-                    "cost", "translate", "pulse_hours", "overrides", "version_metrics", "db_crosschecks"):
+                    "cost", "translate", "pulse_hours", "status_distribution", "overrides",
+                    "version_metrics", "db_crosschecks"):
             assert key in digest
 
     def test_empty_window_returns_empty_digest(self, debug_dirs, config):
@@ -180,6 +181,39 @@ class TestTranslateAnomalyConcentration:
         digest = reduce(days=3, now=now, config=config)
         assert digest["translate"]["paid_churn"] == {"total": 0, "top_alerts": [], "samples": []}
         assert digest["translate"]["cache_churn"] == {"total": 0, "top_alerts": [], "samples": []}
+
+
+class TestStatusDistribution:
+    def test_counts_status_per_category(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1", status="minor"),
+            _pulse_record("2026-07-01T11:00:00Z", "v1", status="minor"),
+            _pulse_record("2026-07-01T12:00:00Z", "v1", status="severe"),
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["status_distribution"]["transport"] == {"minor": 2, "severe": 1}
+
+    def test_empty_window_has_empty_distributions_for_every_category(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        digest = reduce(days=3, now=now, config=config)
+        for cat in ("weather", "transport", "roadworks", "incidents", "events"):
+            assert digest["status_distribution"][cat] == {}
+
+    def test_distribution_reflects_full_window_not_just_one_version(self, debug_dirs, config):
+        # status_distribution is a window-wide tally, unlike version_metrics
+        # which only groups tagged (post-deploy) hours.
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        recs = [
+            _pulse_record("2026-07-01T10:00:00Z", "v1", status="minor"),
+            {**_pulse_record("2026-07-01T11:00:00Z", "v1", status="moderate"), "pulse_config_version": None},
+        ]
+        _write_jsonl(debug_dirs / "pulse_debug" / "2026-07-01.jsonl", recs)
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["status_distribution"]["transport"] == {"minor": 1, "moderate": 1}
 
 
 class TestVersionGrouping:

@@ -17,6 +17,7 @@ _DIGEST = {
                   "paid_churn": {"total": 0, "top_alerts": [], "samples": []},
                   "cache_churn": {"total": 0, "top_alerts": [], "samples": []}},
     "pulse_hours": [],
+    "status_distribution": {cat: {} for cat in ("weather", "transport", "roadworks", "incidents", "events")},
     "overrides": [],
     "version_metrics": {},
     "db_crosschecks": {

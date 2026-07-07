@@ -65,6 +65,10 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
       "layer_3_output": { "categories": {"...": {"status": "...", "trend": "..."}} }
     }
   ],
+  "status_distribution": {
+    "roadworks": { "minor": 106, "moderate": 7, "severe": 5 },
+    "transport": { "minor": 39, "moderate": 49, "severe": 30 }
+  },
   "overrides": [ {"hour": "...", "category": "baustellen", "computed": "moderate",
                   "corrected": "minor", "reason": "partial closures are routine"} ],
   "version_metrics": {
@@ -160,7 +164,7 @@ Reads the digest only. Produces a structured report:
 | **Inconsistencies & bugs** | Do the layers agree? Cost reconciliation deltas, pulse coverage gaps, event-log errors, `translate.cache_churn` concentration (source-data instability the cache is absorbing for free). |
 | **Cost reduction** | Where is spend concentrated (`cost.top_spenders`, `translate.paid_churn.top_alerts`), and what levers reduce it without hurting quality — translator backend, dedup, prompt-length trade-offs. `cache_churn` is never a cost lever — it costs nothing by construction. |
 | **Severity weights** | Are the `analysis.md` weight mappings producing sensible scores given the observed alert mix? Any recorded `overrides` sharpen this — but with none, the analysis proceeds from the score breakdowns alone. Concrete adjustments with rationale. |
-| **Status & trend usefulness** | Are computed `status`/`trend` values informative or noisy? Flapping is one failure mode; never reaching `clear` is *not* one on its own (background-activity categories may legitimately never hit a literal zero score) — the real check is whether status ever escalates during genuinely elevated periods. Also: baselines that never form. |
+| **Status & trend usefulness** | Are computed `status`/`trend` values informative or noisy, per `status_distribution`'s pre-counted histogram (not a manual tally of `pulse_hours` — counting 100+ raw entries by eye is unreliable and produced a real false claim in production). Flapping is one failure mode; never reaching `clear` is *not* one on its own (background-activity categories may legitimately never hit a literal zero score) — the real check is whether status ever escalates during genuinely elevated periods. Also: baselines that never form. |
 | **Prompt quality** | Two directions, explicitly traded off: (a) *enhance* — richer instructions, higher quality, higher token cost; (b) *reduce* — shorter prompt, lower cost, some quality loss. Each recommendation names its direction and expected cost delta. |
 | **Cross-version comparison** | When the digest spans versions, which version won on the [metrics above](#judging-strategy-versions) and why. |
 

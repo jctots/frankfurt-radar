@@ -301,6 +301,26 @@ def _reduce_translate(records: list[dict]) -> dict:
     }
 
 
+# ── status distribution ──────────────────────────────────────────────────
+
+def _status_distribution(pulse_hours: list[dict]) -> dict[str, dict[str, int]]:
+    """Per-category status histogram across every pulse hour in the window.
+
+    Tallying this from raw pulse_hours is exactly the kind of counting task
+    an LLM gets wrong under its nose — verified on a real digest: the
+    reviewer claimed "roadworks remained consistently severe" when the true
+    distribution was 106 minor / 7 moderate / 5 severe out of 118. Handing
+    over the count directly removes the need to count at all.
+    """
+    dist = {cat: collections.Counter() for cat in _CATEGORIES}
+    for h in pulse_hours:
+        for cat in _CATEGORIES:
+            status = h.get("score_inputs", {}).get(cat, {}).get("status")
+            if status:
+                dist[cat][status] += 1
+    return {cat: dict(counter) for cat, counter in dist.items()}
+
+
 # ── version metrics ──────────────────────────────────────────────────────
 
 def _status_flap_rate(hours_in_version: list[dict]) -> float:
@@ -580,6 +600,7 @@ def reduce(
         "cost": _reduce_cost(cost_records, config or {}, since, now),
         "translate": _reduce_translate(translate_records),
         "pulse_hours": pulse_hours,
+        "status_distribution": _status_distribution(pulse_hours),
         "overrides": overrides,
         "version_metrics": _compute_version_metrics(pulse_hours, pulse_records, overrides, config or {}),
         "db_crosschecks": {
