@@ -50,9 +50,10 @@ The digest is the **only** thing the reviewer sees. Its size — controlled by t
   },
   "translate": {
     "cache_hit_ratio": 0.98, "new_translated": 0, "retranslated": 3,
-    "total_anomalies": 1107,
-    "top_churn_alerts": [ {"alert_id": "baustellen-B-2025-00744", "count": 1035, "share": 0.935} ],
-    "anomaly_samples": [ {"alert_id": "...", "action": "variant_hit", "reason": "text_changed"} ]
+    "paid_churn": { "total": 3, "top_alerts": [ {"alert_id": "HIM_FREETEXT_2162899", "count": 3, "share": 1.0} ],
+                    "samples": [ {"alert_id": "...", "action": "retranslate", "reason": "text_changed"} ] },
+    "cache_churn": { "total": 1121, "top_alerts": [ {"alert_id": "baustellen-B-2025-00744", "count": 1121, "share": 1.0} ],
+                      "samples": [ {"alert_id": "...", "action": "variant_hit", "reason": "text_changed"} ] }
   },
   "pulse_hours": [
     {
@@ -156,8 +157,8 @@ Reads the digest only. Produces a structured report:
 
 | Section | What it answers |
 |---|---|
-| **Inconsistencies & bugs** | Do the layers agree? Cost reconciliation deltas, pulse coverage gaps, event-log errors, translation anomalies (unexpected retranslation, `text_changed` churn). |
-| **Cost reduction** | Where is spend concentrated (per `top_spenders`), and what levers reduce it without hurting quality — translator backend, dedup, prompt-length trade-offs. |
+| **Inconsistencies & bugs** | Do the layers agree? Cost reconciliation deltas, pulse coverage gaps, event-log errors, `translate.cache_churn` concentration (source-data instability the cache is absorbing for free). |
+| **Cost reduction** | Where is spend concentrated (`cost.top_spenders`, `translate.paid_churn.top_alerts`), and what levers reduce it without hurting quality — translator backend, dedup, prompt-length trade-offs. `cache_churn` is never a cost lever — it costs nothing by construction. |
 | **Severity weights** | Are the `analysis.md` weight mappings producing sensible scores given the observed alert mix? Any recorded `overrides` sharpen this — but with none, the analysis proceeds from the score breakdowns alone. Concrete adjustments with rationale. |
 | **Status & trend usefulness** | Are computed `status`/`trend` values informative or noisy? Flapping, stuck-minor categories, baselines that never form. |
 | **Prompt quality** | Two directions, explicitly traded off: (a) *enhance* — richer instructions, higher quality, higher token cost; (b) *reduce* — shorter prompt, lower cost, some quality loss. Each recommendation names its direction and expected cost delta. |

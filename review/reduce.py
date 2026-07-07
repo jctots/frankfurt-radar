@@ -235,54 +235,69 @@ _TOP_CHURN_ALERTS_LIMIT = 10
 _ANOMALY_SAMPLES_LIMIT = 15
 
 
+def _rank_churn(entries: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(top_alerts ranked by count+share, samples deduped to one per alert_id)."""
+    total = len(entries)
+    counts = collections.Counter(e["alert_id"] for e in entries)
+    top_alerts = [
+        {"alert_id": alert_id, "count": count, "share": round(count / total, 4)}
+        for alert_id, count in counts.most_common(_TOP_CHURN_ALERTS_LIMIT)
+    ] if total else []
+
+    seen_ids: set[str] = set()
+    samples = []
+    for e in entries:
+        if e["alert_id"] in seen_ids:
+            continue
+        seen_ids.add(e["alert_id"])
+        samples.append(e)
+        if len(samples) >= _ANOMALY_SAMPLES_LIMIT:
+            break
+
+    return top_alerts, samples
+
+
 def _reduce_translate(records: list[dict]) -> dict:
+    empty_bucket = {"total": 0, "top_alerts": [], "samples": []}
     if not records:
         return {"cache_hit_ratio": None, "new_translated": 0, "retranslated": 0,
-                "total_anomalies": 0, "top_churn_alerts": [], "anomaly_samples": []}
+                "paid_churn": dict(empty_bucket), "cache_churn": dict(empty_bucket)}
 
     total_alerts = sum(r.get("total_alerts", 0) for r in records)
     cached = sum(r.get("cached", 0) for r in records)
     new_translated = sum(r.get("new_translated", 0) for r in records)
     retranslated = sum(r.get("retranslated", 0) for r in records)
 
-    all_anomalies = []
+    # Text that changes on every poll produces the same event shape whether
+    # it costs anything or not — `variant_hit` reuses a previously-seen
+    # translation (free, the cache doing its job); only `retranslate` is a
+    # real paid API call. Conflating them let a single zero-cost flapping
+    # alert (1121 of 1121 hits, all variant_hit) dominate the ranking and
+    # get mistaken for a cost driver. Kept structurally separate so that
+    # can't happen again — top_alerts for cost questions must come from
+    # paid_churn, never cache_churn.
+    paid_entries = []
+    cache_entries = []
     for rec in records:
         for entry in rec.get("entries", []) or []:
-            if entry.get("action") == "variant_hit" or entry.get("reason") == "text_changed":
-                all_anomalies.append({
-                    "alert_id": entry.get("alert_id"),
-                    "action": entry.get("action"),
-                    "reason": entry.get("reason"),
-                })
+            if entry.get("reason") != "text_changed":
+                continue
+            item = {"alert_id": entry.get("alert_id"), "action": entry.get("action"),
+                     "reason": entry.get("reason")}
+            if entry.get("action") == "retranslate":
+                paid_entries.append(item)
+            elif entry.get("action") == "variant_hit":
+                cache_entries.append(item)
 
-    # The raw per-entry list is exactly the boilerplate the digest exists to
-    # collapse — a single flapping alert can dominate it (seen: 1035 of 1107
-    # entries were one alert_id in a real 7-day window). Report concentration
-    # as counts, not a list the reviewer has to eyeball and undercount.
-    total = len(all_anomalies)
-    counts = collections.Counter(a["alert_id"] for a in all_anomalies)
-    top_churn_alerts = [
-        {"alert_id": alert_id, "count": count, "share": round(count / total, 4)}
-        for alert_id, count in counts.most_common(_TOP_CHURN_ALERTS_LIMIT)
-    ] if total else []
-
-    seen_ids: set[str] = set()
-    anomaly_samples = []
-    for a in all_anomalies:
-        if a["alert_id"] in seen_ids:
-            continue
-        seen_ids.add(a["alert_id"])
-        anomaly_samples.append(a)
-        if len(anomaly_samples) >= _ANOMALY_SAMPLES_LIMIT:
-            break
+    paid_top, paid_samples = _rank_churn(paid_entries)
+    cache_top, cache_samples = _rank_churn(cache_entries)
 
     return {
         "cache_hit_ratio": round(cached / total_alerts, 4) if total_alerts else None,
         "new_translated": new_translated,
         "retranslated": retranslated,
-        "total_anomalies": total,
-        "top_churn_alerts": top_churn_alerts,
-        "anomaly_samples": anomaly_samples,
+        "paid_churn": {"total": len(paid_entries), "top_alerts": paid_top, "samples": paid_samples},
+        "cache_churn": {"total": len(cache_entries), "top_alerts": cache_top, "samples": cache_samples},
     }
 
 

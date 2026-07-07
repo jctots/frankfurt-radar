@@ -133,40 +133,53 @@ def _translate_record(timestamp: str, entries: list[dict], total_alerts: int = 1
 
 
 class TestTranslateAnomalyConcentration:
-    def test_top_churn_alerts_ranked_by_count(self, debug_dirs, config):
+    def test_paid_churn_ranked_by_retranslate_count(self, debug_dirs, config):
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
         recs = [
             _translate_record("2026-07-01T00:00:00Z", [
-                {"alert_id": "noisy-1", "action": "variant_hit", "reason": "text_changed"},
-                {"alert_id": "noisy-1", "action": "variant_hit", "reason": "text_changed"},
-                {"alert_id": "quiet-1", "action": "variant_hit", "reason": "text_changed"},
+                {"alert_id": "noisy-1", "action": "retranslate", "reason": "text_changed"},
+                {"alert_id": "noisy-1", "action": "retranslate", "reason": "text_changed"},
+                {"alert_id": "quiet-1", "action": "retranslate", "reason": "text_changed"},
             ]),
         ]
         _write_jsonl(debug_dirs / "translate_debug" / "2026-07-01.jsonl", recs)
 
         digest = reduce(days=3, now=now, config=config)
-        top = digest["translate"]["top_churn_alerts"]
+        top = digest["translate"]["paid_churn"]["top_alerts"]
         assert top[0] == {"alert_id": "noisy-1", "count": 2, "share": pytest.approx(2 / 3, abs=1e-4)}
-        assert digest["translate"]["total_anomalies"] == 3
+        assert digest["translate"]["paid_churn"]["total"] == 3
 
-    def test_anomaly_samples_capped_and_deduped_by_alert_id(self, debug_dirs, config):
+    def test_variant_hit_never_counted_as_paid_churn(self, debug_dirs, config):
+        # A zero-cost, cache-served alert must never dominate the cost signal
+        # — this is the exact bug that made a real 1121-hit alert (all
+        # variant_hit, zero retranslate) look like a cost driver.
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
-        entries = [{"alert_id": "same-id", "action": "variant_hit", "reason": "text_changed"} for _ in range(50)]
+        entries = [{"alert_id": "free-flapper", "action": "variant_hit", "reason": "text_changed"} for _ in range(50)]
+        _write_jsonl(debug_dirs / "translate_debug" / "2026-07-01.jsonl", [_translate_record("2026-07-01T00:00:00Z", entries)])
+
+        digest = reduce(days=3, now=now, config=config)
+        assert digest["translate"]["paid_churn"]["total"] == 0
+        assert digest["translate"]["paid_churn"]["top_alerts"] == []
+        assert digest["translate"]["cache_churn"]["total"] == 50
+        assert digest["translate"]["cache_churn"]["top_alerts"][0]["alert_id"] == "free-flapper"
+
+    def test_samples_capped_and_deduped_by_alert_id(self, debug_dirs, config):
+        now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
+        entries = [{"alert_id": "same-id", "action": "retranslate", "reason": "text_changed"} for _ in range(50)]
         _write_jsonl(debug_dirs / "translate_debug" / "2026-07-01.jsonl", [_translate_record("2026-07-01T00:00:00Z", entries)])
 
         digest = reduce(days=3, now=now, config=config)
         # 50 raw entries for one alert_id collapse to a single sample, not 50.
-        assert digest["translate"]["anomaly_samples"] == [
-            {"alert_id": "same-id", "action": "variant_hit", "reason": "text_changed"}
+        assert digest["translate"]["paid_churn"]["samples"] == [
+            {"alert_id": "same-id", "action": "retranslate", "reason": "text_changed"}
         ]
-        assert digest["translate"]["total_anomalies"] == 50
+        assert digest["translate"]["paid_churn"]["total"] == 50
 
-    def test_no_anomalies_returns_empty(self, debug_dirs, config):
+    def test_no_anomalies_returns_empty_buckets(self, debug_dirs, config):
         now = datetime(2026, 7, 3, 12, tzinfo=timezone.utc)
         digest = reduce(days=3, now=now, config=config)
-        assert digest["translate"]["top_churn_alerts"] == []
-        assert digest["translate"]["anomaly_samples"] == []
-        assert digest["translate"]["total_anomalies"] == 0
+        assert digest["translate"]["paid_churn"] == {"total": 0, "top_alerts": [], "samples": []}
+        assert digest["translate"]["cache_churn"] == {"total": 0, "top_alerts": [], "samples": []}
 
 
 class TestVersionGrouping:
