@@ -13,6 +13,7 @@ os.environ["DATA_DIR"] = _tmp_dir
 os.environ.setdefault("RMV_API_KEY", "test_api_key")
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "123:test_token")
 os.environ.setdefault("GOOGLE_TRANSLATE_API_KEY", "test_google_key")
+os.environ.setdefault("ADMIN_TOKEN", "test_admin_token")
 
 _default_config = {
     "web": {"allow_manual_poll": True},

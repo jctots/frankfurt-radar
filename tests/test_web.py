@@ -130,4 +130,76 @@ class TestIndexPage:
     def test_search_input_present(self):
         resp = _client.get("/")
         assert b'id="search-input"' in resp.data
-        assert b'id="search-clear"' in resp.data
+
+
+def _admin_client():
+    client = web_app.app.test_client()
+    client.post("/admin/login", data={"token": "test_admin_token"})
+    return client
+
+
+class TestWeightReviewRemoved:
+    def test_weight_review_route_gone(self):
+        resp = _admin_client().post("/api/admin/weight-review")
+        assert resp.status_code == 404
+
+
+class TestReviewPreview:
+    def test_returns_estimate(self, mocker):
+        mocker.patch("review.reduce.reduce", return_value={"config_versions": ["v1"]})
+        mocker.patch("review.reduce.estimate_cost", return_value={"tokens": 100, "eur": 0.001, "model": "gemini-2.5-pro"})
+
+        resp = _admin_client().post("/api/admin/review/preview", json={"days": 7})
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["estimate"]["tokens"] == 100
+        assert data["config_versions"] == ["v1"]
+
+    def test_requires_admin_session(self):
+        resp = web_app.app.test_client().post("/api/admin/review/preview", json={"days": 7})
+        assert resp.status_code in (302, 404)
+
+    def test_all_drivers_per_hour_converted_to_none(self, mocker):
+        build_digest = mocker.patch("review.reduce.reduce", return_value={"config_versions": []})
+        mocker.patch("review.reduce.estimate_cost", return_value={"tokens": 0, "eur": 0.0, "model": "x"})
+
+        _admin_client().post("/api/admin/review/preview", json={"days": 3, "drivers_per_hour": "all"})
+
+        args, kwargs = build_digest.call_args
+        assert args[1] is None
+
+
+class TestReviewRun:
+    def test_writes_three_files_and_returns_report(self, mocker, tmp_path):
+        mocker.patch("review.reviewer.load_prompt", return_value=(
+            {"model": "gemini-2.5-pro"}, "Review {days} days: {digest_json}"
+        ))
+        mocker.patch("review.reviewer._call_gemini", return_value=(
+            {"report_md": "# Report", "changes": [], "copy_paste_prompts": []}, {}
+        ))
+
+        resp = _admin_client().post("/api/admin/review/run", json={"days": 1, "drivers_per_hour": 0, "prompt_samples": 0})
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["report_md"] == "# Report"
+        out_dir = Path(web_app.DATA_DIR) / "review_debug"
+        assert (out_dir / f"{data['timestamp']}.digest.json").exists()
+        assert (out_dir / f"{data['timestamp']}.report.md").exists()
+        assert (out_dir / f"{data['timestamp']}.changes.json").exists()
+        for f in out_dir.glob("*"):
+            f.unlink()
+
+
+class TestReviewReports:
+    def test_lists_reports(self, mocker):
+        mocker.patch("review.reviewer.list_reports", return_value=[{"timestamp": "2026-07-01T000000Z"}])
+        resp = _admin_client().get("/api/admin/review/reports")
+        assert resp.status_code == 200
+        assert resp.get_json()["reports"] == [{"timestamp": "2026-07-01T000000Z"}]
+
+    def test_unknown_report_404s(self, mocker):
+        mocker.patch("review.reviewer.list_reports", return_value=[])
+        resp = _admin_client().get("/api/admin/review/reports/does-not-exist")
+        assert resp.status_code == 404

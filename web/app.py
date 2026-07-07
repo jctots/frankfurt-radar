@@ -326,103 +326,70 @@ def api_admin_data():
     })
 
 
-@app.route("/api/admin/weight-review", methods=["POST"])
-@_admin_required
-def api_admin_weight_review():
-    from db import get_status_overrides, get_category_snapshots
-    import os, requests as http_req, textwrap
-    from pathlib import Path as _Path
-
-    overrides = get_status_overrides(limit=100)
-    if not overrides:
-        return jsonify({"error": "No overrides recorded yet — add some first"}), 400
-
-    config = {}
+def _review_config() -> dict:
     try:
-        config = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+        return yaml.safe_load(CONFIG_FILE.read_text()) or {}
     except Exception:
-        pass
+        return {}
 
-    prompt_path = _Path(os.getenv("DATA_DIR", "/app/data")) / "prompts" / "weight_review.md"
-    if not prompt_path.exists():
-        prompt_path = _Path(__file__).parent.parent / "prompts" / "weight_review.md"
-    try:
-        raw = prompt_path.read_text(encoding="utf-8")
-    except OSError:
-        return jsonify({"error": "weight_review.md prompt not found"}), 500
 
-    lines = raw.splitlines()
-    front_end = next((i for i, l in enumerate(lines[1:], 1) if l.strip() == "---"), None)
-    prompt_template = "\n".join(lines[(front_end + 1 if front_end else 0):])
+def _review_params(data: dict) -> tuple[int, int | None, int]:
+    days = int(data.get("days", 7))
+    raw_drivers = data.get("drivers_per_hour", 3)
+    drivers_per_hour = None if raw_drivers in (None, "all") else int(raw_drivers)
+    prompt_samples = int(data.get("prompt_samples", 1))
+    return days, drivers_per_hour, prompt_samples
 
-    weight_table = textwrap.dedent("""
-        DWD severity: minor=0.5, moderate=1.0, severe=1.5, extreme=2.0
-        RMV: S-Bahn/U-Bahn/Regional=1.5, Tram/Bus=0.5, other=1.0
-        Autobahn: closure keyword=2.0, else=1.0
-        Baustellen: City (Full)=1.5, City (Partial)=0.5, else=1.0
-        Events/Messe/Sports: 2.0 (fixed)
-        Polizei/Strike: 1.0 (default)
-    """).strip()
 
-    pulse_debug_dir = DATA_DIR / "pulse_debug"
-    score_breakdowns = []
-    seen_ts = set()
-    for ov in overrides[:10]:
-        ts_date = ov["pulse_ts"][:10]
-        if ts_date in seen_ts:
-            continue
-        seen_ts.add(ts_date)
-        jsonl = pulse_debug_dir / f"{ts_date}.jsonl"
-        if jsonl.exists():
-            for line in jsonl.read_text(encoding="utf-8").splitlines():
-                try:
-                    entry = json.loads(line)
-                    if entry.get("generated_at", "")[:16] == ov["pulse_ts"][:16]:
-                        bd = (entry.get("layer_1_deterministic") or {}).get("score_breakdown", {})
-                        cat_bd = bd.get(ov["category"], {})
-                        score_breakdowns.append({
-                            "pulse_ts": ov["pulse_ts"],
-                            "category": ov["category"],
-                            "override": f"{ov['computed_status']} → {ov['override_status']}",
-                            "reason": ov["reason"],
-                            "breakdown": cat_bd,
-                        })
-                        break
-                except Exception:
-                    pass
+@app.route("/api/admin/review/preview", methods=["POST"])
+@_admin_required
+def api_admin_review_preview():
+    from review.reduce import reduce as build_digest, estimate_cost
 
-    baselines_text = "Not available (requires recent pulse data)"
+    data = request.get_json(silent=True) or {}
+    days, drivers_per_hour, prompt_samples = _review_params(data)
+    digest = build_digest(days, drivers_per_hour, prompt_samples, config=_review_config())
+    return jsonify({"estimate": estimate_cost(digest), "config_versions": digest["config_versions"]})
 
-    prompt_text = prompt_template.format(
-        weight_table=weight_table,
-        baselines=baselines_text,
-        overrides=json.dumps(overrides, indent=2),
-        score_breakdowns=json.dumps(score_breakdowns, indent=2),
-    )
 
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not set"}), 500
+@app.route("/api/admin/review/run", methods=["POST"])
+@_admin_required
+def api_admin_review_run():
+    from review.reduce import reduce as build_digest
+    from review.reviewer import run as run_reviewer
 
-    prompt_cfg = {"model": "gemini-2.5-flash", "temperature": 0.2, "response_mime_type": "application/json"}
-    model = prompt_cfg["model"]
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    body = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "temperature": 0.2,
-        },
-    }
-    try:
-        resp = http_req.post(url, params={"key": api_key}, json=body, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        raw_text = data["candidates"][0]["content"]["parts"][-1]["text"]
-        result = json.loads(raw_text)
-        return jsonify({"result": result, "overrides_analyzed": len(overrides)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    data = request.get_json(silent=True) or {}
+    days, drivers_per_hour, prompt_samples = _review_params(data)
+    digest = build_digest(days, drivers_per_hour, prompt_samples, config=_review_config())
+    result = run_reviewer(digest, days=days)
+    return jsonify({
+        "timestamp": result["timestamp"],
+        "report_md": result["report_md"],
+        "changes": result["changes"],
+        "copy_paste_prompts": result["copy_paste_prompts"],
+    })
+
+
+@app.route("/api/admin/review/reports")
+@_admin_required
+def api_admin_review_reports():
+    from review.reviewer import list_reports
+
+    return jsonify({"reports": list_reports()})
+
+
+@app.route("/api/admin/review/reports/<timestamp>")
+@_admin_required
+def api_admin_review_report_detail(timestamp):
+    from review.reviewer import list_reports
+
+    match = next((r for r in list_reports() if r["timestamp"] == timestamp), None)
+    if not match:
+        abort(404)
+    report_md = Path(match["report_path"]).read_text(encoding="utf-8")
+    changes = json.loads(Path(match["changes_path"]).read_text(encoding="utf-8"))
+    return jsonify({"timestamp": timestamp, "report_md": report_md, "changes": changes["changes"],
+                     "config_versions": changes["config_versions"]})
 
 
 def _get_pricing(config: dict) -> dict:

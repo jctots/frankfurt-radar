@@ -440,12 +440,31 @@
         <tbody id="override-tbody"></tbody>
       </table>
     </div>
-    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--clr-border);padding-top:12px;">
-      <button class="btn btn-primary btn-sm" onclick="runWeightReview()">Run Weight Review</button>
-      <span style="font-size:12px;color:var(--clr-muted);">Sends overrides to Gemini for weight calibration suggestions.</span>
-      <span id="weight-review-result"></span>
+  </div>
+
+  <!-- City Pulse Review -->
+  <div class="card">
+    <h2>🔎 City Pulse Review</h2>
+    <div style="font-size:12px;color:var(--clr-muted);margin-bottom:10px;">
+      Audits the last N days of pulse operation — cost, translation, severity weights, status/trend usefulness, prompt quality, and cross-version comparison. Overrides above sharpen the weight analysis but are not required.
     </div>
-    <div id="weight-review-body" style="margin-top:12px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <label style="font-size:12px;">Days <input type="number" id="review-days" value="7" min="1" max="30" style="width:60px;"></label>
+      <label style="font-size:12px;">Drivers/hour <input type="text" id="review-drivers" value="3" style="width:60px;" title="Top-N alerts per category per hour. 0 = counts only, 'all' = every alert."></label>
+      <label style="font-size:12px;">Prompt samples <input type="number" id="review-samples" value="1" min="0" max="2" style="width:60px;"></label>
+      <button class="btn btn-sm" onclick="setReviewPreset('high')">High detail</button>
+      <button class="btn btn-sm" onclick="setReviewPreset('low')">Low detail</button>
+    </div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-sm" onclick="previewReview()">Preview cost</button>
+      <button class="btn btn-primary btn-sm" id="review-run-btn" onclick="runReview()" disabled>Run review</button>
+      <span id="review-result"></span>
+    </div>
+    <div id="review-body" style="margin-top:12px;"></div>
+    <div style="margin-top:16px;border-top:1px solid var(--clr-border);padding-top:12px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);margin-bottom:8px;">Past Reports</div>
+      <div id="review-reports-list" style="font-size:13px;"></div>
+    </div>
   </div>
 
   <!-- Ban List -->
@@ -1502,16 +1521,38 @@ async function deleteOverride(id) {
   } catch {}
 }
 
-// ── Weight review ────────────────────────────────────────────────────────────
+// ── City Pulse review ────────────────────────────────────────────────────────
 
-async function runWeightReview() {
-  const resultEl = $('#weight-review-result');
-  const bodyEl = $('#weight-review-body');
+function setReviewPreset(kind) {
+  if (kind === 'high') {
+    $('#review-drivers').value = 'all';
+    $('#review-samples').value = '2';
+  } else {
+    $('#review-drivers').value = '0';
+    $('#review-samples').value = '0';
+  }
+  $('#review-run-btn').disabled = true;
+}
+
+function _reviewParams() {
+  return {
+    days: parseInt($('#review-days').value, 10) || 7,
+    drivers_per_hour: $('#review-drivers').value.trim(),
+    prompt_samples: parseInt($('#review-samples').value, 10) || 0,
+  };
+}
+
+async function previewReview() {
+  const resultEl = $('#review-result');
   resultEl.className = 'action-result';
-  resultEl.textContent = 'Analyzing...';
-  bodyEl.innerHTML = '';
+  resultEl.textContent = 'Building digest...';
+  $('#review-run-btn').disabled = true;
   try {
-    const res = await fetch('/api/admin/weight-review', { method: 'POST' });
+    const res = await fetch('/api/admin/review/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_reviewParams()),
+    });
     const data = await res.json();
     if (!res.ok) {
       resultEl.className = 'action-result err';
@@ -1519,36 +1560,83 @@ async function runWeightReview() {
       return;
     }
     resultEl.className = 'action-result ok';
-    resultEl.textContent = `✓ Analyzed ${data.overrides_analyzed} overrides`;
-
-    const r = data.result || {};
-    let html = '';
-    if (r.analysis) {
-      html += `<div style="font-size:13px;margin-bottom:12px;">${r.analysis}</div>`;
-    }
-    if ((r.suggestions || []).length) {
-      html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);margin-bottom:8px;">Suggested Adjustments</div>`;
-      html += `<table class="log-table"><thead><tr><th>Target</th><th>Current</th><th>Suggested</th><th>Rationale</th></tr></thead><tbody>`;
-      for (const s of r.suggestions) {
-        html += `<tr>
-          <td>${s.target}</td>
-          <td>${s.current_weight}</td>
-          <td style="font-weight:700;">${s.suggested_weight}</td>
-          <td class="note">${s.rationale}</td>
-        </tr>`;
-      }
-      html += `</tbody></table>`;
-    } else {
-      html += `<div style="font-size:12px;color:var(--clr-muted);">No weight changes suggested.</div>`;
-    }
-    if ((r.no_change || []).length) {
-      html += `<div style="font-size:12px;color:var(--clr-muted);margin-top:8px;">Well-calibrated: ${r.no_change.join(', ')}</div>`;
-    }
-    bodyEl.innerHTML = html;
+    resultEl.textContent = `Est. ${num(data.estimate.tokens)} tokens ≈ ${eur(data.estimate.eur, 4)} (${data.estimate.model})`;
+    $('#review-run-btn').disabled = false;
   } catch (e) {
     resultEl.className = 'action-result err';
     resultEl.textContent = '✗ ' + e.message;
   }
+}
+
+async function runReview() {
+  const resultEl = $('#review-result');
+  const bodyEl = $('#review-body');
+  resultEl.className = 'action-result';
+  resultEl.textContent = 'Running review...';
+  bodyEl.innerHTML = '';
+  $('#review-run-btn').disabled = true;
+  try {
+    const res = await fetch('/api/admin/review/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_reviewParams()),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.className = 'action-result err';
+      resultEl.textContent = '✗ ' + (data.error || 'Failed');
+      return;
+    }
+    resultEl.className = 'action-result ok';
+    resultEl.textContent = `✓ Report ${data.timestamp}`;
+    renderReviewReport(data);
+    loadReviewReports();
+  } catch (e) {
+    resultEl.className = 'action-result err';
+    resultEl.textContent = '✗ ' + e.message;
+  }
+}
+
+function renderReviewReport(data) {
+  const bodyEl = $('#review-body');
+  let html = `<pre style="white-space:pre-wrap;font-size:13px;">${(data.report_md || '(empty report)')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`;
+  if ((data.changes || []).length) {
+    html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--clr-muted);margin:12px 0 8px;">Proposed Changes (${data.changes.length})</div>`;
+    html += `<table class="log-table"><thead><tr><th>File</th><th>Description</th><th>Rationale</th></tr></thead><tbody>`;
+    for (const c of data.changes) {
+      html += `<tr><td>${c.target_file || ''}</td><td>${c.description || ''}</td><td class="note">${c.rationale || ''}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+  bodyEl.innerHTML = html;
+}
+
+async function loadReviewReports() {
+  const listEl = $('#review-reports-list');
+  try {
+    const res = await fetch('/api/admin/review/reports');
+    const data = await res.json();
+    const reports = data.reports || [];
+    if (!reports.length) {
+      listEl.innerHTML = '<span style="color:var(--clr-muted);">No reports yet.</span>';
+      return;
+    }
+    listEl.innerHTML = reports.map(r =>
+      `<div style="cursor:pointer;padding:4px 0;" onclick="loadReviewReport('${r.timestamp}')">📄 ${r.timestamp}</div>`
+    ).join('');
+  } catch {
+    listEl.innerHTML = '<span style="color:var(--clr-muted);">Failed to load reports.</span>';
+  }
+}
+
+async function loadReviewReport(timestamp) {
+  const res = await fetch(`/api/admin/review/reports/${timestamp}`);
+  if (!res.ok) return;
+  const data = await res.json();
+  $('#review-result').className = 'action-result ok';
+  $('#review-result').textContent = `Report ${data.timestamp}`;
+  renderReviewReport(data);
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -1558,6 +1646,7 @@ loadServerStatus();
 loadHealthChart();
 loadBans();
 loadOverrides();
+loadReviewReports();
 </script>
 
 </body>
