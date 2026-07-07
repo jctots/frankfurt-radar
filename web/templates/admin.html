@@ -839,6 +839,9 @@ function renderGeminiLog(entries) {
       } else if (svc === 'extraction') {
         const etype = e.extraction_type || '';
         notes = EXTRACTION_LABELS[etype] || etype || 'extraction';
+      } else if (svc === 'review') {
+        const n = e.changes_count || 0;
+        notes = `review — ${n} change${n === 1 ? '' : 's'} proposed`;
       }
 
       rows.push({ time, service: svc, skipped: false, tokensIn, tokensOut, notes, cost });

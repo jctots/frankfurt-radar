@@ -320,8 +320,12 @@ def api_admin_data():
     prev_month = prev_month_end.strftime("%Y-%m")
     prev_total_eur, _ = get_monthly_cost(prev_month, config)
 
+    from review.reviewer import list_reports_for_date
+
     translate_debug = _read_jsonl(DATA_DIR / "translate_debug" / f"{date}.jsonl")
     pulse_debug = _read_jsonl(DATA_DIR / "pulse_debug" / f"{date}.jsonl")
+    pulse_debug += list_reports_for_date(date)
+    pulse_debug.sort(key=lambda e: e.get("generated_at") or "")
     cost_debug = _read_jsonl(DATA_DIR / "cost_debug" / f"{date}.jsonl")
 
     return jsonify({

@@ -242,3 +242,26 @@ class TestReviewChangesEndpoint:
         mocker.patch("review.reviewer.list_reports", return_value=[])
         resp = _admin_client().get("/api/admin/review/changes/does-not-exist")
         assert resp.status_code == 404
+
+
+class TestAdminDataIncludesReviewRuns:
+    def test_review_run_merged_into_pulse_debug(self, mocker):
+        mocker.patch("review.reviewer.list_reports_for_date", return_value=[
+            {"generated_at": "2026-07-07T12:05:03Z", "service": "gemini_review",
+             "usage": {"tokens_in": 100}, "changes_count": 2}
+        ])
+        resp = _admin_client().get("/api/admin/data?date=2026-07-07")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        review_entries = [e for e in data["pulse_debug"] if e.get("service") == "gemini_review"]
+        assert len(review_entries) == 1
+        assert review_entries[0]["changes_count"] == 2
+
+    def test_pulse_debug_sorted_chronologically_with_review_entries(self, mocker):
+        mocker.patch("review.reviewer.list_reports_for_date", return_value=[
+            {"generated_at": "2026-07-07T23:00:00Z", "service": "gemini_review", "usage": {}, "changes_count": 0}
+        ])
+        resp = _admin_client().get("/api/admin/data?date=2026-07-07")
+        data = resp.get_json()
+        timestamps = [e.get("generated_at") for e in data["pulse_debug"]]
+        assert timestamps == sorted(timestamps)

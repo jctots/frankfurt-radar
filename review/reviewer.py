@@ -51,7 +51,7 @@ def run(digest: dict, *, days: int | None = None) -> dict:
     timestamp = now.strftime("%Y-%m-%dT%H%M%SZ")
 
     digest_path, report_path, changes_path = _write_outputs(
-        timestamp, digest, report_md, changes, copy_paste_prompts
+        timestamp, digest, report_md, changes, copy_paste_prompts, usage
     )
 
     log.info("Review run %s: %d proposed change(s), %d copy-paste prompt(s)",
@@ -75,6 +75,7 @@ def _write_outputs(
     report_md: str,
     changes: list[dict],
     copy_paste_prompts: list[str],
+    usage: dict,
 ) -> tuple[Path, Path, Path]:
     out_dir = _digest_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -93,8 +94,12 @@ def _write_outputs(
     report_path.write_text(report_text, encoding="utf-8")
 
     changes_path.write_text(
-        json.dumps({"timestamp": timestamp, "config_versions": digest.get("config_versions", []), "changes": changes},
-                   ensure_ascii=False, indent=2),
+        json.dumps({
+            "timestamp": timestamp,
+            "config_versions": digest.get("config_versions", []),
+            "changes": changes,
+            "usage": usage,
+        }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -117,3 +122,29 @@ def list_reports() -> list[dict]:
         })
     reports.sort(key=lambda r: r["timestamp"], reverse=True)
     return reports
+
+
+def _timestamp_to_iso(timestamp: str) -> str:
+    """'2026-07-07T120503Z' -> '2026-07-07T12:05:03Z'."""
+    return datetime.strptime(timestamp, "%Y-%m-%dT%H%M%SZ").strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def list_reports_for_date(date: str) -> list[dict]:
+    """Review runs on `date` (YYYY-MM-DD), shaped like a pulse_debug entry so
+    the admin Gemini Log panel can show them alongside pulse/daily/extraction
+    calls (see web/app.py's api_admin_data)."""
+    entries = []
+    for report in list_reports():
+        if not report["timestamp"].startswith(date):
+            continue
+        try:
+            changes_data = json.loads(Path(report["changes_path"]).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        entries.append({
+            "generated_at": _timestamp_to_iso(report["timestamp"]),
+            "service": "gemini_review",
+            "usage": changes_data.get("usage", {}),
+            "changes_count": len(changes_data.get("changes", [])),
+        })
+    return entries

@@ -164,3 +164,38 @@ class TestListReports:
         timestamps = [r["timestamp"] for r in reports]
         assert r1["timestamp"] in timestamps
         assert r2["timestamp"] in timestamps
+
+
+class TestListReportsForDate:
+    def test_empty_when_no_reports(self):
+        assert reviewer.list_reports_for_date("2026-07-07") == []
+
+    def test_persists_usage_and_finds_by_date(self, mocker):
+        mocker.patch("review.reviewer.load_prompt", return_value=(
+            {"model": "gemini-2.5-pro"}, "Review {days} days: {digest_json}"
+        ))
+        mocker.patch("review.reviewer._call_gemini", return_value=(
+            {"report_md": "# Report", "changes": [{"target_file": "x.py"}], "copy_paste_prompts": []},
+            {"tokens_in": 500, "tokens_out": 50, "tokens_thinking": 10},
+        ))
+        result = reviewer.run(_DIGEST)
+
+        date = result["timestamp"][:10]
+        entries = reviewer.list_reports_for_date(date)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry["service"] == "gemini_review"
+        assert entry["usage"] == {"tokens_in": 500, "tokens_out": 50, "tokens_thinking": 10}
+        assert entry["changes_count"] == 1
+        assert entry["generated_at"] == f"{date}T{result['timestamp'][11:13]}:{result['timestamp'][13:15]}:{result['timestamp'][15:17]}Z"
+
+    def test_no_match_for_other_dates(self, mocker):
+        mocker.patch("review.reviewer.load_prompt", return_value=(
+            {"model": "gemini-2.5-pro"}, "Review {days} days: {digest_json}"
+        ))
+        mocker.patch("review.reviewer._call_gemini", return_value=(
+            {"report_md": "# Report", "changes": [], "copy_paste_prompts": []}, {}
+        ))
+        reviewer.run(_DIGEST)
+        assert reviewer.list_reports_for_date("1999-01-01") == []
