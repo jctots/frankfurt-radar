@@ -1779,7 +1779,8 @@ function buildPopupHtml(a) {
   const src = SOURCE[a.source] || { label: a.source, emoji: '', color: '#333', hex: '#333' };
   const svc = _renderSvc(a);
   const meta = [];
-  const useDateOnly = ['events', 'messe', 'sports'].includes(a.source);
+  const useDateOnly = ['events', 'messe'].includes(a.source)
+    || (a.source === 'sports' && _isAllDayBerlin(a.valid_from));
   if (a.published_at) meta.push('Posted at ' + (useDateOnly ? fmtDate(a.published_at) : fmtDateTime(a.published_at)));
   if (a.valid_from)  meta.push('From '  + (useDateOnly ? fmtDate(a.valid_from)  : fmtDateTime(a.valid_from)));
   if (a.valid_until) meta.push('Until ' + (useDateOnly ? fmtDate(a.valid_until) : fmtDateTime(a.valid_until)));
@@ -2342,12 +2343,14 @@ function _renderCard(a, opts = {}) {
   const svc = _renderSvc(a);
   let dateLine = '';
   if (opts.pinned) {
+    const useDateOnly = a.source !== 'sports' || _isAllDayBerlin(a.valid_from);
+    const fmtFn = useDateOnly ? fmtDate : fmtDateTime;
     if (a.valid_from && a.valid_until) {
-      const from = fmtDate(a.valid_from);
-      const until = fmtDate(a.valid_until);
+      const from = fmtFn(a.valid_from);
+      const until = fmtFn(a.valid_until);
       dateLine = esc(from === until ? from : `${from} – ${until}`);
     } else if (a.valid_until) {
-      dateLine = esc('Until ' + fmtDate(a.valid_until));
+      dateLine = esc('Until ' + fmtFn(a.valid_until));
     }
   } else if (opts.showAge) {
     dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
@@ -3439,6 +3442,12 @@ function _berlin(d) {
     ss: String(d.toLocaleTimeString('en-GB', { second: '2-digit', timeZone: _TZ, hour12: false }).split(':')[2] || '00').padStart(2, '0'),
     date: +p('day', 'numeric'),
   };
+}
+
+function _isAllDayBerlin(iso) {
+  if (!iso) return true;
+  const b = _berlin(new Date(iso));
+  return b.hh === '00' && b.mm === '00';
 }
 
 function fmt(iso, withSeconds = false) {

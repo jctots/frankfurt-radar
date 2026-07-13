@@ -111,6 +111,23 @@ def events_alert():
 
 
 @pytest.fixture
+def sports_alert():
+    from models import Alert
+    return Alert(
+        id="ol-12345",
+        source="sports",
+        title="Eintracht Frankfurt vs 1. FC Union Berlin",
+        body="Bundesliga home game at Deutsche Bank Park.",
+        url="https://www.eintracht.de/tickets/",
+        valid_from="2026-08-29T13:30:00+00:00",
+        valid_until="2026-08-29T15:30:00+00:00",
+        service="football",
+        lat=50.0690,
+        lon=8.6453,
+    )
+
+
+@pytest.fixture
 def polizei_alert():
     from models import Alert
     return Alert(

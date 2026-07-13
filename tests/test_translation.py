@@ -75,6 +75,13 @@ class TestTranslateAlert:
         assert en_title == events_alert.title
         assert en_body == events_alert.body
 
+    def test_sports_alert_skips_translation(self, mocker, sports_alert, config):
+        mock_translate = mocker.patch("translation.translate")
+        en_title, en_body = translation.translate_alert(sports_alert, config)
+        mock_translate.assert_not_called()
+        assert en_title == sports_alert.title
+        assert en_body == sports_alert.body
+
     def test_umlaut_transliteration_applied(self, mocker, rmv_alert, config):
         mocker.patch("translation.translate", return_value="Züge verspätet")
         en_title, _ = translation.translate_alert(rmv_alert, config)

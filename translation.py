@@ -97,7 +97,7 @@ def _transliterate(text: str) -> str:
 
 
 def translate_alert(alert: "Alert", config: dict) -> tuple[str, str]:
-    if alert.source == "events":
+    if alert.source in ("events", "sports"):
         return alert.title, alert.body
     if alert.source == "strike":
         en_title = _transliterate(translate(alert.title, config))
