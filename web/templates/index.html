@@ -3628,20 +3628,37 @@ let _weatherForecast = [];
 let _weatherHigh = null;
 let _weatherLow = null;
 
+function _renderWeatherBadge(w) {
+  _weatherCurrent = w;
+  const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
+  const desc  = WEATHER_DESC[w.icon]  || '';
+  const temp  = Math.round(w.temperature);
+  const el = document.getElementById('weather-status');
+  if (el) el.innerHTML =
+    `<span class="ws-icon">${emoji}</span>` +
+    `<div class="ws-text"><span class="ws-temp">${temp}°C</span><span class="ws-desc">${desc}</span></div>`;
+}
+
 async function fetchCurrentWeather() {
   try {
     const r = await fetch('https://api.brightsky.dev/current_weather?lat=50.1109&lon=8.6821');
     const data = await r.json();
-    const w = data.weather;
-    _weatherCurrent = w;
-    const emoji = WEATHER_EMOJI[w.icon] || '🌡️';
-    const desc  = WEATHER_DESC[w.icon]  || '';
-    const temp  = Math.round(w.temperature);
-    const el = document.getElementById('weather-status');
-    if (el) el.innerHTML =
-      `<span class="ws-icon">${emoji}</span>` +
-      `<div class="ws-text"><span class="ws-temp">${temp}°C</span><span class="ws-desc">${desc}</span></div>`;
-  } catch (e) { /* non-critical */ }
+    if (!data.weather) throw new Error('no current weather');
+    _renderWeatherBadge(data.weather);
+  } catch (e) {
+    // Nearby stations sometimes have no fresh observation (BrightSky reporting
+    // gap) — fall back to the current-hour forecast so the badge isn't blank.
+    try {
+      const now = new Date();
+      const end = new Date(now.getTime() + 3600000);
+      const d = now.toISOString().slice(0, 13) + ':00';
+      const e = end.toISOString().slice(0, 13) + ':00';
+      const r2 = await fetch(`https://api.brightsky.dev/weather?lat=50.1109&lon=8.6821&date=${d}&last_date=${e}`);
+      const data2 = await r2.json();
+      const w = (data2.weather || [])[0];
+      if (w && w.temperature != null) _renderWeatherBadge(w);
+    } catch (e2) { /* non-critical */ }
+  }
 }
 
 async function fetchWeatherForecast() {
