@@ -73,10 +73,10 @@
 - name: "CSD Frankfurt / Frankfurt Pride"
   start: "2026-07-16"
   end: "2026-07-19"
-  location: "Römerberg → Konstablerwache"
+  location: "Römerberg → Schaumainkai"
   lat: 50.1103
   lon: 8.6821
-  details: "Main Pride parade on 18 July at 12:30 from Römerberg to Konstablerwache. Trams 11, 12, and 14 are disrupted along the route — U4 (Dom/Römer, Konstablerwache) and S-Bahn (Konstablerwache) are the most reliable alternatives."
+  details: "Main Pride parade departs Römerberg at 12:00 on 18 July (after an 11:00 rally), via Braubachstraße, Roßmarkt, Goetheplatz, Neue Mainzer Straße, Eschenheimer Turm, and Konrad-Adenauer-Straße to Alte Brücke/Schaumainkai, ending around 16:30. City-centre streets along the route close from late morning — U4 (Dom/Römer) and S-Bahn are the most reliable alternatives to diverted trams and buses."
   url: "https://ikknow.de/events/christopher-street-day-2026-frankfurt/"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/CSD_Frankfurt_2022_359.jpg/960px-CSD_Frankfurt_2022_359.jpg"
 
