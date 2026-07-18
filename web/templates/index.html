@@ -2348,7 +2348,7 @@ function _renderCard(a, opts = {}) {
       const bUntil = _berlin(new Date(a.valid_until));
       const sameDay = bFrom.day === bUntil.day && bFrom.dd === bUntil.dd && bFrom.mon === bUntil.mon && bFrom.yr === bUntil.yr;
       dateLine = esc(sameDay
-        ? `${bFrom.day}, ${bFrom.dd} ${bFrom.mon} ${bFrom.yr} ${bFrom.hh}:${bFrom.mm} – ${bUntil.hh}:${bUntil.mm}`
+        ? `${bFrom.dd} ${bFrom.mon} ${bFrom.yr} ${bFrom.hh}:${bFrom.mm} – ${bUntil.hh}:${bUntil.mm}`
         : `${fmtDate(a.valid_from)} – ${fmtDate(a.valid_until)}`);
     } else if (a.valid_until) {
       dateLine = esc('Until ' + fmtDate(a.valid_until));
