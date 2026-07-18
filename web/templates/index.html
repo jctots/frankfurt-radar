@@ -2343,14 +2343,15 @@ function _renderCard(a, opts = {}) {
   const svc = _renderSvc(a);
   let dateLine = '';
   if (opts.pinned) {
-    const useDateOnly = a.source !== 'sports' || _isAllDayBerlin(a.valid_from);
-    const fmtFn = useDateOnly ? fmtDate : fmtDateTime;
     if (a.valid_from && a.valid_until) {
-      const from = fmtFn(a.valid_from);
-      const until = fmtFn(a.valid_until);
-      dateLine = esc(from === until ? from : `${from} – ${until}`);
+      const bFrom = _berlin(new Date(a.valid_from));
+      const bUntil = _berlin(new Date(a.valid_until));
+      const sameDay = bFrom.day === bUntil.day && bFrom.dd === bUntil.dd && bFrom.mon === bUntil.mon && bFrom.yr === bUntil.yr;
+      dateLine = esc(sameDay
+        ? `${bFrom.day}, ${bFrom.dd} ${bFrom.mon} ${bFrom.yr} ${bFrom.hh}:${bFrom.mm} – ${bUntil.hh}:${bUntil.mm}`
+        : `${fmtDate(a.valid_from)} – ${fmtDate(a.valid_until)}`);
     } else if (a.valid_until) {
-      dateLine = esc('Until ' + fmtFn(a.valid_until));
+      dateLine = esc('Until ' + fmtDate(a.valid_until));
     }
   } else if (opts.showAge) {
     dateLine = 'Posted at ' + esc(fmtDate(a.published_at || a.valid_until));
