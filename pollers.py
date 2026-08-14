@@ -42,7 +42,33 @@ _BAUSTELLEN_PARAMS = {
 _TM_DEUTSCHE_BANK_PARK_ID   = "ZFr9jZ766k"
 _DBP_LAT                    = 50.0690   # Deutsche Bank Park
 _DBP_LON                    = 8.6453
-_OPENLIGA_URL               = "https://api.openligadb.de/getmatchdata/bl1"
+_OPENLIGA_URL               = "https://api.openligadb.de/getmatchdata"
+# Competitions polled for Eintracht home games, as {shortcut: (label, show_round)}.
+# The round is worth naming for a cup tie ("DFB-Pokal (2. Runde)") but is noise
+# for a league fixture, where OpenLigaDB reports it as "1. Spieltag".
+# "ucl" exists in the API but carries no fixtures yet — add it once it is
+# populated and Eintracht has actually qualified.
+_OPENLIGA_LEAGUES           = {"bl1": ("Bundesliga", False), "dfb": ("DFB-Pokal", True)}
+# Exact team name — a substring match on "Frankfurt" also catches FSV Frankfurt
+# and other Frankfurt clubs, which can enter the DFB-Pokal and do not play at
+# Deutsche Bank Park.
+_EINTRACHT                  = "Eintracht Frankfurt"
+# The DFB-Pokal final is always at Berlin's Olympiastadion regardless of which
+# side the API lists first, so it must never produce a Deutsche Bank Park alert.
+_OPENLIGA_NEUTRAL_ROUNDS    = ("endspiel",)
+# Venue-level content shared by both Deutsche Bank Park pollers (OpenLigaDB,
+# Ticketmaster) — neither API supplies transit guidance or a reusable image.
+_DBP_TRANSIT = (
+    "S-Bahn S7/S8/S9 to Frankfurt Stadion and tram 21 are heavily crowded from "
+    "2 hours before the event until well after it ends. Stadion car parks fill "
+    "early and the B44/Mörfelder Landstraße approach backs up — public transport "
+    "is the reliable option."
+)
+_DBP_IMAGE = (
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/"
+    "Waldstadion_match_Eintracht_Frankfurt_-_Wolfsburg_2023-24.jpg/"
+    "960px-Waldstadion_match_Eintracht_Frankfurt_-_Wolfsburg_2023-24.jpg"
+)
 
 _AUTOBAHN_BEGINN_RE   = re.compile(r"^Beginn:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
 _AUTOBAHN_ENDE_RE     = re.compile(r"^Ende:\s+(\d{2}\.\d{2}\.\d{2})\s+um\s+(\d{2}:\d{2})\s+Uhr")
@@ -705,7 +731,7 @@ class TicketmasterPoller(BasePoller):
             id=f"tm-{ev.get('id', '')}",
             source="sports",
             title=ev.get("name", ""),
-            body="",
+            body=_DBP_TRANSIT,
             url=ev.get("url"),
             published_at=datetime.now(timezone.utc).isoformat(),
             valid_from=valid_from,
@@ -714,13 +740,18 @@ class TicketmasterPoller(BasePoller):
             lat=lat,
             lon=lon,
             location_label=location_label,
+            image=_DBP_IMAGE,
         )
 
 
 
 
 class OpenLigaPoller(BasePoller):
-    """Eintracht Frankfurt Bundesliga home games via OpenLigaDB (free, no key)."""
+    """Eintracht Frankfurt home games via OpenLigaDB (free, no key).
+
+    Polls every competition in _OPENLIGA_LEAGUES. A failure in one competition
+    marks the poller degraded but does not discard the others' results.
+    """
 
     def __init__(self, advance_days: int = 3):
         super().__init__()
@@ -732,22 +763,33 @@ class OpenLigaPoller(BasePoller):
 
     def fetch(self) -> list[Alert]:
         season = self._season_year()
-        try:
-            resp = requests.get(f"{_OPENLIGA_URL}/{season}", timeout=15)
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            log.error("OpenLigaPoller: request failed: %s", e)
-            self.ok = False
-            return []
-
-        matches = resp.json()
         now = datetime.now(timezone.utc)
         cutoff = now + timedelta(days=self.advance_days)
 
         alerts = []
+        for shortcut, (label, show_round) in _OPENLIGA_LEAGUES.items():
+            try:
+                resp = requests.get(f"{_OPENLIGA_URL}/{shortcut}/{season}", timeout=15)
+                resp.raise_for_status()
+                matches = resp.json()
+            except (requests.RequestException, ValueError) as e:
+                log.error("OpenLigaPoller: %s request failed: %s", shortcut, e)
+                self.ok = False
+                continue
+            alerts.extend(self._to_alerts(matches, label, show_round, now, cutoff))
+
+        log.info("OpenLigaPoller: %d Eintracht home games in window (season %d)", len(alerts), season)
+        return alerts
+
+    def _to_alerts(self, matches: list[dict], label: str, show_round: bool,
+                   now: datetime, cutoff: datetime) -> list[Alert]:
+        alerts = []
         for m in matches:
-            if "Frankfurt" not in m.get("team1", {}).get("teamName", ""):
-                continue  # away game or not Frankfurt
+            if m.get("team1", {}).get("teamName", "") != _EINTRACHT:
+                continue  # away game, or a different Frankfurt club
+            round_name = (m.get("group") or {}).get("groupName", "") or ""
+            if round_name.lower() in _OPENLIGA_NEUTRAL_ROUNDS:
+                continue  # played at a neutral venue, not Deutsche Bank Park
             dt_str = m.get("matchDateTime")
             if not dt_str:
                 continue
@@ -759,12 +801,12 @@ class OpenLigaPoller(BasePoller):
                 continue
             end = start + timedelta(hours=2)
             opponent = m.get("team2", {}).get("teamName", "Unknown")
-            match_id = m.get("matchID", "")
+            competition = f"{label} ({round_name})" if show_round and round_name else label
             alerts.append(Alert(
-                id=f"ol-{match_id}",
+                id=f"ol-{m.get('matchID', '')}",
                 source="sports",
                 title=f"Eintracht Frankfurt vs {opponent}",
-                body="Bundesliga home game at Deutsche Bank Park.",
+                body=f"{competition} home game at Deutsche Bank Park. {_DBP_TRANSIT}",
                 url="https://www.eintracht.de/tickets/",
                 published_at=now.isoformat(),
                 valid_from=start.isoformat(),
@@ -773,9 +815,8 @@ class OpenLigaPoller(BasePoller):
                 lat=_DBP_LAT,
                 lon=_DBP_LON,
                 location_label="Deutsche Bank Park",
+                image=_DBP_IMAGE,
             ))
-
-        log.info("OpenLigaPoller: %d Eintracht home games in window (season %d)", len(alerts), season)
         return alerts
 
 

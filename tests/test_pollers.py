@@ -1104,3 +1104,155 @@ class TestFeuerwehrPoller:
         alerts = FeuerwehrPoller().fetch()
 
         assert len(alerts) == 0
+
+
+# ── Deutsche Bank Park venue enrichment ──────────────────────────────────────
+# Neither OpenLigaDB nor Ticketmaster supplies transit guidance or a reusable
+# image, so both pollers fill those in from the shared venue constants.
+
+
+class TestDeutscheBankParkEnrichment:
+    def test_openliga_alert_carries_transit_body_and_image(self, mocker):
+        from datetime import timedelta
+
+        from pollers import _DBP_IMAGE, _DBP_TRANSIT, OpenLigaPoller
+
+        kickoff = datetime.now(timezone.utc) + timedelta(days=1)
+        match = {
+            "matchID": 4242,
+            "matchDateTime": kickoff.replace(tzinfo=None).isoformat(),
+            "team1": {"teamName": "Eintracht Frankfurt"},
+            "team2": {"teamName": "FC Augsburg"},
+            "group": {"groupName": "1. Spieltag"},
+        }
+        mocker.patch(
+            "pollers.requests.get",
+            side_effect=lambda url, **kw: _mock_response([match] if "/bl1/" in url else []),
+        )
+
+        alerts = OpenLigaPoller(advance_days=7).fetch()
+
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert.body.startswith("Bundesliga home game at Deutsche Bank Park.")
+        assert _DBP_TRANSIT in alert.body
+        assert alert.image == _DBP_IMAGE
+
+    def test_ticketmaster_alert_carries_transit_body_and_image(self, mocker):
+        from pollers import _DBP_IMAGE, _DBP_TRANSIT, TicketmasterPoller
+
+        mocker.patch("pollers.requests.get", return_value=_mock_response({
+            "_embedded": {"events": [{
+                "id": "Z698xZb_Z17q5aa",
+                "name": "OKTAGON 94",
+                "url": "https://www.ticketmaster.de/event/oktagon-94",
+                "dates": {"start": {"dateTime": "2099-09-26T15:00:00Z"}},
+                "_embedded": {"venues": [{
+                    "name": "Deutsche Bank Park",
+                    "location": {"latitude": "50.0690", "longitude": "8.6453"},
+                }]},
+                "classifications": [{
+                    "genre": {"name": "Sports"},
+                    "subGenre": {"name": "Mixed Martial Arts"},
+                }],
+            }]}
+        }))
+
+        alerts = TicketmasterPoller(api_key="fake").fetch()
+
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert.body == _DBP_TRANSIT
+        assert alert.image == _DBP_IMAGE
+
+
+# ── OpenLigaPoller — multi-competition coverage ──────────────────────────────
+
+
+def _ol_match(match_id, team1, team2, when, group="1. Spieltag"):
+    return {
+        "matchID": match_id,
+        "matchDateTime": when.replace(tzinfo=None).isoformat(),
+        "team1": {"teamName": team1},
+        "team2": {"teamName": team2},
+        "group": {"groupName": group},
+    }
+
+
+class TestOpenLigaCompetitions:
+    @staticmethod
+    def _soon():
+        from datetime import timedelta
+        return datetime.now(timezone.utc) + timedelta(days=1)
+
+    def _fetch(self, mocker, by_league):
+        from pollers import OpenLigaPoller
+
+        def _get(url, **kwargs):
+            for shortcut, matches in by_league.items():
+                if f"/{shortcut}/" in url:
+                    return _mock_response(matches)
+            return _mock_response([])
+
+        mocker.patch("pollers.requests.get", side_effect=_get)
+        return OpenLigaPoller(advance_days=7).fetch()
+
+    def test_dfb_pokal_home_tie_is_captured(self, mocker):
+        alerts = self._fetch(mocker, {
+            "bl1": [],
+            "dfb": [_ol_match(1, "Eintracht Frankfurt", "SC St. Tönis",
+                              self._soon(), group="2. Runde")],
+        })
+        assert len(alerts) == 1
+        assert alerts[0].title == "Eintracht Frankfurt vs SC St. Tönis"
+        assert alerts[0].body.startswith("DFB-Pokal (2. Runde) home game")
+
+    def test_bundesliga_body_omits_matchday(self, mocker):
+        alerts = self._fetch(mocker, {
+            "bl1": [_ol_match(2, "Eintracht Frankfurt", "FC Augsburg", self._soon())],
+            "dfb": [],
+        })
+        assert len(alerts) == 1
+        assert alerts[0].body.startswith("Bundesliga home game")
+        assert "Spieltag" not in alerts[0].body
+
+    def test_other_frankfurt_club_is_not_matched(self, mocker):
+        alerts = self._fetch(mocker, {
+            "bl1": [],
+            "dfb": [_ol_match(3, "FSV Frankfurt", "Eintracht Frankfurt",
+                              self._soon(), group="1. Runde")],
+        })
+        assert alerts == []
+
+    def test_away_game_is_not_matched(self, mocker):
+        alerts = self._fetch(mocker, {
+            "bl1": [_ol_match(4, "1. FC Union Berlin", "Eintracht Frankfurt", self._soon())],
+            "dfb": [],
+        })
+        assert alerts == []
+
+    def test_pokal_final_is_skipped_as_neutral_venue(self, mocker):
+        alerts = self._fetch(mocker, {
+            "bl1": [],
+            "dfb": [_ol_match(5, "Eintracht Frankfurt", "FC Bayern München",
+                              self._soon(), group="Endspiel")],
+        })
+        assert alerts == []
+
+    def test_one_competition_failing_keeps_the_other(self, mocker):
+        import requests as _requests
+        from pollers import OpenLigaPoller
+
+        def _get(url, **kwargs):
+            if "/dfb/" in url:
+                raise _requests.RequestException("boom")
+            return _mock_response(
+                [_ol_match(6, "Eintracht Frankfurt", "SC Freiburg", self._soon())]
+            )
+
+        mocker.patch("pollers.requests.get", side_effect=_get)
+        poller = OpenLigaPoller(advance_days=7)
+        alerts = poller.fetch()
+
+        assert len(alerts) == 1
+        assert poller.ok is False
