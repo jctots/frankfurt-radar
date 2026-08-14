@@ -799,7 +799,9 @@ class OpenLigaPoller(BasePoller):
                 continue
             if not (now - timedelta(hours=2) <= start <= cutoff):
                 continue
-            end = start + timedelta(hours=2)
+            # Kick-off + 3h: ~1h50 of match plus the egress the body warns about.
+            # At +2h the alert expired around the final whistle, covering none of it.
+            end = start + timedelta(hours=3)
             opponent = m.get("team2", {}).get("teamName", "Unknown")
             competition = f"{label} ({round_name})" if show_round and round_name else label
             alerts.append(Alert(

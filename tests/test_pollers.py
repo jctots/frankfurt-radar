@@ -1256,3 +1256,16 @@ class TestOpenLigaCompetitions:
 
         assert len(alerts) == 1
         assert poller.ok is False
+
+    def test_alert_window_covers_egress_not_just_the_match(self, mocker):
+        from datetime import timedelta
+
+        alerts = self._fetch(mocker, {
+            "bl1": [_ol_match(7, "Eintracht Frankfurt", "SC Freiburg", self._soon())],
+            "dfb": [],
+        })
+        assert len(alerts) == 1
+        start = datetime.fromisoformat(alerts[0].valid_from)
+        end = datetime.fromisoformat(alerts[0].valid_until)
+        # ~1h50 of match plus egress — at 2h the alert died at the final whistle.
+        assert end - start == timedelta(hours=3)

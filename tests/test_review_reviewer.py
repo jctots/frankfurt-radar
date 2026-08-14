@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -158,8 +159,10 @@ class TestPruneOldReports:
     def test_old_run_removed_recent_run_kept(self, mocker):
         import os
         out_dir = Path(os.environ["DATA_DIR"]) / "review_debug"
+        # recent_ts is relative to now: _prune_old_reports uses a rolling
+        # 30-day window, so an absolute date rots out of it.
         old_ts = "2020-01-01T000000Z"
-        recent_ts = "2026-07-07T120000Z"
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H%M%SZ")
         self._write_run(out_dir, old_ts)
         self._write_run(out_dir, recent_ts)
 

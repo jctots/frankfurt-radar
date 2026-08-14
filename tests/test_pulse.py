@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -398,15 +399,18 @@ class TestPulseDB:
         assert status["pulse"] is None
 
     def test_pulse_cleanup(self):
+        # Dates are relative to now: expire_processed_alerts prunes pulse_history
+        # on a rolling 30-day window, so absolute dates rot out of the window.
+        now = datetime.now(timezone.utc)
         db.store_pulse({
-            "generated_at": "2026-05-01T10:00:00Z",
+            "generated_at": (now - timedelta(days=60)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "summary": "Old pulse",
             "categories": {},
             "recommendation": "",
             "alert_count": 0,
         })
         db.store_pulse({
-            "generated_at": "2026-06-22T10:00:00Z",
+            "generated_at": (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "summary": "Recent pulse",
             "categories": {},
             "recommendation": "",
