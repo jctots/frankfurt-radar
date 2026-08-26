@@ -1057,7 +1057,13 @@ class StrikePoller(BasePoller):
         return any(loc in lower for loc in self.locations)
 
     def fetch(self) -> list[Alert]:
-        from db import get_active_strikes, get_strike_duplicate, mark_strike_duplicate
+        from db import (
+            get_active_strikes,
+            get_strike_duplicate,
+            mark_strike_duplicate,
+            is_strike_rejected,
+            mark_strike_rejected,
+        )
 
         seen_ids: set[str] = set()
         alerts: list[Alert] = []
@@ -1142,6 +1148,10 @@ class StrikePoller(BasePoller):
                               entry_id, dup_marker["duplicate_of"])
                     continue
 
+                if is_strike_rejected(alert_id):
+                    log.debug("StrikePoller: skipping known not-a-strike %s", entry_id)
+                    continue
+
                 link = entry.get("link", "")
                 page_body = _fetch_page_body(link) if link else ""
 
@@ -1155,6 +1165,7 @@ class StrikePoller(BasePoller):
 
                 if details.get("not_a_strike"):
                     log.debug("StrikePoller: skipping non-strike entry %s", entry_id)
+                    mark_strike_rejected(alert_id)
                     continue
 
                 summary = details.get("summary", description)

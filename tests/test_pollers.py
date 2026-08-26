@@ -947,6 +947,38 @@ class TestStrikePoller:
         alerts = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365).fetch()
         assert len(alerts) == 0
 
+    def test_not_a_strike_entry_skips_extraction_on_next_poll(self, mocker):
+        """Regression for the 2026-08-26 cost leak: a press release correctly
+        classified not_a_strike (e.g. a Tarifkonflikt article that never
+        announces a walkout) was never given any memory of that verdict —
+        unlike a confirmed duplicate (mark_strike_duplicate), there was no
+        mark_strike_rejected equivalent, so it re-paid for a full extraction
+        LLM call every 10-minute poll, forever, since it can never become a
+        cached_match or dup_marker hit.
+        """
+        import db
+        from pollers import StrikePoller
+
+        mocker.patch("pollers.feedparser.parse", return_value=self._patched_feed())
+        mocker.patch("pollers._fetch_page_body", return_value=self._patched_page())
+        mock_extract = mocker.patch("pollers.extract_alert_details", return_value={"not_a_strike": True})
+
+        entry_id = "https://hessen.verdi.de/presse/pressemitteilungen/++co++strike-001"
+        alert_id = f"strike-{hashlib.sha1(entry_id.encode()).hexdigest()[:16]}"
+
+        poller = StrikePoller(feeds=["https://fake.test/rss"], max_age_days=365)
+        first = poller.fetch()
+        assert first == []
+        assert mock_extract.call_count == 1
+        assert db.is_strike_rejected(alert_id)
+
+        mock_extract.reset_mock()
+        mock_fetch_page = mocker.patch("pollers._fetch_page_body")
+        second = poller.fetch()
+        assert second == []
+        mock_extract.assert_not_called()
+        mock_fetch_page.assert_not_called()
+
 
 # ── FeuerwehrPoller ───────────────────────────────────────────────────────────
 

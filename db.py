@@ -139,6 +139,11 @@ CREATE TABLE IF NOT EXISTS strike_duplicates (
     resolved_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS strike_rejected (
+    alert_id    TEXT PRIMARY KEY,
+    resolved_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS system_metrics_history (
     timestamp TEXT NOT NULL PRIMARY KEY,
     cpu_pct   REAL NOT NULL,
@@ -1036,6 +1041,33 @@ def mark_strike_duplicate(alert_id: str, duplicate_of: str) -> None:
                    duplicate_of = excluded.duplicate_of,
                    resolved_at = excluded.resolved_at""",
             (alert_id, duplicate_of),
+        )
+
+
+def is_strike_rejected(alert_id: str) -> bool:
+    """Whether alert_id was previously extracted and classified not_a_strike."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM strike_rejected WHERE alert_id = ?", (alert_id,)
+        ).fetchone()
+    return row is not None
+
+
+def mark_strike_rejected(alert_id: str) -> None:
+    """Persist that alert_id was extracted and classified not_a_strike.
+
+    Same rationale as mark_strike_duplicate (July 3 cost leak) but for the
+    not_a_strike verdict, which had no memory at all — a press release
+    correctly classified as not being a strike (e.g. a "Tarifkonflikt"
+    article that never announces a walkout) was re-extracted every poll
+    forever, since it can never become a cached_match or dup_marker hit.
+    """
+    with _conn() as conn:
+        conn.execute(
+            """INSERT INTO strike_rejected (alert_id, resolved_at)
+               VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+               ON CONFLICT(alert_id) DO NOTHING""",
+            (alert_id,),
         )
 
 
