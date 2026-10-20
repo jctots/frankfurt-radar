@@ -16,7 +16,7 @@
       --clr-header:  #0f172a;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       background: var(--clr-bg);
       color: var(--clr-text);
       font-size: 14px;
@@ -57,6 +57,7 @@
       main { padding: 24px 20px; border-radius: 0; border-left: none; border-right: none; margin: 0; }
     }
   </style>
+  <link rel="stylesheet" href="/static/fonts/fonts.css">
 </head>
 <body>
 
@@ -66,7 +67,7 @@
 
 <main>
   <h1>🔒 Privacy Policy</h1>
-  <p class="meta">Last updated: 2026-07-02</p>
+  <p class="meta">Last updated: 2026-10-20</p>
 
   <h2>👤 Who we are</h2>
   <p>Frankfurt Radar is operated by {{ controller | e }} ({{ contact | e }}).<br>
@@ -81,6 +82,14 @@
   <p>Anonymous, cookie-free usage analytics are collected via a self-hosted <a href="https://umami.is/" target="_blank" rel="noopener">Umami</a> instance running on the same EU server (Hetzner Frankfurt, Germany). Umami does not use cookies, does not store IP addresses, and cannot identify individual visitors. Anonymised interaction events (e.g. filter use, alert selection) are tracked to understand how the service is used. No analytics data is shared with third parties.</p>
   <p><strong>Legal basis:</strong> legitimate interest (improving the service) — no personal data is processed.</p>
   <p>Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.</p>
+  <p><strong>Third-party requests from your browser.</strong> Fonts, scripts, and stylesheets are served from our own server. To draw the map, show the weather, and display the Telegram QR codes, your browser loads content directly from these providers, which therefore receive your IP address and browser details as part of a normal web request:</p>
+  <ul>
+    <li><strong>OpenStreetMap Foundation</strong> (UK) — map tiles, light mode (<a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">privacy policy</a>)</li>
+    <li><strong>CARTO</strong> (Spain) or <strong>Stadia Maps</strong> (USA) — map tiles, dark mode (<a href="https://carto.com/privacy" target="_blank" rel="noopener">CARTO</a> · <a href="https://stadiamaps.com/privacy-policy/" target="_blank" rel="noopener">Stadia Maps</a>)</li>
+    <li><strong>Bright Sky</strong> (Germany) — current weather and forecast, DWD data (<a href="https://brightsky.dev/" target="_blank" rel="noopener">brightsky.dev</a>)</li>
+    <li><strong>goQR.me / api.qrserver.com</strong> (Germany) — Telegram QR codes in the "Get alerts" dialog (<a href="https://goqr.me/privacy-safety-security/" target="_blank" rel="noopener">privacy policy</a>)</li>
+  </ul>
+  <p>Frankfurt Radar does not send these providers any information beyond what your browser includes in the request. <strong>Legal basis:</strong> legitimate interest (Art. 6(1)(f) GDPR) in displaying a functional map and weather information.</p>
 
   <h3>📢 Telegram channel</h3>
   <p>Subscribing to the public Telegram channel does not store any data in Frankfurt Radar systems. Telegram's own privacy policy applies.</p>

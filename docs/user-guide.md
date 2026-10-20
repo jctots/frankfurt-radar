@@ -18,14 +18,13 @@ Frankfurt Radar delivers alerts through three channels. You can use any combinat
 
 The main page shows all active alerts in a scrollable feed. Each alert shows its source, title, timestamp, and affected lines (for transit alerts).
 
-**Filters** — use the filter bar at the top to narrow the feed:
+**Filters** — the **Show:** bar at the top controls what appears in the feed and on the map:
 
-- **Source toggles** — show/hide alerts by source (Transit, Weather, Police, Fire, Strikes, Roads, Festivals, Trade Fairs, Sports)
-- **Service dropdown** — filter transit alerts by service type (S-Bahn, U-Bahn, Tram, Bus, Regional)
-- **Severity dropdown** — filter weather alerts by severity level
-- **Lines popup** — filter by specific transit lines
+- **Category chips** — tap to show or hide a whole category: Weather, Transit, Roads, Incidents (police, fire, strikes), and Events (festivals, trade fairs, sports). A ✓ means the category is shown; a dashed, faded chip with **+** means it is hidden. The number on each chip is its count of active alerts.
+- **Transit service pickers** — one per service (S-Bahn, U-Bahn, Tram, Bus, Regional); tap to pick individual lines
+- **⚙️ Type pickers** — next to Roads, Incidents, and Events; narrow a category to specific types (e.g. highways only, or trade fairs only). A yellow picker means some types are hidden
 - **Search box** — real-time text search across all alerts
-- **Future events toggle** — show/hide upcoming festivals and sports
+- **Future events toggle** — show/hide alerts that haven't started yet
 
 Filter selections are saved in your browser and restored on your next visit.
 

@@ -154,7 +154,7 @@ All LLM calls use Google Gemini Flash with a shared `GEMINI_API_KEY` and the sam
 | Police location extraction | `extraction.py` | `police_location.md` | Geocodes police reports for map pins |
 | City Pulse synthesis | `pulse.py` | `pulse.md` | Hourly situational summary; `thinking_budget: 1024` |
 | Daily summary | `pulse.py` | `daily_summary.md` | Compresses 24 hourly pulses at 23:00 |
-| Weight review | `web/app.py` | `weight_review.md` | Admin-triggered severity-weight calibration suggestions |
+| City Pulse review | `review/reviewer.py` | `review.md` | Admin-triggered audit of cost, translation churn, and scoring; proposes `changes.json` (see [review.md](review.md)) |
 
 **City Pulse** (`pulse.py` + `pulse_categories.py`) combines deterministic analysis with LLM synthesis: severity-weighted scoring, status (with hysteresis and absolute floors), and trend are all computed deterministically per category; the LLM writes the narrative and may correct a trend only via a logged, content-based override. It runs as a standalone cron job in the poller container; hourly pulses land in `pulse_history` and daily summaries in `pulse_daily_summary`, with the daily digest fed back as multi-day narrative context into future pulses. Extraction health is tracked via `extraction_ok()`, pulse health via `pulse_ok()`. See [analysis.md](analysis.md) for the full methodology.
 
@@ -256,6 +256,7 @@ Flask app served by gunicorn. The public routes are read-only; admin routes are 
 | `/api/pulse-methodology-data` | GET | Live data backing the methodology page |
 | `/legal` | GET | Impressum page |
 | `/robots.txt` | GET | SEO directives with sitemap |
+| `/radar-test` | GET | Standalone radar-overlay test page |
 
 **Admin** (cookie session; login with the `ADMIN_TOKEN` env var):
 
@@ -266,8 +267,11 @@ Flask app served by gunicorn. The public routes are read-only; admin routes are 
 | `/api/admin/data` | Pulse debug data — all three City Pulse layers |
 | `/api/admin/cost-history` | Daily cost history for charts |
 | `/api/admin/server-status` | Poller/server health snapshot |
+| `/api/admin/metrics-history` | Server metrics and events over the last N hours (`?hours=`, default 24) |
 | `/api/admin/poll`, `/api/admin/pulse` | Manual poll / pulse triggers |
-| `/api/admin/weight-review` | LLM-assisted severity weight review |
+| `/api/admin/review/preview`, `/api/admin/review/run` | Preview the review digest / run the Gemini reviewer |
+| `/api/admin/review/reports`, `/api/admin/review/reports/<timestamp>` | List / fetch past review reports |
+| `/api/admin/review/changes/<timestamp>` | Proposed `changes.json` for a review run |
 | `/api/admin/overrides` | Record/list/delete pulse status overrides |
 | `/api/admin/bans`, `/api/admin/ban`, `/api/admin/unban` | Bot user ban management |
 
@@ -277,9 +281,10 @@ Single-page app with no build step:
 
 - **Desktop**: left-panel alert feed + right-panel Leaflet map
 - **Mobile**: full-height alert list; tap to open full-screen map overlay
-- Map tiles: CartoDB Dark Matter (dark mode) / OSM Standard (light mode) — no API key required
+- Map tiles: OSM Standard (light mode); dark mode uses Stadia Alidade Smooth Dark if `STADIA_API_KEY` is set, otherwise CartoDB Dark Matter (no key required)
 - Alert markers: clustered with `leaflet.markercluster`; DWD alerts as floating panel
-- Filter bar: source toggles, service/severity dropdowns, lines popup, search, future events toggle
+- Filter bar (`buildFilterBar()`): five grouped category toggles (Weather, Transit, Roads, Incidents, Events) with ✓/+ state markers, per-service line pickers, per-category type pickers (roads, incidents, events), search, future events toggle
+- Static assets are self-hosted under `web/static/` — Inter font in `fonts/`, Leaflet, markercluster, and Chart.js in `vendor/` — so the page makes no CDN requests
 - City Pulse overlay: hourly AI summary + per-category status icons (see [analysis.md](analysis.md))
 - Weather overlay: current conditions + daily forecast, fetched client-side from BrightSky
 - Weather radar playback: animated observation + forecast frames from `/api/radar/*`

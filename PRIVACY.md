@@ -1,6 +1,6 @@
 # 🔒 Privacy Policy — Frankfurt Radar
 
-**Last updated:** 2026-07-02
+**Last updated:** 2026-10-20
 
 ## 👤 Who we are
 
@@ -18,6 +18,17 @@ Anonymous, cookie-free usage analytics are collected via a self-hosted [Umami](h
 **Legal basis:** legitimate interest (improving the service) — no personal data is processed.
 
 Browser notification permission is stored locally in your browser only — it is never transmitted to our servers.
+
+**Third-party requests from your browser.** Fonts, scripts, and stylesheets are served from our own server. To draw the map, show the weather, and display the Telegram QR codes, your browser loads content directly from these providers, which therefore receive your IP address and browser details as part of a normal web request:
+
+| Provider | Purpose | Privacy policy |
+|----------|---------|----------------|
+| OpenStreetMap Foundation (UK) | Map tiles (light mode) | [osmfoundation.org/wiki/Privacy_Policy](https://osmfoundation.org/wiki/Privacy_Policy) |
+| CARTO (Spain) or Stadia Maps (USA) | Map tiles (dark mode) | [carto.com/privacy](https://carto.com/privacy) · [stadiamaps.com/privacy-policy](https://stadiamaps.com/privacy-policy/) |
+| Bright Sky (Germany) | Current weather and forecast (DWD data) | [brightsky.dev](https://brightsky.dev/) |
+| goQR.me / api.qrserver.com (Germany) | Telegram QR codes in the "Get alerts" dialog | [goqr.me/privacy-safety-security](https://goqr.me/privacy-safety-security/) |
+
+Frankfurt Radar does not send these providers any information beyond what your browser includes in the request. **Legal basis:** legitimate interest (Art. 6(1)(f) GDPR) in displaying a functional map and weather information.
 
 ### 📢 Telegram channel
 

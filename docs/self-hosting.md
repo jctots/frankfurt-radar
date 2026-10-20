@@ -50,6 +50,16 @@ docker compose --profile production up -d
 docker compose --profile staging up -d
 ```
 
+### 🔁 Redeploying
+
+`deploy.sh` redeploys the production profile in one step. Run it on the server from the compose project directory:
+
+```bash
+./deploy.sh
+```
+
+It runs `git pull` (then re-execs itself, so an updated `deploy.sh` takes effect immediately), `docker compose --profile production down`, `pull`, and `up -d`, prunes dangling images, and prints each service's container creation time so you can confirm the new images are running.
+
 ## 🔑 Environment variables
 
 Set these in your `.env` file. Only secrets belong here — all other configuration goes in `config.yaml`.
@@ -157,6 +167,7 @@ translator:
   backend: libretranslate     # "libretranslate" or "google"
   libretranslate_url: http://libretranslate:5000
   max_chars: 1500             # Hard cap per translate call — cost circuit-breaker
+  translation_min_change_ratio: 0.10  # Retranslate an edited body only if similarity drops below this (0–1)
 ```
 
 ### 🏙️ City Pulse
@@ -164,6 +175,7 @@ translator:
 ```yaml
 pulse:
   enabled: false              # Opt-in — hourly AI summary + daily digest (needs GEMINI_API_KEY)
+  max_prompt_alerts: 60       # Alerts sent individually to the LLM, ranked by severity; the rest are summarized
 ```
 
 ### 💶 Cost budget
@@ -250,7 +262,7 @@ The web container serves an operator dashboard at `/admin`, protected by a cooki
 - **Cost charts** — daily and hourly API spend vs. budget, per service
 - **City Pulse debugging** — all three pulse layers visualized: deterministic scores and breakdowns, the LLM prompt/response, and the final output
 - **Status overrides** — record corrections when a computed pulse status is wrong (feeds the calibration loop, see [analysis.md](analysis.md))
-- **Weight review** — LLM-assisted suggestions for severity weight adjustments based on recorded overrides
+- **Review runs** — run the City Pulse review pipeline and browse past reports and proposed `changes.json` (see [review.md](review.md))
 - **Manual triggers** — run a poll or pulse on demand
 - **Bot bans** — block/unblock bot users
 

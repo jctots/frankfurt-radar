@@ -42,7 +42,7 @@ New to Frankfurt Radar? The [User Guide](docs/user-guide.md) walks through all t
 | 🪧 **Strikes** | Labor strike alerts affecting transit, retail, and public services |
 | 🎉 **Festivals** | City festivals, markets, and parades — with dates and locations |
 | 🎪 **Trade Fairs** | Events at Messe Frankfurt |
-| ⚽ **Sports** | Eintracht Frankfurt home games and Deutsche Bank Park events |
+| ⚽ **Sports** | Eintracht Frankfurt home games (Bundesliga and DFB-Pokal) and Deutsche Bank Park events |
 
 Everything arriving in German is automatically translated to English before it reaches you.
 
@@ -50,7 +50,7 @@ Everything arriving in German is automatically translated to English before it r
 
 [frankfurt-radar.com](https://frankfurt-radar.com) shows all active alerts on an interactive map and a filterable feed:
 
-- **Filter** by source, transit service, line, or severity — your selections are remembered
+- **Filter** by category, transit service and line, or type (road, incident, event) — your selections are remembered
 - **Search** across all alerts in real time
 - **Weather radar** playback — precipitation observations and forecasts animated on the map
 - **Weather overlay** — current conditions, rainfall, and daily high/low forecast at a glance
@@ -132,6 +132,8 @@ Full details: [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 | City of Frankfurt WFS | Public municipal data | Road construction and closures |
 | OpenLigaDB | [CC BY-SA 4.0](https://www.openligadb.de/) | Bundesliga match data |
 | Ticketmaster | [Ticketmaster API ToS](https://developer.ticketmaster.com/) | Optional; Deutsche Bank Park events |
+
+Map tiles © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, with [CARTO](https://carto.com/attributions) or [Stadia Maps](https://stadiamaps.com/) for dark mode. Bundled third-party assets: [Leaflet](https://leafletjs.com/) and [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) (BSD-2 / MIT), [Chart.js](https://www.chartjs.org/) (MIT), and the [Inter](https://rsms.me/inter/) typeface (SIL OFL 1.1) — license files ship alongside them in `web/static/`.
 
 ## 🤝 Contributing
 
