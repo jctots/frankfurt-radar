@@ -40,9 +40,9 @@
   <script async src="{{ umami_url | e }}/script.js" data-website-id="{{ umami_website_id | e }}" data-host-url="{{ umami_url | e }}" data-do-not-track="true"></script>
   {% endif %}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/static/vendor/markercluster/MarkerCluster.css">
+  <link rel="stylesheet" href="/static/vendor/markercluster/MarkerCluster.Default.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -64,7 +64,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       background: var(--clr-bg);
       color: var(--clr-text);
       font-size: 14px;
@@ -272,6 +272,11 @@
     .chip.events-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
     .chip.incidents-picker      { color: var(--clr-police);    border-color: var(--clr-police);    background: #fef2f2; }
     .chip.incidents-picker.part { background: #fef9c3; border-color: #ca8a04; color: #92400e; }
+    .filter-label { font-weight: 600; margin-right: 2px; }
+    .chip-state { font-size: 11px; font-weight: 700; margin-right: 5px; width: 10px; text-align: center; }
+    .chip[class*="src-"]:not(.on) { border-style: dashed; opacity: 0.7; }
+    .chip[class*="src-"]:not(.on):hover { opacity: 1; }
+    .picker-caret { font-size: 14px; line-height: 1; margin-left: 4px; }
     .chip .svc-icon         { width: 18px; height: 18px; object-fit: contain; margin-right: 4px; vertical-align: middle; }
 .chip-count {
       font-size: 10px; font-weight: 700;
@@ -887,7 +892,7 @@
     .leaflet-popup-content {
       margin: 0;
       width: 340px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
     .leaflet-popup-tip-container { margin-top: -1px; }
 
@@ -1287,6 +1292,8 @@
 
     }
   </style>
+  <link rel="preload" href="/static/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/fonts.css">
 </head>
 <body>
 
@@ -1460,8 +1467,8 @@
 </div>
 
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/vendor/markercluster/leaflet.markercluster.js"></script>
 <script>
 // ── Analytics ────────────────────────────────────────────────────────────────
 function _track(event, data) {
@@ -2923,7 +2930,8 @@ function toggleFutureEvents() {
 
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
-  let html  = '';
+  const chk = on => `<span class="chip-state">${on ? '✓' : '+'}</span>`;
+  let html  = '<span class="filter-label">Show:</span>';
 
   const sectionAlerts = feedVisible();
   const counts = {};
@@ -2935,12 +2943,12 @@ function buildFilterBar() {
 
   // Weather
   const dwdOn = filters.sources.dwd !== false;
-  html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${SOURCE.dwd.emoji} ${SOURCE.dwd.label}${badge(counts.dwd)}</button>`;
+  html += `<button class="chip src-dwd${dwdOn ? ' on' : ''}" onclick="toggleSrc('dwd')">${chk(dwdOn)}${SOURCE.dwd.emoji} ${SOURCE.dwd.label}${badge(counts.dwd)}</button>`;
 
   // Transport + lines
   html += '<div class="filter-sep"></div>';
   const rmvOn = filters.sources.rmv !== false;
-  html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
+  html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${chk(rmvOn)}${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
   if (rmvOn) {
     const rmv     = sectionAlerts.filter(a => a.source === 'rmv');
     const rawSvcs = new Set(rmv.filter(a => a.service).map(a => a.service));
@@ -2952,7 +2960,7 @@ function buildFilterBar() {
         const partial = active < lines.length;
         const iconUrl = SVC_ICON[svc];
         const iconHtml = iconUrl ? `<img class="svc-icon" src="${iconUrl}" alt="${esc(svc)}" title="${esc(svc)}">` : '';
-        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+        html += `<button class="chip line-picker${partial ? ' part' : ''}" onclick="event.stopPropagation(); openLinesPopup('${esc(svc)}', this)">${iconHtml}${esc(svc)} <span class="picker-caret">▾</span></button>`;
       }
     });
   }
@@ -2960,32 +2968,32 @@ function buildFilterBar() {
   // Roads
   html += '<div class="filter-sep"></div>';
   const abOn = filters.sources.autobahn !== false;
-  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
+  html += `<button class="chip src-autobahn${abOn ? ' on' : ''}" onclick="toggleSrc('autobahn')">${chk(abOn)}🚧 ${SOURCE.autobahn.label}${badge(counts.autobahn)}</button>`;
   if (abOn) {
     const enabledRoadTypes = ['highways','city_partial','city_full'].filter(k => filters.roads[k] !== false).length;
     const roadPartial = enabledRoadTypes < 3;
-    html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    html += `<button class="chip roads-picker${roadPartial ? ' part' : ''}" onclick="event.stopPropagation(); openRoadsPopup(this)">⚙️ Road types <span class="picker-caret">▾</span></button>`;
   }
 
   // Incidents (grouped: police + strikes)
   html += '<div class="filter-sep"></div>';
   const incOn = filters.sources.incidents !== false;
   const incCount = counts.polizei + counts.strike + counts.feuerwehr;
-  html += `<button class="chip src-incidents${incOn ? ' on' : ''}" onclick="toggleSrc('incidents')">🚨 Incidents${badge(incCount)}</button>`;
+  html += `<button class="chip src-incidents${incOn ? ' on' : ''}" onclick="toggleSrc('incidents')">${chk(incOn)}🚨 Incidents${badge(incCount)}</button>`;
   if (incOn) {
     const enabledIncTypes = ['police','strikes','fire'].filter(k => filters.incidentTypes[k] !== false).length;
     const incPartial = enabledIncTypes < 3;
-    html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    html += `<button class="chip incidents-picker${incPartial ? ' part' : ''}" onclick="event.stopPropagation(); openIncidentsPopup(this)">⚙️ Incident types <span class="picker-caret">▾</span></button>`;
   }
 
   // Events (grouped: festivals + trade fairs + sports)
   html += '<div class="filter-sep"></div>';
   const evOn = filters.sources.events !== false;
-  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">🎉 ${SOURCE.events.label}${badge(counts.events)}</button>`;
+  html += `<button class="chip src-events${evOn ? ' on' : ''}" onclick="toggleSrc('events')">${chk(evOn)}🎉 ${SOURCE.events.label}${badge(counts.events)}</button>`;
   if (evOn) {
     const enabledEvTypes = ['festivals','trade_fairs','sports'].filter(k => filters.eventTypes[k] !== false).length;
     const evPartial = enabledEvTypes < 3;
-    html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">📝 Type <span style="font-size:24px;line-height:0.8;margin-left:4px">▾</span></button>`;
+    html += `<button class="chip events-picker${evPartial ? ' part' : ''}" onclick="event.stopPropagation(); openEventsPopup(this)">⚙️ Event types <span class="picker-caret">▾</span></button>`;
   }
 
   bar.innerHTML = html;

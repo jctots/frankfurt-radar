@@ -1,0 +1,15 @@
+/* Self-hosted Inter (SIL OFL 1.1, https://rsms.me/inter/) so text renders the
+   same on every OS. Self-hosted rather than Google Fonts: no third-party request. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/static/fonts/inter-variable.woff2') format('woff2');
+}
+
+/* Form controls don't inherit the page font by default — they use the OS UI
+   font (Segoe UI, Cantarell, …), which is exactly the cross-platform drift this
+   file exists to remove. Element selectors, so any class that sets its own
+   font-family (e.g. monospace) still wins. */
+button, input, select, textarea { font-family: inherit; }
