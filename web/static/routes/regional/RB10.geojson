@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"from":"Wiesbaden Hbf","to":"Frankfurt(Main)Hbf","trips":49},"geometry":{"type":"LineString","coordinates":[[8.24373,50.07079],[8.28317,50.00658],[8.54237,50.10263],[8.66283,50.10668]]}}]}

@@ -132,6 +132,7 @@ Full details: [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 | City of Frankfurt WFS | Public municipal data | Road construction and closures |
 | OpenLigaDB | [CC BY-SA 4.0](https://www.openligadb.de/) | Bundesliga match data |
 | Ticketmaster | [Ticketmaster API ToS](https://developer.ticketmaster.com/) | Optional; Deutsche Bank Park events |
+| gtfs.de (DELFI e.V.) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Line routes drawn on the map; rebuilt monthly into `web/static/routes/` ([docs/routes.md](docs/routes.md)) |
 
 Map tiles © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, with [CARTO](https://carto.com/attributions) or [Stadia Maps](https://stadiamaps.com/) for dark mode. Bundled third-party assets: [Leaflet](https://leafletjs.com/) and [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) (BSD-2 / MIT), [Chart.js](https://www.chartjs.org/) (MIT), and the [Inter](https://rsms.me/inter/) typeface (SIL OFL 1.1) — license files ship alongside them in `web/static/`.
 

@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"from":"F Briefzentrum","to":"F Hauptbahnhof/Fernbusterminal","trips":180},"geometry":{"type":"LineString","coordinates":[[8.63498,50.09275],[8.63846,50.09434],[8.64211,50.09601],[8.64707,50.09757],[8.65126,50.09885],[8.65422,50.09975],[8.65403,50.10175],[8.65728,50.10314],[8.66211,50.10509]]}}]}

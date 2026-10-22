@@ -22,3 +22,7 @@ build/
 # IDE
 .idea/
 .vscode/
+
+# Raw GTFS feed — only the generated web/static/routes/ is committed (docs/routes.md)
+gtfs/
+latest.zip

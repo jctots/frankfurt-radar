@@ -2736,6 +2736,69 @@ function resetState() {
   selectedId = null;
 }
 
+// ── Route view: RMV alert → draw the affected line, hide everything else ──
+// Files are built by scripts/build_routes.py from gtfs.de, one per line under the
+// alert's service label ("S-Bahn" → routes/sbahn/S8.geojson).
+const _routeCache = {};
+const ROUTE_ATTRIBUTION = 'Routes: <a href="https://gtfs.de" target="_blank" rel="noopener">DELFI e.V. via gtfs.de</a> (CC BY 4.0)';
+let routeView = null;   // { id, layers: L.LayerGroup }
+
+function loadRoute(service, line) {
+  const url = `/static/routes/${service.toLowerCase().replace('-', '')}/${encodeURIComponent(line.replace(/\s+/g, ''))}.geojson`;
+  if (!(url in _routeCache)) {
+    _routeCache[url] = fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
+  }
+  return _routeCache[url];
+}
+
+function hasRoute(a) {
+  return a.source === 'rmv' && !!a.service && Array.isArray(a.lines) && a.lines.length > 0;
+}
+
+async function enterRouteView(a, fallback) {
+  const routes = (await Promise.all(a.lines.map(l => loadRoute(a.service, l)))).filter(Boolean);
+  if (selectedId !== a.id) return;
+  if (!routes.length) { fallback(); return; }
+  exitRouteView();
+
+  const hex = (SOURCE[a.source] || {}).hex || '#dc2626';
+  const layers = L.layerGroup();
+  const stops = new Map();
+  routes.forEach(fc => {
+    L.geoJSON(fc, { style: { color: hex, weight: 5, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, interactive: false }).addTo(layers);
+    fc.features.forEach(f => f.geometry.coordinates.forEach(([lon, lat]) => stops.set(`${lat},${lon}`, [lat, lon])));
+  });
+  stops.forEach(ll => L.circleMarker(ll, { radius: 4, color: hex, weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(layers));
+
+  const { coords } = alertCoords(a);
+  const marker = L.marker(coords, { icon: sourceIcon(a), zIndexOffset: 1000 })
+    .bindPopup(buildPopupHtml(a), { maxWidth: 340, minWidth: 340, autoPan: true, autoPanPadding: [20, 20] })
+    .addTo(layers);
+
+  map.removeLayer(clusterGroup);
+  layers.addTo(map);
+  map.attributionControl.addAttribution(ROUTE_ATTRIBUTION);
+  routeView = { id: a.id, layers };
+
+  const bounds = L.featureGroup(layers.getLayers()).getBounds();
+  map.once('moveend', () => {
+    if (routeView?.id !== a.id) return;
+    marker.openPopup();
+    marker.once('popupclose', () => { if (routeView?.id === a.id) exitRouteView(); });
+  });
+  map.flyToBounds(bounds, { padding: [40, 40], duration: 0.8 });
+}
+
+function exitRouteView() {
+  if (!routeView) return;
+  routeView.layers.remove();
+  routeView = null;
+  map.attributionControl.removeAttribution(ROUTE_ATTRIBUTION);
+  if (!map.hasLayer(clusterGroup)) map.addLayer(clusterGroup);
+}
+
 function selectAlert(id, fromMap = false) {
   if (id === selectedId) {
     const a = alerts.find(x => x.id === id) || removedAlerts.find(x => x.id === id);
@@ -2743,9 +2806,15 @@ function selectAlert(id, fromMap = false) {
       if (!_weatherOverlayVisible) openWeatherOverlay(a);
       return;
     }
+    if (a && hasRoute(a) && !routeView) {
+      if (isMobileView() && !fromMap) openMobileMap(() => enterRouteView(a, () => {}));
+      else enterRouteView(a, () => {});
+      return;
+    }
     if (inRadarView && markers[id]) markers[id].openPopup();
     return;
   }
+  exitRouteView();
   closePulse();
   closeRadarView();
   closeWeatherOverlay();
@@ -2835,8 +2904,9 @@ function selectAlert(id, fromMap = false) {
     }
   };
 
-  if (isMobileView() && !fromMap) openMobileMap(applyMapOp);
-  else applyMapOp();
+  const mapOp = hasRoute(a) ? () => enterRouteView(a, applyMapOp) : applyMapOp;
+  if (isMobileView() && !fromMap) openMobileMap(mapOp);
+  else mapOp();
 }
 
 let openSection = 'active'; // 'active' | 'removed' | null

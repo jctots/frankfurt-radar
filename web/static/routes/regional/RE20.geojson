@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"from":"Frankfurt(Main)Hbf","to":"Limburg(Lahn)","trips":12},"geometry":{"type":"LineString","coordinates":[[8.66283,50.10668],[8.54237,50.10263],[8.44384,50.08447],[8.31288,50.1597],[8.25726,50.21599],[8.25505,50.29662],[8.15986,50.3596],[8.10443,50.39348],[8.06234,50.38412]]}}]}
