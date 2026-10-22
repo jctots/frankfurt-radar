@@ -952,7 +952,9 @@ def _primary_service_and_line(product_list: list[dict]) -> tuple[Optional[str], 
 
 # ── StrikePoller ────────────────────────────────────────────────────────────────
 
-_VERDI_HESSEN_FEED = "https://hessen.verdi.de/presse/pressemitteilungen/@@rss"
+# ver.di Hessen's own @@rss feed died when hessen.verdi.de moved to www.verdi.de/hessen/
+# (2026-10, no replacement feed); hessenschau's all-news feed carries the same walkouts.
+_HESSENSCHAU_FEED = "https://www.hessenschau.de/index.rss"
 _HESSENSCHAU_WIRTSCHAFT_FEED = "https://www.hessenschau.de/wirtschaft/index.rss"
 
 _STRIKE_KEYWORDS = ["streik", "warnstreik", "arbeitskampf", "arbeitsniederleg", "ausstand"]
@@ -1043,7 +1045,7 @@ class StrikePoller(BasePoller):
         max_age_days: int = 14,
     ):
         super().__init__()
-        self.feeds = feeds or [_VERDI_HESSEN_FEED, _HESSENSCHAU_WIRTSCHAFT_FEED]
+        self.feeds = feeds or [_HESSENSCHAU_FEED, _HESSENSCHAU_WIRTSCHAFT_FEED]
         self.keywords = keywords or _STRIKE_KEYWORDS
         self.locations = locations or _FRANKFURT_LOCATIONS
         self.max_age_days = max_age_days

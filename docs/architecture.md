@@ -94,7 +94,7 @@ class BasePoller(ABC):
 | `FeuerwehrPoller` | Bluesky AT Protocol | @feuerwehrffm.bsky.social posts; district geocoding; TTL-based expiry |
 | `AutobahnPoller` | Autobahn API | Road filter, radius_km, kind filter (warning/closure) |
 | `BaustellenPoller` | City of Frankfurt WFS | GeoJSON geometry parsing; sperrung filter |
-| `StrikePoller` | ver.di Hessen + hessenschau RSS | Gemini Flash LLM extraction for dates/location; cross-feed dedup |
+| `StrikePoller` | hessenschau RSS (all news + business) | Gemini Flash LLM extraction for dates/location; cross-feed dedup |
 | `StaticEventsPoller` | `city_events.yaml` | Festivals; `source="events"` (default) |
 | `StaticEventsPoller` | `messe_events.yaml` | Trade fairs; `source="messe"` |
 | `StaticEventsPoller` | `sports_events.yaml` | Sports fixtures; `source="sports"` |

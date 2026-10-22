@@ -94,7 +94,7 @@ Toggle each alert source on or off, then tap **Done**:
 - **Weather** — DWD weather warnings
 - **Police** — Frankfurt police press releases
 - **Fire** — Feuerwehr Frankfurt active incidents
-- **Strikes** — labor strike alerts (ver.di Hessen, hessenschau)
+- **Strikes** — labor strike alerts (hessenschau)
 - **Autobahn** / **City Roads** — highway incidents and city road closures
 - **Festivals** / **Trade Fairs** / **Sports** — city events, Messe Frankfurt, Eintracht and Deutsche Bank Park
 
