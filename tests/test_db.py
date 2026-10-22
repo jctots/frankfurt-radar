@@ -279,3 +279,26 @@ class TestSourceHealthInStatus:
         status = db.get_status_json()
 
         assert status["source_health"] == {}
+
+
+class TestAlertGeometry:
+    _SHAPE = {"type": "LineString", "coordinates": [[8.66, 50.11], [8.67, 50.12]]}
+
+    def test_geometry_stored_but_kept_out_of_status(self, rmv_alert, mocker, config):
+        mocker.patch("translation.translate_alert", return_value=("Title EN", "Body EN"))
+        rmv_alert.geometry = self._SHAPE
+        db.sync_alert_cache([rmv_alert], config)
+
+        alert = db.get_status_json()["alerts"][0]
+        assert alert["has_geometry"] is True
+        assert "geometry" not in alert
+        assert db.get_alert_geometry(rmv_alert.id) == self._SHAPE
+
+    def test_geometry_change_updates_cache(self, rmv_alert, mocker, config):
+        mocker.patch("translation.translate_alert", return_value=("Title EN", "Body EN"))
+        db.sync_alert_cache([rmv_alert], config)
+        assert db.get_alert_geometry(rmv_alert.id) is None
+
+        rmv_alert.geometry = self._SHAPE
+        db.sync_alert_cache([rmv_alert], config)
+        assert db.get_alert_geometry(rmv_alert.id) == self._SHAPE

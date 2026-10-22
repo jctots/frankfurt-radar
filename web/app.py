@@ -12,7 +12,7 @@ import yaml
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, session
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from db import get_status_json, init_db
+from db import get_alert_geometry, get_status_json, init_db
 
 app = Flask(__name__)
 app.secret_key = os.getenv("ADMIN_TOKEN", "") or secrets.token_hex(32)
@@ -63,6 +63,14 @@ def index():
 @app.route("/alert/<alert_id>")
 def alert_detail(alert_id):
     return redirect(f"/?alert={alert_id}")
+
+
+@app.route("/api/alert/<alert_id>/geometry")
+def api_alert_geometry(alert_id):
+    geometry = get_alert_geometry(alert_id)
+    if geometry is None:
+        abort(404)
+    return jsonify(geometry)
 
 
 @app.route("/legal")

@@ -202,6 +202,10 @@ def init_db() -> None:
         except Exception:
             pass
         try:
+            conn.execute("ALTER TABLE alert_cache ADD COLUMN geometry TEXT")
+        except Exception:
+            pass
+        try:
             conn.execute("ALTER TABLE subscribers ADD COLUMN conversation_state TEXT")
         except Exception:
             pass
@@ -609,7 +613,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
     # Determine which alerts already have a cached translation (active only)
     with _conn() as conn:
         cached = {r["alert_id"]: dict(r) for r in conn.execute(
-            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at, title_de, body_de, lat, lon, location_label FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
+            f"SELECT alert_id, image, stale, valid_until, valid_from, published_at, title_de, body_de, lat, lon, location_label, geometry FROM alert_cache WHERE alert_id IN ({ph}) AND removed_at IS NULL", current_ids
         )}
 
     # Translate outside the connection — avoids holding a write lock during HTTP calls
@@ -617,6 +621,7 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
     to_update_image = []
     to_update_stale = []
     to_update_content = []
+    to_update_geometry = []
     to_update_meta = []
     variant_writes = []
     for alert in alerts:
@@ -650,9 +655,13 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
                 alert.published_at, alert.valid_from, alert.severity,
                 alert.lat, alert.lon, alert.location_label, alert.image, stale_int,
                 alert.icon, alert.title or "", alert.body or "",
+                json.dumps(alert.geometry) if alert.geometry else None,
             ))
         else:
             c = cached[alert.id]
+            geometry_json = json.dumps(alert.geometry) if alert.geometry else None
+            if c["geometry"] != geometry_json:
+                to_update_geometry.append((geometry_json, alert.id))
             text_changed = _meaningful_text_changed(
                 alert.title or "", alert.body or "",
                 c["title_de"] or "", c["body_de"] or "",
@@ -725,12 +734,17 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
                 """INSERT OR REPLACE INTO alert_cache
                    (alert_id, source, title_en, body_en, url, valid_until, service,
                     lines, published_at, valid_from, severity, lat, lon, location_label, image, stale, icon,
-                    cached_at, title_de, body_de)
+                    cached_at, title_de, body_de, geometry)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?,
                            COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
                            ?, ?, ?, ?, ?, ?, ?, ?,
-                           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?)""",
+                           strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?, ?)""",
                 to_insert,
+            )
+        if to_update_geometry:
+            conn.executemany(
+                "UPDATE alert_cache SET geometry = ? WHERE alert_id = ?",
+                to_update_geometry,
             )
         if to_update_image:
             conn.executemany(
@@ -855,6 +869,7 @@ def get_status_json() -> dict:
             "image":          r["image"],
             "stale":          bool(r["stale"]),
             "icon":           r["icon"],
+            "has_geometry":   bool(r["geometry"]),   # shape itself is fetched on click: get_alert_geometry()
         }
         if include_removed_at:
             d["removed_at"] = r["removed_at"]
@@ -1077,6 +1092,15 @@ def get_cached_alert(alert_id: str) -> dict | None:
             "SELECT * FROM alert_cache WHERE alert_id = ?", (alert_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+def get_alert_geometry(alert_id: str) -> dict | None:
+    """GeoJSON geometry for one alert, or None — kept out of get_status_json() to keep the feed light."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT geometry FROM alert_cache WHERE alert_id = ?", (alert_id,)
+        ).fetchone()
+    return json.loads(row["geometry"]) if row and row["geometry"] else None
 
 
 def get_active_strikes() -> list[dict]:

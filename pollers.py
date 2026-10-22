@@ -876,7 +876,7 @@ class BaustellenPoller(BasePoller):
         service_label = "City (Full)" if full else "City (Partial)"
 
         return Alert(
-            id=f"baustellen-{props.get('baustellennummer', '')}",
+            id=_baustellen_id(props, start),
             source="baustellen",
             title=title,
             body=props.get("textlong", "").strip(),
@@ -887,12 +887,25 @@ class BaustellenPoller(BasePoller):
             service=service_label,
             lat=lat,
             lon=lon,
+            geometry=geometry or None,
         )
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _baustellen_id(props: dict, start: datetime) -> str:
+    """Stable alert id: the city's roadworks number, or a hash of name + start when it's missing.
+
+    Some WFS features have no baustellennummer — an f-string on it gave ids like
+    'baustellen-' / 'baustellen-None' that collided across unrelated roadworks."""
+    number = str(props.get("baustellennummer") or "").strip()
+    if number:
+        return f"baustellen-{number}"
+    key = f"{props.get('name') or ''}|{start.isoformat()}"
+    return f"baustellen-x{hashlib.sha1(key.encode()).hexdigest()[:12]}"
+
 
 def _poly_centroid(geometry: dict) -> tuple[float | None, float | None]:
     """Return (lat, lon) centroid of a GeoJSON geometry (WGS84, lon/lat order)."""

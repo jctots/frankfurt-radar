@@ -179,3 +179,4 @@ class Alert:
     image: Optional[str] = None         # direct upload.wikimedia.org thumbnail URL
     stale: bool = False                  # older than stale_after_days — shown in accordion 2
     icon: Optional[str] = None           # frozen per-alert weather icon; set by DWDPoller
+    geometry: Optional[dict] = None      # GeoJSON geometry drawn on click; set by BaustellenPoller

@@ -2753,12 +2753,27 @@ function loadRoute(service, line) {
   return _routeCache[url];
 }
 
+function loadAlertShape(id) {
+  const url = `/api/alert/${encodeURIComponent(id)}/geometry`;
+  if (!(url in _routeCache)) {
+    _routeCache[url] = fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .then(g => g && { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: g }] })
+      .catch(() => null);
+  }
+  return _routeCache[url];
+}
+
+// Alerts that open the focus view: transit lines with a route file, or anything carrying its own shape (roadworks)
 function hasRoute(a) {
-  return a.source === 'rmv' && !!a.service && Array.isArray(a.lines) && a.lines.length > 0;
+  return !!a.has_geometry || (a.source === 'rmv' && !!a.service && Array.isArray(a.lines) && a.lines.length > 0);
 }
 
 async function enterRouteView(a, fallback) {
-  const routes = (await Promise.all(a.lines.map(l => loadRoute(a.service, l)))).filter(Boolean);
+  const isShape = !!a.has_geometry;
+  const routes = isShape
+    ? [await loadAlertShape(a.id)].filter(Boolean)
+    : (await Promise.all(a.lines.map(l => loadRoute(a.service, l)))).filter(Boolean);
   if (selectedId !== a.id) return;
   if (!routes.length) { fallback(); return; }
   exitRouteView();
@@ -2767,8 +2782,8 @@ async function enterRouteView(a, fallback) {
   const layers = L.layerGroup();
   const stops = new Map();
   routes.forEach(fc => {
-    L.geoJSON(fc, { style: { color: hex, weight: 5, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }, interactive: false }).addTo(layers);
-    fc.features.forEach(f => f.geometry.coordinates.forEach(([lon, lat]) => stops.set(`${lat},${lon}`, [lat, lon])));
+    L.geoJSON(fc, { style: { color: hex, weight: isShape ? 4 : 5, opacity: 0.8, fillColor: hex, fillOpacity: 0.25, lineCap: 'round', lineJoin: 'round' }, interactive: false }).addTo(layers);
+    if (!isShape) fc.features.forEach(f => f.geometry.coordinates.forEach(([lon, lat]) => stops.set(`${lat},${lon}`, [lat, lon])));
   });
   stops.forEach(ll => L.circleMarker(ll, { radius: 4, color: hex, weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(layers));
 
@@ -2779,7 +2794,7 @@ async function enterRouteView(a, fallback) {
 
   map.removeLayer(clusterGroup);
   layers.addTo(map);
-  map.attributionControl.addAttribution(ROUTE_ATTRIBUTION);
+  if (!isShape) map.attributionControl.addAttribution(ROUTE_ATTRIBUTION);
   routeView = { id: a.id, layers };
 
   const bounds = L.featureGroup(layers.getLayers()).getBounds();
@@ -2788,7 +2803,7 @@ async function enterRouteView(a, fallback) {
     marker.openPopup();
     marker.once('popupclose', () => { if (routeView?.id === a.id) exitRouteView(); });
   });
-  map.flyToBounds(bounds, { padding: [40, 40], duration: 0.8 });
+  map.flyToBounds(bounds, { padding: [40, 40], duration: 0.8, maxZoom: 17 });
 }
 
 function exitRouteView() {

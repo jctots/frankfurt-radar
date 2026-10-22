@@ -265,3 +265,16 @@ class TestAdminDataIncludesReviewRuns:
         data = resp.get_json()
         timestamps = [e.get("generated_at") for e in data["pulse_debug"]]
         assert timestamps == sorted(timestamps)
+
+
+class TestAlertGeometryEndpoint:
+    def test_returns_geometry(self, mocker):
+        shape = {"type": "Point", "coordinates": [8.68, 50.11]}
+        mocker.patch.object(web_app, "get_alert_geometry", return_value=shape)
+        resp = _client.get("/api/alert/baustellen-1/geometry")
+        assert resp.status_code == 200
+        assert resp.get_json() == shape
+
+    def test_unknown_alert_404s(self, mocker):
+        mocker.patch.object(web_app, "get_alert_geometry", return_value=None)
+        assert _client.get("/api/alert/nope/geometry").status_code == 404

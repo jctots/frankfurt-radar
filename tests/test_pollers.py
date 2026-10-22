@@ -1301,3 +1301,21 @@ class TestOpenLigaCompetitions:
         end = datetime.fromisoformat(alerts[0].valid_until)
         # ~1h50 of match plus egress — at 2h the alert died at the final whistle.
         assert end - start == timedelta(hours=3)
+
+
+from pollers import _baustellen_id  # noqa: E402
+
+
+class TestBaustellenId:
+    _START = datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+    def test_uses_city_number(self):
+        assert _baustellen_id({"baustellennummer": "V-2026-00566"}, self._START) == "baustellen-V-2026-00566"
+
+    @pytest.mark.parametrize("number", [None, "", "  "])
+    def test_missing_number_gets_stable_distinct_id(self, number):
+        a = _baustellen_id({"baustellennummer": number, "name": "Hofhausstraße"}, self._START)
+        b = _baustellen_id({"baustellennummer": number, "name": "Am Dornbusch"}, self._START)
+        assert a.startswith("baustellen-x") and "None" not in a
+        assert a != b
+        assert a == _baustellen_id({"name": "Hofhausstraße"}, self._START)
