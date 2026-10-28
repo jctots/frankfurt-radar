@@ -16,11 +16,13 @@ if [ -z "${DEPLOY_SH_REEXECED:-}" ]; then
     exec "$0" "$@"
 fi
 
-echo "==> docker compose down (production profile)"
-docker compose --profile production down
-
+# Pull before down: a failed pull (missing manifest, registry outage) must
+# leave the running stack untouched instead of taking the site offline.
 echo "==> docker compose pull (production profile)"
 docker compose --profile production pull
+
+echo "==> docker compose down (production profile)"
+docker compose --profile production down
 
 echo "==> docker compose up -d (production profile)"
 docker compose --profile production up -d
