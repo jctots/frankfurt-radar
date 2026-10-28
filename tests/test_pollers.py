@@ -450,6 +450,16 @@ class TestStaticEventsPoller:
             m.fromisoformat.side_effect = datetime.fromisoformat
             return poller.fetch()
 
+    def test_per_entry_source_override(self):
+        self._EVENTS = self._EVENTS + [{
+            "name": "Demo", "start": "2026-09-15T14:00:00", "end": "2026-09-15T18:00:00",
+            "source": "strike",
+        }]
+        by_title = {a.title: a for a in self._fetch()}
+        assert by_title["Demo"].source == "strike"
+        assert by_title["Demo"].id == "strike-event-2026-demo"
+        assert by_title["Autumn Dippemess"].source == "events"
+
     def test_active_event_returned(self):
         alerts = self._fetch()
         titles = [a.title for a in alerts]

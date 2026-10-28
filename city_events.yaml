@@ -12,6 +12,8 @@
 #   details : one or two sentences shown in the detail popup (optional)
 #   url     : link shown in the detail popup — use the official event page (optional)
 #   image   : direct upload.wikimedia.org URL for popup photo (optional, CC-licensed)
+#   source  : alert source override (optional) — e.g. "strike" for a demonstration,
+#             so it is filed under Incidents → Strikes instead of Festivals
 
 - name: "Frankfurter Fastnachtsumzug (Carnival Parade)"
   start: "2026-02-15"
@@ -149,6 +151,7 @@
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Frankfurter_Buchmesse_2025_-_Forum.jpg/960px-Frankfurter_Buchmesse_2025_-_Forum.jpg"
 
 - name: "Gen Z Demonstration (\"Gen Z steht auf\")"
+  source: strike
   start: "2026-10-31T14:00:00"
   end: "2026-10-31T18:00:00"
   location: "Mainkai, west of Eiserner Steg"

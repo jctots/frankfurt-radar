@@ -614,9 +614,12 @@ class StaticEventsPoller(BasePoller):
             if not (start - timedelta(days=self.advance_days) <= now <= end):
                 continue
             slug = ev["start"][:4] + "-" + re.sub(r"[^a-z0-9]+", "-", ev["name"].lower()).strip("-")
+            # Per-entry override, e.g. a hand-entered demonstration filed as
+            # "strike" so it sits with incidents rather than festivals.
+            source = ev.get("source") or self._source
             alerts.append(Alert(
-                id=f"{self._source}-event-{slug}",
-                source=self._source,
+                id=f"{source}-event-{slug}",
+                source=source,
                 title=ev["name"],
                 body=ev.get("details", ""),
                 url=ev.get("url"),
