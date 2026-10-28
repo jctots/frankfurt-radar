@@ -2432,10 +2432,12 @@ function renderFeed() {
   // ── Active Alerts (recent + optional long-running, optional future hidden) ──
   const recentAll = visible();
   const recent  = _sortByDate(recentAll.filter(a => showFutureEvents || !isFuture(a)), 'published_at');
-  const _pinnableSrc = s => s === 'events' || s === 'messe' || s === 'sports';
-  const _tomorrow = new Date(); _tomorrow.setDate(_tomorrow.getDate() + 1);
-  const _isTodayOrTomorrow = a => a.valid_from && (new Date(a.valid_from).toDateString() === new Date().toDateString() || new Date(a.valid_from).toDateString() === _tomorrow.toDateString());
-  const _shouldPin = a => _pinnableSrc(a.source) && (!isFuture(a) || _isTodayOrTomorrow(a));
+  const _pinnableSrc = s => s === 'events' || s === 'messe' || s === 'sports' || s === 'strike';
+  // Pin from 2 calendar days before the start (an event on the 31st pins on the 29th).
+  const PIN_DAYS_AHEAD = 2;
+  const _pinCutoff = new Date(); _pinCutoff.setHours(0, 0, 0, 0); _pinCutoff.setDate(_pinCutoff.getDate() + PIN_DAYS_AHEAD + 1);
+  const _startsSoon = a => a.valid_from && new Date(a.valid_from) < _pinCutoff;
+  const _shouldPin = a => _pinnableSrc(a.source) && (!isFuture(a) || _startsSoon(a));
   const pinned  = recent.filter(_shouldPin);
   const regular = recent.filter(a => !_shouldPin(a));
   const longList = showLongRunning ? _sortByDate(visibleLongRunning(), 'published_at') : [];
