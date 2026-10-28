@@ -1612,10 +1612,12 @@ const WEBSITE_DISABLED_DEFAULT = new Set({{ website_disabled_default | tojson }}
 function _srcOn(src) { return !WEBSITE_DISABLED_DEFAULT.has(src); }
 let filters       = (() => {
   try { return JSON.parse(localStorage.getItem('fr_filters')); } catch { return null; }
-})() || { sources: { rmv: _srcOn('rmv'), dwd: _srcOn('dwd'), polizei: _srcOn('polizei'), autobahn: _srcOn('autobahn'), events: _srcOn('events'), sports: _srcOn('sports') }, services: {}, lines: {}, roads: {} };
+})() || { sources: { rmv: _srcOn('rmv'), dwd: _srcOn('dwd'), polizei: _srcOn('polizei'), autobahn: _srcOn('autobahn'), events: _srcOn('events') }, services: {}, lines: {}, roads: {} };
 if (!filters.sources.hasOwnProperty('events'))     filters.sources.events     = _srcOn('events');
-if (!filters.sources.hasOwnProperty('messe'))      filters.sources.messe      = _srcOn('messe');
-if (!filters.sources.hasOwnProperty('sports'))     filters.sources.sports     = _srcOn('sports');
+// Sports and trade fairs are governed by the Events pill + eventTypes; a stored
+// per-source flag from the old separate chips would hide them with no control.
+delete filters.sources.sports;
+delete filters.sources.messe;
 if (!filters.sources.hasOwnProperty('baustellen')) filters.sources.baustellen = _srcOn('baustellen');
 if (!filters.sources.hasOwnProperty('strike'))     filters.sources.strike     = _srcOn('strike');
 if (!filters.sources.hasOwnProperty('feuerwehr'))  filters.sources.feuerwehr  = _srcOn('feuerwehr');
@@ -2978,6 +2980,11 @@ function badge(n) {
   return n ? ` <span class="chip-count">${n}</span>` : '';
 }
 
+// Count badge for a filter-popup row: alerts currently in the feed that match.
+function popupCount(match) {
+  return badge(feedVisible().filter(match).length);
+}
+
 const SVC_ORDER = ['Regional', 'S-Bahn', 'U-Bahn', 'Tram', 'Bus'];
 
 function feedVisible() {
@@ -3037,7 +3044,10 @@ function buildFilterBar() {
   const rmvOn = filters.sources.rmv !== false;
   html += `<button class="chip src-rmv${rmvOn ? ' on' : ''}" onclick="toggleSrc('rmv')">${chk(rmvOn)}${SOURCE.rmv.emoji} ${SOURCE.rmv.label}${badge(counts.rmv)}</button>`;
   if (rmvOn) {
-    const rmv     = sectionAlerts.filter(a => a.source === 'rmv');
+    // From all active alerts, not the filtered feed (same source as the lines
+    // popup): with every line of a service unticked, its alerts are filtered
+    // out and the picker would vanish, leaving no way to tick them back.
+    const rmv     = alerts.filter(a => a.source === 'rmv');
     const rawSvcs = new Set(rmv.filter(a => a.service).map(a => a.service));
     const svcs    = SVC_ORDER.filter(s => rawSvcs.has(s)).concat([...rawSvcs].filter(s => !SVC_ORDER.includes(s)));
     svcs.forEach(svc => {
@@ -3119,7 +3129,7 @@ function openLinesPopup(svc, btn) {
       ${lines.map(l => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.lines[l] !== false ? 'checked' : ''} onchange="toggleLine('${esc(l)}')">
-          ${esc(l)}
+          ${esc(l)}${popupCount(a => a.source === 'rmv' && a.service === svc && (a.lines || []).includes(l))}
         </label>`).join('')}
     </div>`;
 
@@ -3160,7 +3170,7 @@ function setAllLines(svc, val) {
     body.innerHTML = lines.map(l => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.lines[l] !== false ? 'checked' : ''} onchange="toggleLine('${esc(l)}')">
-          ${esc(l)}
+          ${esc(l)}${popupCount(a => a.source === 'rmv' && a.service === svc && (a.lines || []).includes(l))}
         </label>`).join('');
   }
 }
@@ -3170,9 +3180,9 @@ function setAllLines(svc, val) {
 
 // ── Roads popup ───────────────────────────────────────────────────────────────
 const ROAD_TYPES = [
-  { key: 'highways',     label: 'Autobahn', emoji: '⚠️' },
-  { key: 'city_partial', label: 'City - Partial Closure', emoji: '🚧' },
-  { key: 'city_full',    label: 'City - Full Closure', emoji: '🛑' },
+  { key: 'highways',     label: 'Autobahn', emoji: '⚠️', match: a => a.source === 'autobahn' },
+  { key: 'city_partial', label: 'City - Partial Closure', emoji: '🚧', match: a => a.source === 'baustellen' && a.service === 'City (Partial)' },
+  { key: 'city_full',    label: 'City - Full Closure', emoji: '🛑', match: a => a.source === 'baustellen' && a.service === 'City (Full)' },
 ];
 const ROAD_SERVICE_LABEL = {
   'City (Partial)': 'City - Partial Closure',
@@ -3202,7 +3212,7 @@ function openRoadsPopup(btn) {
       ${ROAD_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.roads[t.key] !== false ? 'checked' : ''} onchange="toggleRoad('${t.key}')">
-          ${t.emoji} ${t.label}
+          ${t.emoji} ${t.label}${popupCount(t.match)}
         </label>`).join('')}
     </div>`;
 
@@ -3254,9 +3264,9 @@ function setAllRoads(val) {
 
 // ── Events popup ─────────────────────────────────────────────────────────────
 const EVENT_TYPES = [
-  { key: 'festivals',   label: 'Festivals', emoji: '🎉' },
-  { key: 'trade_fairs', label: 'Trade Fairs', emoji: '🎪' },
-  { key: 'sports',      label: 'Sports', emoji: '⚽' },
+  { key: 'festivals',   label: 'Festivals', emoji: '🎉', match: a => a.source === 'events' },
+  { key: 'trade_fairs', label: 'Trade Fairs', emoji: '🎪', match: a => a.source === 'messe' },
+  { key: 'sports',      label: 'Sports', emoji: '⚽', match: a => a.source === 'sports' },
 ];
 
 function openEventsPopup(btn) {
@@ -3283,7 +3293,7 @@ function openEventsPopup(btn) {
       ${EVENT_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.eventTypes[t.key] !== false ? 'checked' : ''} onchange="toggleEventType('${t.key}')">
-          ${t.emoji} ${t.label}
+          ${t.emoji} ${t.label}${popupCount(t.match)}
         </label>`).join('')}
     </div>`;
 
@@ -3335,9 +3345,9 @@ function setAllEventTypes(val) {
 
 // ── Incidents popup ──────────────────────────────────────────────────────────
 const INCIDENT_TYPES = [
-  { key: 'police',  label: 'Police', emoji: '🚨' },
-  { key: 'strikes', label: 'Strikes', emoji: '🪧' },
-  { key: 'fire',    label: 'Fire', emoji: '🔥' },
+  { key: 'police',  label: 'Police', emoji: '🚨', match: a => a.source === 'polizei' },
+  { key: 'strikes', label: 'Strikes', emoji: '🪧', match: a => a.source === 'strike' },
+  { key: 'fire',    label: 'Fire', emoji: '🔥', match: a => a.source === 'feuerwehr' },
 ];
 
 function openIncidentsPopup(btn) {
@@ -3364,7 +3374,7 @@ function openIncidentsPopup(btn) {
       ${INCIDENT_TYPES.map(t => `
         <label class="lines-popup-item">
           <input type="checkbox" ${filters.incidentTypes[t.key] !== false ? 'checked' : ''} onchange="toggleIncidentType('${t.key}')">
-          ${t.emoji} ${t.label}
+          ${t.emoji} ${t.label}${popupCount(t.match)}
         </label>`).join('')}
     </div>`;
 
