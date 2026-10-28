@@ -116,6 +116,7 @@ def main() -> None:
     services = transport_cfg.get("services") or {}
 
     pollers = []
+    skipped_id_prefixes: tuple[str, ...] = ()
     if transport_cfg.get("enabled", True):
         pollers.append(RMVPoller(api_key=api_key, services=services))
     if config.get("police", {}).get("enabled", False):
@@ -160,7 +161,8 @@ def main() -> None:
             advance_days=advance_days,
             source="sports",
         ))
-        # Network sports pollers run at most once per day
+        # Network sports pollers run at most once per day; on skipped cycles
+        # their cached alerts must not be treated as gone.
         last_sports = get_meta("last_sports_polled_at")
         sports_due = True
         if last_sports:
@@ -179,6 +181,7 @@ def main() -> None:
             set_meta("last_sports_polled_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         else:
             log.info("Sports network pollers skipped — last run %s", last_sports)
+            skipped_id_prefixes = ("ol-", "tm-")
     strike_cfg = config.get("strike", {})
     if strike_cfg.get("enabled", False):
         pollers.append(StrikePoller(
@@ -226,7 +229,8 @@ def main() -> None:
             if a.valid_from and a.valid_from < cutoff:
                 a.stale = True
 
-    sync_alert_cache(all_alerts, config, failed_sources=failed_sources)
+    sync_alert_cache(all_alerts, config, failed_sources=failed_sources,
+                     skipped_id_prefixes=skipped_id_prefixes)
     clear_expired_alerts()
     expire_processed_alerts()
     process_alerts(all_alerts, config=config)

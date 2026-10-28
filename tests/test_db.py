@@ -124,6 +124,19 @@ class TestAlertCache:
         assert rmv_alert.id not in ids
         assert dwd_alert.id in ids
 
+    def test_sync_keeps_alerts_from_skipped_pollers(self, rmv_alert, dwd_alert, mocker, config):
+        # Throttled pollers (OpenLigaDB runs once a day) are absent from most
+        # cycles; their alerts must survive until valid_until, not one cycle.
+        mocker.patch("translation.translate_alert", return_value=("T", "B"))
+        rmv_alert.id = "ol-12345"
+
+        db.sync_alert_cache([rmv_alert, dwd_alert], config)
+        db.sync_alert_cache([dwd_alert], config, skipped_id_prefixes=("ol-", "tm-"))
+
+        ids = [a["id"] for a in db.get_status_json()["alerts"]]
+        assert "ol-12345" in ids
+        assert dwd_alert.id in ids
+
     def test_sync_updates_image_when_changed(self, rmv_alert, mocker, config):
         mocker.patch("translation.translate_alert", return_value=("T", "B"))
         rmv_alert.image = None

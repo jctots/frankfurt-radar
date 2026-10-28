@@ -581,7 +581,8 @@ def _write_translate_debug(debug_data: dict) -> None:
         log.warning("Translate debug log write failed: %s", e)
 
 
-def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | None = None) -> None:
+def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | None = None,
+                     skipped_id_prefixes: tuple[str, ...] = ()) -> None:
     """Translate new alerts and sync the cache to match the current fetch result."""
     from translation import translate_alert, reset_cycle_characters, get_cycle_characters
     reset_cycle_characters()
@@ -789,20 +790,21 @@ def sync_alert_cache(alerts: list, config: dict, *, failed_sources: set[str] | N
             )
         # Mark stale active alerts as removed (keep for rest of day)
         # Skip sources whose poller failed — avoids mass-removing alerts
-        # that are still active but whose fetch timed out.
+        # that are still active but whose fetch timed out. Likewise skip
+        # alerts from throttled pollers that did not run this cycle (e.g.
+        # OpenLigaDB, once a day) — they expire via clear_expired_alerts().
+        where = f"alert_id NOT IN ({ph}) AND removed_at IS NULL"
+        params = list(current_ids)
         if failed_sources:
-            fph = ",".join("?" * len(failed_sources))
-            conn.execute(
-                f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
-                f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL AND source NOT IN ({fph})",
-                current_ids + list(failed_sources)
-            )
-        else:
-            conn.execute(
-                f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
-                f" WHERE alert_id NOT IN ({ph}) AND removed_at IS NULL",
-                current_ids
-            )
+            where += f" AND source NOT IN ({','.join('?' * len(failed_sources))})"
+            params += list(failed_sources)
+        for prefix in skipped_id_prefixes:
+            where += " AND alert_id NOT LIKE ?"
+            params.append(prefix + "%")
+        conn.execute(
+            f"UPDATE alert_cache SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE {where}",
+            params
+        )
         # Delete removed alerts older than cleared_retention_days
         expired = [r[0] for r in conn.execute(
             "SELECT alert_id FROM alert_cache WHERE removed_at IS NOT NULL AND removed_at < ?", (cutoff,)
