@@ -148,6 +148,15 @@
   url: "https://www.buchmesse.de"
   image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Frankfurter_Buchmesse_2025_-_Forum.jpg/960px-Frankfurter_Buchmesse_2025_-_Forum.jpg"
 
+- name: "Gen Z Demonstration (\"Gen Z steht auf\")"
+  start: "2026-10-31T14:00:00"
+  end: "2026-10-31T18:00:00"
+  location: "Mainkai, west of Eiserner Steg"
+  lat: 50.1093
+  lon: 8.6805
+  details: "Youth protest (education, affordable living, against compulsory military service), part of a nationwide action day. Opening rally at 14:00 on the green area on Mainkai west of the Eiserner Steg; 1,700–2,600+ participants expected and a strong police presence announced. March route not yet published — expect closures on Mainkai and tram/bus diversions in the city centre. End time is an estimate."
+  url: "https://www.frankfurter-info.org/termine/demo-gen-z-steht-auf"
+
 - name: "Weihnachtsmarkt (Christmas Market)"
   start: "2026-11-23"
   end: "2026-12-22"
